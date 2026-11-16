@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>blot avatar</title>
+  <meta name="description" content="A 3D body with eyes on its surface, drawn as three SVG paths. It looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. Pure TypeScript, no dependencies.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#FD690F">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#play">Skip to the playground</a>
+
+  <header class="top">
+    <a class="mark" href="#top"><span class="mark-dot" aria-hidden="true"></span>blot avatar</a>
+    <nav aria-label="Sections">
+      <a href="#play">Playground</a>
+      <a href="#moves">Moves</a>
+      <a href="#shapes">Shapes</a>
+      <a href="#use">Use it</a>
+      <a class="gh" href="https://github.com/Blakemagne/blot-avatar">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">An avatar with a body</p>
+        <h1>Eyes on a real 3D shape, drawn as three SVG paths.</h1>
+        <p class="lede">Each body is a few rounded solids. The eyes are patches of its surface, so they lean, thin and slide round the edge as it turns. It follows your pointer, blinks, morphs from one shape to another and plays moves you can write yourself. Pure TypeScript, no dependencies, one frame loop for the whole page.</p>
+        <div class="cta">
+          <a class="button primary" href="#play">Try it</a>
+          <a class="button" href="#use">Put one on your page</a>
+        </div>
+        <p class="motion-note" data-motion-note hidden>Your system asks for reduced motion, so every avatar here is a still picture and the moves are off.</p>
+      </div>
+      <div class="hero-stage">
+        <div class="hero-avatar" data-avatar="hero"></div>
+        <p class="hint" aria-hidden="true">Move your pointer. Click it.</p>
+      </div>
+    </section>
+
+    <section id="play" class="band" aria-labelledby="play-title">
+      <div class="section-head">
+        <h2 id="play-title">Playground</h2>
+        <p>Every control changes one live avatar through <code>mount()</code> and <code>update()</code>. The code beside it is what you would write to get the same one.</p>
+      </div>
+      <div class="play">
+        <div class="stage" data-stage>
+          <div class="stage-avatar" data-avatar="play"></div>
+        </div>
+        <div class="controls">
+          <fieldset>
+            <legend>Shape</legend>
+            <div class="chips" data-choice="shape"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Colour</legend>
+            <div class="swatches" data-choice="color"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Face</legend>
+            <div class="chips" data-choice="face"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Doing</legend>
+            <div class="chips" data-choice="activity"></div>
+            <div class="sub" data-form-row hidden>
+              <span class="sub-label">Turns into</span>
+              <div class="chips" data-choice="form"></div>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Moves</legend>
+            <div class="chips" data-moves></div>
+            <div class="row">
+              <label class="toggle"><input type="checkbox" data-dir> The other way</label>
+              <label class="range">How much <input type="range" min="0.25" max="2" step="0.25" value="1" data-amount><output data-amount-out>1</output></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Size and pointer</legend>
+            <div class="row">
+              <label class="range grow">Size <input type="range" min="22" max="240" step="1" value="180" data-size><output data-size-out>180 px</output></label>
+              <label class="toggle"><input type="checkbox" data-follow checked> Follow the pointer</label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="code-panel play-code">
+          <div class="code-head"><span>Your page</span><button type="button" class="copy" data-copy="play-code">Copy</button></div>
+          <pre><code id="play-code" data-code></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="moves" class="band" aria-labelledby="moves-title">
+      <div class="section-head">
+        <h2 id="moves-title">Moves are data</h2>
+        <p>A move is a clip: a curve over a fixed time that adds to the pose and ends where it began. These cards are built from the package's list of clips, so a new clip shows up here by itself. The last one, the wave, is not in the package at all: this page brings it in through the <code>clips</code> option.</p>
+      </div>
+      <ul class="moves" data-move-cards></ul>
+      <div class="code-panel">
+        <div class="code-head"><span>The wave, written on this page</span><button type="button" class="copy" data-copy="wave-code">Copy</button></div>
+        <pre><code id="wave-code">import { mount, type Clip } from '@blot/avatar';
+
+// A cue is played by name, with a direction (+1 or -1) and an amount (0 to 2).
+// It adds to the pose, and it is nothing at its start and at its end.
+const wave: Clip = {
+  lane: 'cue',
+  ms: 900,
+  apply(o, p) {
+    o.roll += p.cue.dir * p.cue.amount * 0.12 * Math.sin(3 * Math.PI * p.u) * (1 - p.u);
+  },
+};
+
+const bot = mount(el, { shape: 'heart', size: 96, clips: { wave } });
+bot.play('wave', { dir: -1 });</code></pre>
+      </div>
+    </section>
+
+    <section id="shapes" class="band" aria-labelledby="shapes-title">
+      <div class="section-head">
+        <h2 id="shapes-title">Every body</h2>
+        <p>Each body the engine draws, all watching your pointer on one shared frame loop. Click one to poke it, or try it in the playground.</p>
+      </div>
+      <ul class="gallery" data-gallery></ul>
+      <div class="sizes-head">
+        <h3>At every size</h3>
+        <p>One under 48 px is drawn at most 30 times a second and turns only part of the way, so a small one keeps its face. One of 64 px and up takes a full look.</p>
+      </div>
+      <ul class="sizes" data-sizes></ul>
+    </section>
+
+    <section id="use" class="band" aria-labelledby="use-title">
+      <div class="section-head">
+        <h2 id="use-title">Put one on your page</h2>
+        <p>The package is TypeScript source with no dependency, so the page that uses it compiles it: Vite, esbuild, tsx or anything like them.</p>
+      </div>
+      <div class="use">
+        <div class="code-panel">
+          <div class="code-head"><span>Install</span><button type="button" class="copy" data-copy="install-code">Copy</button></div>
+          <pre><code id="install-code">npm install github:Blakemagne/blot-avatar</code></pre>
+        </div>
+        <div class="code-panel">
+          <div class="code-head"><span>Any page, no framework</span><button type="button" class="copy" data-copy="mount-code">Copy</button></div>
+          <pre><code id="mount-code">import { mount } from '@blot/avatar';
+
+const bot = mount(document.getElementById('bot'), {
+  shape: 'heart', size: 96, color: 'tomato',
+  follow: true, pokeable: true, label: 'Ada',
+});
+
+bot.play('bounce');
+bot.update({ activity: 'thinking', face: 'attentive' });
+bot.destroy(); // the element is left as it was found</code></pre>
+        </div>
+        <div class="code-panel">
+          <div class="code-head"><span>React</span><button type="button" class="copy" data-copy="react-code">Copy</button></div>
+          <pre><code id="react-code">import { useLiveAvatar } from '@blot/avatar/react';
+import { svgBox } from '@blot/avatar';
+
+export function Avatar({ size = 72 }) {
+  const { host, paths, first } = useLiveAvatar({ shape: 'star', size, follow: true });
+  const box = svgBox(size);
+  return (
+    &lt;span ref={host} style={{ position: 'relative', display: 'inline-block', width: size, height: size }}&gt;
+      &lt;svg width={box.width} height={box.height} viewBox={box.viewBox} aria-hidden
+        style={{ position: 'absolute', left: box.left, top: box.top, overflow: 'visible' }}&gt;
+        &lt;path ref={paths[0]} d={first.body} fill="#FD690F" /&gt;
+        &lt;path ref={paths[1]} d={first.eyes[0]} fill="#fff" /&gt;
+        &lt;path ref={paths[2]} d={first.eyes[1]} fill="#fff" /&gt;
+      &lt;/svg&gt;
+    &lt;/span&gt;
+  );
+}</code></pre>
+        </div>
+        <div class="rules">
+          <h3>What it promises</h3>
+          <ul>
+            <li><strong>One frame loop.</strong> However many avatars a page has, they share one <code>requestAnimationFrame</code>.</li>
+            <li><strong>Nothing drawn that nobody sees.</strong> Off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
+            <li><strong>Reduced motion respected.</strong> Under it every avatar is a still picture and moves do nothing.</li>
+            <li><strong>Deterministic.</strong> The same seed and the same steps draw the same paths, bit for bit. A frozen hash of every frame guards that.</li>
+            <li><strong>Paths, not pixels.</strong> Each frame is three SVG path strings, the body and two eyes. Colour them with any CSS.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Made for <strong>blot</strong>, by Blakemagne. MIT licensed.</p>
+    <p><a href="https://github.com/Blakemagne/blot-avatar">Source</a> · <a href="https://github.com/Blakemagne/blot-avatar#readme">README</a> · <a href="https://github.com/Blakemagne/blot-avatar/blob/main/LICENSE">Licence</a></p>
+  </footer>
+</body>
+</html>

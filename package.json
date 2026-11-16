@@ -1,0 +1,39 @@
+{
+  "name": "@blot/avatar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A 3D body with eyes on its surface, drawn as three SVG paths, and the clips that move it. No dependencies.",
+  "license": "MIT",
+  "author": "Blakemagne",
+  "repository": { "type": "git", "url": "git+https://github.com/Blakemagne/blot-avatar.git" },
+  "homepage": "https://blakemagne.github.io/blot-avatar/",
+  "keywords": ["avatar", "svg", "animation", "mascot", "3d"],
+  "engines": { "node": ">=22" },
+  "files": ["src", "!src/**/*.test.mjs", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p site/tsconfig.json --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.mjs\"",
+    "golden": "node --import tsx golden/check.mjs",
+    "site": "node --import tsx scripts/build-site.mjs",
+    "site:dev": "node --import tsx scripts/build-site.mjs --serve"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "esbuild": "^0.23.1",
+    "react": "^18.3.1",
+    "tsx": "^4.19.2",
+    "typescript": "^7.0.2"
+  }
+}
