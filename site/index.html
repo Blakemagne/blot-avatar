@@ -35,7 +35,7 @@
           <a class="button primary" href="#play">Try it</a>
           <a class="button" href="#use">Put one on your page</a>
         </div>
-        <p class="motion-note" data-motion-note hidden>Your system asks for reduced motion, so every avatar here is a still picture and the moves are off.</p>
+        <p class="motion-note" data-motion-note hidden>Your system asks for reduced motion, so every avatar here is a still picture, facing front: moves, faces, activities and following are not shown.</p>
       </div>
       <div class="hero-stage">
         <div class="hero-avatar" data-avatar="hero"></div>
@@ -64,13 +64,14 @@
           <fieldset>
             <legend>Face</legend>
             <div class="chips" data-choice="face"></div>
+            <p class="sub-label note" data-face-note hidden>A face is worn when idle; while busy, the activity has its own.</p>
           </fieldset>
           <fieldset>
             <legend>Doing</legend>
             <div class="chips" data-choice="activity"></div>
             <div class="sub" data-form-row hidden>
-              <span class="sub-label">Turns into</span>
-              <div class="chips" data-choice="form"></div>
+              <span class="sub-label" id="form-label">Turns into</span>
+              <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
             </div>
           </fieldset>
           <fieldset>

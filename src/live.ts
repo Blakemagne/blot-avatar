@@ -59,9 +59,9 @@ export interface Live {
 /** Below this size an avatar is drawn at most 30 times a second. */
 export const SMALL = 48;
 /**
- * From this size up an avatar turns its head properly: the hero of an empty chat (72), the details panel (64)
- * and the pickers' previews (96, 72). It turns all the way for a pointer NEAR px off, so moving the pointer
- * across the chat takes it from one full look to the other. On the way it turns quickly at first and then
+ * From this size up an avatar turns its head properly (in blot: 64 to 96 px, a hero, a details panel, a picker's
+ * preview). It turns all the way for a pointer NEAR px off, so moving the pointer across the page takes it from
+ * one full look to the other. On the way it turns quickly at first and then
  * more slowly (`eased`): a hand's width away it is plainly turning, and it is in profile only for a pointer
  * that really is far off, not for most places a pointer rests.
  */

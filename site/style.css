@@ -9,7 +9,7 @@
   --line: #e2ded6;
   --accent: #fd690f;
   --accent-ink: #b8430a;
-  --on-accent: #ffffff;
+  --on-accent: #1b1b1f;
   --code-bg: #1d1d22;
   --code-ink: #ecebe8;
   --code-dim: #9a99a3;
@@ -31,7 +31,7 @@
     --line: #2c2c33;
     --accent: #fd690f;
     --accent-ink: #ff8a45;
-    --on-accent: #ffffff;
+    --on-accent: #1b1b1f;
     --code-bg: #0c0c0f;
     --code-ink: #ecebe8;
     --code-dim: #8d8c96;
@@ -45,7 +45,11 @@
 [hidden] { display: none !important; }
 
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .hint { display: none; }
+  .hero-avatar, .stage-avatar, .gallery-avatar { cursor: default; }
+}
 
 body {
   margin: 0;
@@ -167,6 +171,8 @@ legend { font-size: 13px; font-weight: 650; color: var(--muted); text-transform:
 .chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .sub-label { font-size: 14px; color: var(--muted); }
+.note { margin: 10px 0 0; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 10px; }
 .toggle, .range { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .range.grow { flex: 1 1 220px; }
@@ -178,7 +184,7 @@ input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .swatch {
   width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0;
-  background: var(--swatch); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line);
+  background: var(--swatch); border: 2px solid var(--surface); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 50%, var(--surface));
 }
 .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
 .picker { width: 38px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 2px; cursor: pointer; }

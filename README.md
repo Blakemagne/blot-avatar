@@ -4,7 +4,7 @@ The avatar of blot's Bots, as a package anyone can use. The demo page in `site/`
 
 A body is a real 3D shape made of a few rounded solids. The eyes are patches of its surface, so they lean, thin and go round the edge with it. The package turns a body, a pose and a face into three SVG path strings: the body and two eyes.
 
-It is pure TypeScript with no dependency. The engine has no DOM and runs the same in node and in a browser. React is an optional peer, needed only for `@blot/avatar/react`. There is no build step: the package is source, and whoever uses it compiles it (Vite, esbuild, tsx).
+It is pure TypeScript with no dependency. The engine has no DOM and runs the same in node and in a browser. React is an optional peer, needed only for `@blot/avatar/react`. There is no build step: the package is source, and whoever uses it compiles it (Vite, esbuild, tsx). A project that type-checks it needs `lib` ES2022 or later and `moduleResolution: "bundler"`, as in this package's own `tsconfig.json`; your compiler flags apply to it too.
 
 ```
 npm install github:Blakemagne/blot-avatar
@@ -69,7 +69,7 @@ The tilt is a cue: the head leans over ("hm?"), holds, and comes back.
    export const TILT_MS = 1100, TILT_ROLL = deg(10);
    ```
 
-2. **Add the clip** at the end of `CLIPS`. Never in the middle, and never move a key: the pokes play in key order and the golden frames depend on it.
+2. **Add the clip** at the end of `CLIPS`, and its name at the end of the type written on `CLIPS` (`readonly tilt: Clip;`). Never in the middle, and never move a key: the pokes play in key order and the golden frames depend on it.
 
    ```ts
    tilt: {
@@ -229,7 +229,7 @@ These look like mistakes and are not. Do not undo them.
 
 `site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script and a favicon the engine draws. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
 
-`.github/workflows/pages.yml` builds and publishes it on every push to `main`. To turn it on: Settings, Pages, Source: GitHub Actions. GitHub serves Pages from a private repository only on a paid plan; on a free account it starts working when the repository is public.
+`.github/workflows/pages.yml` checks, builds and publishes it on every push to `main`, but only while the repository is public: a Pages site is public even when its repository is private, and on a free account GitHub does not serve Pages from a private repository at all. While the repository is private the workflow skips itself. When it is made public, turn Pages on (Settings, Pages, Source: GitHub Actions) and the next push publishes it.
 
 ## Licence
 

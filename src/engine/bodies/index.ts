@@ -37,7 +37,7 @@ export const SAME_BODY: Record<string, string> = {
 /** The id of the body a shape is drawn with: its own, or the one it shares. */
 export const bodyId = (shape: string): string => (Object.hasOwn(SAME_BODY, shape) ? SAME_BODY[shape] : shape);
 
-/** The body for a shape id. Every one of blot's 25 shape ids has one; an unknown id has none. */
+/** The body for a shape id. Every id in BODIES and SAME_BODY (25 in all) has one; an unknown id has none. */
 export function bodyFor(shape: string): Body | undefined {
   const id = bodyId(shape);
   return Object.hasOwn(BODIES, id) ? BODIES[id] : undefined;

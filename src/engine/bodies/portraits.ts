@@ -1,4 +1,4 @@
-// The portrait pose: the slightly tilted, three-quarter view a shape takes in the Create Bot picker and in
+// The portrait pose: the slightly tilted, three-quarter view a shape takes in a picker and in
 // still avatars. Each shape has its own, so a row of them does not look stamped; every one keeps both eyes
 // clearly readable. The turn is small on purpose: a still avatar is often 24 px, and there a far eye that
 // has started round the edge is one pale pixel on the rim.

@@ -1064,7 +1064,7 @@ test('a rig at rest does not change the picture: nothing here makes a still avat
 });
 
 test('a second change of shape early in the first keeps the eyes on the body they are on', () => {
-  // The Create Bot preview: 96 px, looking fully aside, and two picks in quick succession.
+  // A 96 px preview, looking fully aside, and two picks in quick succession.
   const SIZE = 96, PX = 2 / SIZE;
   /** How far outside the drawn outline the worst eye point is, in px. */
   const outside = (rig) => {

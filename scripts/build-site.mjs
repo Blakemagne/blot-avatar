@@ -2,7 +2,8 @@
 // disk (one classic script, every path relative, so it works under /blot-avatar/ as well as at a root).
 //   npm run site            build once
 //   npm run site:dev        build, rebuild on change, and serve on http://localhost:5300
-// Run through tsx (the npm scripts do), because the favicon is drawn by the engine itself.
+// Run through tsx (the npm scripts do), because the favicon is drawn by the engine itself. site:dev draws it once,
+// at start: restart it to see an engine change in the favicon.
 
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { watch } from 'node:fs';

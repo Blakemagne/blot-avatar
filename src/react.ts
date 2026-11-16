@@ -13,8 +13,8 @@ import { onMotion, reducedMotion } from './ticker';
  * paths in place, with no render per frame. `reduced` is the person's reduced-motion setting, read live.
  */
 export function useLiveAvatar(p: LiveProps): {
-  host: RefObject<HTMLSpanElement>;
-  paths: readonly [RefObject<SVGPathElement>, RefObject<SVGPathElement>, RefObject<SVGPathElement>];
+  host: RefObject<HTMLSpanElement | null>;
+  paths: readonly [RefObject<SVGPathElement | null>, RefObject<SVGPathElement | null>, RefObject<SVGPathElement | null>];
   first: Drawing;
   reduced: boolean;
   live: Live;
@@ -31,7 +31,7 @@ export function useLiveAvatar(p: LiveProps): {
   live.want(p);
   const shape = bodyOf(p.shape);
 
-  // In the order the effects of LiveAvatar were declared, so that React runs them in the same order.
+  // In the order live.ts expects (attach first, then motion, follow, shape, face, doing), which React keeps.
   useEffect(() => (host.current ? live.attach(host.current, (d) => {
     body.current?.setAttribute('d', d.body);
     left.current?.setAttribute('d', d.eyes[0]);

@@ -1,6 +1,8 @@
 name: Pages
 
 # Builds the demo page and publishes it. Turn it on in Settings, Pages, Source: GitHub Actions.
+# A Pages site is public even when its repository is private, so while the repository is private this skips
+# itself, and starts publishing by itself the day it is made public.
 on:
   push:
     branches: [main]
@@ -17,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +28,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run golden
       - run: npm run site
       - uses: actions/upload-pages-artifact@v3
         with:

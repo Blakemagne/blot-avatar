@@ -110,9 +110,17 @@ const changed = (): void => { bot.update(options()); writeCode(); };
 const syncShape = chips($('[data-choice="shape"]'), SHAPES, () => pg.shape, (v) => { pg.shape = v ?? 'blob'; changed(); });
 chips($('[data-choice="face"]'), FACE_NAMES, () => pg.face, (v) => { pg.face = v ?? 'neutral'; changed(); });
 const formRow = $('[data-form-row]');
+// A face is worn when idle: busy, the activity has its own. So the face chips wait until it is idle again,
+// and the avatar never shows a face the code beside it would not give.
+const faces = (): void => {
+  const busy = pg.activity !== 'idle';
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-choice="face"] .chip')) b.disabled = busy;
+  $('[data-face-note]').hidden = !busy;
+};
 chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => {
   pg.activity = v ?? 'idle';
   formRow.hidden = !BUSY.has(pg.activity);
+  faces();
   changed();
 });
 chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; changed(); });
@@ -160,6 +168,9 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
   follow.addEventListener('change', () => { pg.follow = follow.checked; changed(); });
 }
 
+/** The wave's definition as the page shows it under "Moves are data", for code that plays the wave. */
+const waveSource = ((t) => t.slice(t.indexOf('const wave'), t.indexOf('\n};', t.indexOf('const wave')) + 3))($('#wave-code').textContent ?? '');
+
 /** The code for the playground's avatar as it is now. */
 function writeCode(): void {
   const o: string[] = [`shape: '${pg.shape}'`, `size: ${pg.size}`];
@@ -172,8 +183,7 @@ function writeCode(): void {
   if (pg.last?.here) o.push('clips: { wave }');
   const lines: string[] = [];
   for (let i = 0; i < o.length; i += 3) lines.push(`  ${o.slice(i, i + 3).join(', ')},`);
-  let text = `import { mount } from '@blot/avatar';\n`;
-  if (pg.last?.here) text += `// wave: the clip under "Moves are data"\n`;
+  let text = pg.last?.here ? `import { mount, type Clip } from '@blot/avatar';\n\n${waveSource}\n` : `import { mount } from '@blot/avatar';\n`;
   text += `\nconst bot = mount(document.getElementById('bot'), {\n${lines.join('\n')}\n});\n`;
   const m = pg.last;
   if (m) {
@@ -219,6 +229,8 @@ writeCode();
     pick.setAttribute('aria-label', `Try ${shape} in the playground`);
     pick.addEventListener('click', () => {
       pg.shape = shape; syncShape(); changed();
+      // Focus goes to the chip that now shows the choice, so a keyboard or a screen reader follows the scroll.
+      $<HTMLButtonElement>('[data-choice="shape"] [aria-pressed="true"]').focus({ preventScroll: true });
       $('#play').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
     });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: shape }), pick));
@@ -235,21 +247,29 @@ writeCode();
 
 // ---- Copy buttons.
 
+/** Where a copy's result is said, for a screen reader. */
+const said = make('span', { className: 'vh' });
+said.setAttribute('aria-live', 'polite');
+document.body.append(said);
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
   b.addEventListener('click', async () => {
     const code = document.getElementById(b.dataset.copy ?? '');
     if (!code) return;
+    said.textContent = '';
     try {
       await navigator.clipboard.writeText(code.textContent ?? '');
       b.textContent = 'Copied';
+      said.textContent = 'Copied';
     } catch {
       // No clipboard (a plain-http page, or a browser that says no): select it, for a copy by hand.
       getSelection()?.selectAllChildren(code);
-      b.textContent = 'Selected';
+      b.textContent = 'Press Ctrl+C';
+      said.textContent = 'Selected. Press Ctrl+C to copy.';
     }
     setTimeout(() => { b.textContent = 'Copy'; }, 1600);
   });
 }
 
+faces();
 still();
 onMotion(still);
