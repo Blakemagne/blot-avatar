@@ -4,9 +4,10 @@
 
 import {
   ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, POKES,
-  mount, onMotion, reducedMotion,
+  colours, mount, onMotion, reducedMotion,
   type Clip, type MountOptions, type Mounted,
 } from '../src/index';
+import { colorPicker, contrast } from './picker';
 
 /** The move this page adds through the `clips` option: a rock from side to side. The same text is on the page. */
 const wave: Clip = {
@@ -44,6 +45,12 @@ const COLOURS: [string, string][] = [
   ['#F2B61C', 'Yellow'], ['#E2416B', 'Pink'], ['#24242A', 'Ink'], ['#F1EEE8', 'Paper'],
 ];
 const DEFAULT_COLOUR = '#FD690F';
+/** Eye colours to start from. With none picked the eyes are automatic: white, or dark on a pale body. */
+const EYES: [string, string][] = [
+  ['#FFFFFF', 'White'], ['#1C1C1C', 'Ink'], ['#FFD23F', 'Gold'], ['#7FE3FF', 'Ice'], ['#FF5C8A', 'Pink'], ['#3DDC84', 'Mint'],
+];
+/** Below this contrast with the body, the eyes are hard to make out. */
+const FAINT = 1.6;
 const SHAPES = Object.keys(BODIES);
 /** Forms are what the body turns into while it thinks or works; they mean nothing otherwise. */
 const BUSY = new Set(['thinking', 'working']);
@@ -83,11 +90,11 @@ matchMedia('(max-width: 720px)').addEventListener('change', () => hero.update({ 
 // ---- The playground.
 
 const pg = {
-  shape: 'heart', color: DEFAULT_COLOUR, face: 'neutral', activity: 'idle', form: null as string | null,
+  shape: 'heart', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
   size: 180, follow: true, dir: 1, amount: 1, last: null as Move | null,
 };
 const options = (): MountOptions => ({
-  shape: pg.shape, size: pg.size, color: pg.color, face: pg.face, activity: pg.activity,
+  shape: pg.shape, size: pg.size, color: pg.color, eyeFill: pg.eyes ?? undefined, face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow,
 });
 const bot = mount($('[data-avatar="play"]'), { ...options(), pokeable: true, label: 'the playground avatar', seed: 7, clips });
@@ -125,23 +132,28 @@ chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => {
 });
 chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; changed(); });
 
-// Colours: the swatches, and any colour at all.
+// Colours: the body's and the eyes', each a row of swatches and a panel for any colour at all. Each panel has a
+// little avatar in the colours so far, for a phone where the playground's is off screen.
 {
-  const box = $('[data-choice="color"]');
-  const swatches = COLOURS.map(([hex, name]) => {
-    const b = make('button', { type: 'button', className: 'swatch', title: name });
-    b.style.setProperty('--swatch', hex);
-    b.setAttribute('aria-label', name);
-    b.addEventListener('click', () => { pg.color = hex; picker.value = hex; changed(); sync(); });
-    box.append(b);
-    return b;
+  const previews: Mounted[] = [];
+  const faint = $('[data-eye-note]');
+  const paint = (): void => {
+    for (const p of previews) p.update({ color: pg.color, eyeFill: pg.eyes ?? undefined });
+    // The eyes as drawn: the picked colour, or the automatic one.
+    faint.hidden = contrast(pg.color, pg.eyes ?? colours(pg.color).eyeFill) >= FAINT;
+    changed();
+  };
+  const body = colorPicker($('[data-picker="body"]'), {
+    label: 'Body colour', value: pg.color, presets: COLOURS,
+    onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; paint(); },
   });
-  const picker = make('input', { type: 'color', value: DEFAULT_COLOUR, className: 'picker', title: 'Any colour' });
-  picker.setAttribute('aria-label', 'Any colour');
-  picker.addEventListener('input', () => { pg.color = picker.value.toUpperCase(); changed(); sync(); });
-  box.append(picker);
-  const sync = (): void => swatches.forEach((b, i) => b.setAttribute('aria-pressed', String(COLOURS[i][0] === pg.color)));
-  sync();
+  const eyes = colorPicker($('[data-picker="eyes"]'), {
+    label: 'Eye colour', value: pg.eyes, presets: EYES, auto: 'Auto', start: '#FFFFFF',
+    onInput: (v) => { pg.eyes = v; paint(); },
+  });
+  for (const [i, p] of [body, eyes].entries()) {
+    previews.push(mount(p.preview, { shape: 'blob', size: 40, color: pg.color, seed: 300 + i }));
+  }
 }
 
 // Moves.
@@ -175,6 +187,7 @@ const waveSource = ((t) => t.slice(t.indexOf('const wave'), t.indexOf('\n};', t.
 function writeCode(): void {
   const o: string[] = [`shape: '${pg.shape}'`, `size: ${pg.size}`];
   if (pg.color !== DEFAULT_COLOUR) o.push(`color: '${pg.color}'`);
+  if (pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);

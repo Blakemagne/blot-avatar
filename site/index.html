@@ -58,8 +58,13 @@
             <div class="chips" data-choice="shape"></div>
           </fieldset>
           <fieldset>
-            <legend>Colour</legend>
-            <div class="swatches" data-choice="color"></div>
+            <legend>Body colour</legend>
+            <div data-picker="body"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Eye colour</legend>
+            <div data-picker="eyes"></div>
+            <p class="sub-label note" data-eye-note hidden>These eyes barely show on this body. Pick an eye colour further from it.</p>
           </fieldset>
           <fieldset>
             <legend>Face</legend>
@@ -150,7 +155,7 @@ bot.play('wave', { dir: -1 });</code></pre>
           <pre><code id="mount-code">import { mount } from '@blot/avatar';
 
 const bot = mount(document.getElementById('bot'), {
-  shape: 'heart', size: 96, color: 'tomato',
+  shape: 'heart', size: 96, color: 'tomato', eyeFill: '#FFF4D6',
   follow: true, pokeable: true, label: 'Ada',
 });
 
@@ -185,7 +190,7 @@ export function Avatar({ size = 72 }) {
             <li><strong>Nothing drawn that nobody sees.</strong> Off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
             <li><strong>Reduced motion respected.</strong> Under it every avatar is a still picture and moves do nothing.</li>
             <li><strong>Deterministic.</strong> The same seed and the same steps draw the same paths, bit for bit. A frozen hash of every frame guards that.</li>
-            <li><strong>Paths, not pixels.</strong> Each frame is three SVG path strings, the body and two eyes. Colour them with any CSS.</li>
+            <li><strong>Paths, not pixels.</strong> Each frame is three SVG path strings, the body and two eyes. Colour each with any CSS: <code>color</code> for the body, <code>eyeFill</code> for the eyes.</li>
           </ul>
         </div>
       </div>

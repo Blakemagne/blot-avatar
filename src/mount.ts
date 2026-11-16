@@ -9,8 +9,9 @@ import { onMotion, reducedMotion } from './ticker';
 export interface MountOptions extends LiveProps {
   /** '#rrggbb' or any CSS colour (default '#FD690F'). The eyes are drawn in a colour that stands out on it. */
   color?: string;
-  /** Explicit CSS fills, over what `color` gives, e.g. 'var(--ink)'. */
+  /** The body's fill as any CSS value, over `color`, e.g. 'var(--ink)'. */
   fill?: string;
+  /** The eyes' colour, any CSS value. Unset, they are dark on a pale '#rrggbb' `color` and white on anything else. */
   eyeFill?: string;
   /** A click, a tap, Enter or Space pokes it (not under reduced motion: nothing would happen). */
   pokeable?: boolean;
