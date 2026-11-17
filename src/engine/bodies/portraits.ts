@@ -26,6 +26,7 @@ const PORTRAITS: Record<string, Pose> = {
   star: pose(-16, 8, 9),
   hex: pose(16, 10, 7),
   pebble: pose(-18, 8, -7),
+  pentagon: pose(18, 8, -6),
 };
 
 /** The portrait pose for a shape id. A fresh object each call: the caller may change it. */

@@ -10,6 +10,7 @@ import { heart } from './heart';
 import { hex } from './hex';
 import { house } from './house';
 import { pebble } from './pebble';
+import { pentagon } from './pentagon';
 import { sparkle } from './sparkle';
 import { square } from './square';
 import { star } from './star';
@@ -19,7 +20,7 @@ import { wedge } from './wedge';
 export const BODIES: Record<string, Body> = {
   blob, cloud, square, sparkle, clover, heart, flower, teardrop,
   tablet: capsule,
-  wedge, house, star, hex, pebble,
+  wedge, house, star, hex, pebble, pentagon,
 };
 
 /**
@@ -37,7 +38,7 @@ export const SAME_BODY: Record<string, string> = {
 /** The id of the body a shape is drawn with: its own, or the one it shares. */
 export const bodyId = (shape: string): string => (Object.hasOwn(SAME_BODY, shape) ? SAME_BODY[shape] : shape);
 
-/** The body for a shape id. Every id in BODIES and SAME_BODY (25 in all) has one; an unknown id has none. */
+/** The body for a shape id. Every id in BODIES and SAME_BODY (26 in all) has one; an unknown id has none. */
 export function bodyFor(shape: string): Body | undefined {
   const id = bodyId(shape);
   return Object.hasOwn(BODIES, id) ? BODIES[id] : undefined;

@@ -91,6 +91,8 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     }
     const box = size(polys);
     assert.ok(Math.abs(box.cx) < 1e-6, `${id}: off centre by ${box.cx}`);
+    // And upright in the middle of its box, so it turns in place; this holds the bodies that have no flat drawing too.
+    assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
     // Turning left is the mirror image of turning right.
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
     assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.cx + b.cx) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${id}: turned`);
@@ -179,7 +181,7 @@ test('turned 30 degrees, the near eye is at least as big as the far eye; both wa
   });
   // On the bodies with a face that swells forward, the difference is plain to see. (A third bigger, no more:
   // a face steep enough for one and a half left the far eye a hairline at the full look. See the next test.)
-  for (const id of ['blob', 'cloud', 'square', 'sparkle', 'clover', 'flower', 'teardrop', 'house', 'star', 'hex', 'pebble']) {
+  for (const id of ['blob', 'cloud', 'square', 'sparkle', 'clover', 'flower', 'teardrop', 'house', 'star', 'hex', 'pebble', 'pentagon']) {
     const [near, far] = eyes(BODIES[id], 30);
     assert.ok(near > far * 1.3, `${id}: near ${near}, far ${far}`);
   }
@@ -218,7 +220,7 @@ test('held anywhere in a look, the far eye is an eye or is leaving at the rim: n
       }
     }
     // On a body whose face is not its outline, both eyes are still there, whole, at the full look.
-    if (['square', 'house', 'hex', 'star', 'sparkle', 'flower', 'clover', 'cloud'].includes(id)) {
+    if (['square', 'house', 'hex', 'pentagon', 'star', 'sparkle', 'flower', 'clover', 'cloud'].includes(id)) {
       for (const way of [1, -1]) {
         const shapes = eyeShapes(body, still(way * yawMost, 0, 0, way, 0), 110);
         assert.ok(shapes[0].length === 1 && shapes[1].length === 1, `${id}: an eye is cut or gone at the full look`);
@@ -325,7 +327,7 @@ test('the star, the sparkle, the flower, the clover and the cloud are still them
 });
 
 test('turned 60 degrees a block shows its own outline: the ridge on its face stays inside it', () => {
-  for (const id of ['square', 'house', 'hex']) {
+  for (const id of ['square', 'house', 'hex', 'pentagon']) {
     const body = BODIES[id];
     // The ridge is the spheres on the middle line that stand furthest forward (and back); the block is the rest.
     const deep = Math.max(...body.pieces[0].map((s) => s[2]));
