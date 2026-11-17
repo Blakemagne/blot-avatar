@@ -1,7 +1,7 @@
 // Every body of the Bot's avatar. Run with: npm test
 //
 // engine.test.mjs holds the engine to what a person should see on the three bodies it was built on. This file
-// holds every body to the same: from the front it is the flat shape it replaces, its eyes rest centred and
+// holds every body to the same: from the front it is the flat shape it replaces (if it replaced one), its eyes rest centred and
 // level on a smooth part of the surface that faces forward, the near eye is the bigger one when it turns, the
 // far eye goes round the edge and is gone by side on, no eye is ever drawn off the body, and in no pose a look
 // can hold is the far eye a line with body showing beyond it.
