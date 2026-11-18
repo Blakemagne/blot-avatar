@@ -31,32 +31,32 @@ const HEAD: Piece = box(HW, MID_Y - HH, MID_Y + HH, HZ, HR);
 const MM = (2 * (HW + HR)) / 150;
 
 /**
- * Its colours: black antennas, a grey frame round each lens so the frame reads apart from the glass, the black
- * glasses holder for the bridge, and the camera between the lenses, a grey housing round black glass. The
- * glass of the lenses themselves (the eyes) is JACRISPY_EYE. A renderer may paint any of these over.
+ * Its colours: black antennas, a solid black frame round each lens, the black glasses holder for the bridge
+ * with the camera set into it, and smoked glass, a see-through black a shade lighter than the frames, in the
+ * camera as in the lenses (the eyes, JACRISPY_EYE). A renderer may paint any of these over.
  */
-export const JACRISPY_PAINT = { antenna: '#141414', rim: '#7A7A7A', bridge: '#141414', camera: '#7A7A7A', glass: '#161616' } as const;
+export const JACRISPY_PAINT = { antenna: '#111111', rim: '#111111', bridge: '#111111', camera: '#111111', glass: '#2E3238' } as const;
 /** The colour to draw its body in: the white of its shell. */
 export const JACRISPY_COLOUR = '#F4F2EC';
-/** The colour to draw its eyes in: his lenses, black as on the station's icon and the stickers. */
-export const JACRISPY_EYE = '#161616';
+/** The colour to draw its eyes in: the smoked glass of his lenses, lighter than their black frames. */
+export const JACRISPY_EYE = '#2E3238';
 
 /**
  * What makes a face his, measured from the Reachy Mini's model (mm, its head 150 wide). The lenses, with their
  * frames: 41 and 32 across, the frame a ring 5 mm wide round the glass (a little wider than on the robot, so
  * it reads at avatar size). The glasses holder shows as a bar between them at their middle height; drawn a
- * sixth as tall as a lens. The camera sits in the middle of it: a housing 15 across round glass 7 across (a little bigger than on the robot).
+ * sixth as tall as a lens. The camera is set into the middle of it: the holder swells to 10 across round the camera's glass, 6 across.
  * Each antenna: a rod about 4 across, a spring 10 across wound round it from 11 mm to 43 mm above the head,
  * and a cap on its tip.
  */
-const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 15, CAMERA_GLASS = 7, CAP = 5;
+const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 10, CAMERA_GLASS = 6, CAP = 5;
 
 export interface FaceOptions {
   /** A frame round each lens, in the rim colour (default on). */
   rims?: boolean;
   /** The bar between the lenses (default on). */
   bridge?: boolean;
-  /** The camera in the middle of the bar (default on). */
+  /** The camera set into the middle of the bar (default on). */
   camera?: boolean;
   /** The two antennas (default on). */
   antennas?: boolean;
