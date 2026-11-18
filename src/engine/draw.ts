@@ -217,9 +217,11 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
   // wears the eyes. None of it on a body that has none, so no other body's frames change.
   const layers: Piece[] = [];
   const grow = fig ? 1 - fig.k : 1, k = morph ? smooth(morph.k) : 1;
-  if (body.antennas && k * grow > 0.02) stalks(body, state, d.rim, k * grow, layers);
+  // (No stalk thinner than STALK_PX across, so a small drawing still shows them: half the drawing is size / 2 px.)
+  const least = STALK_PX / size;
+  if (body.antennas && k * grow > 0.02) stalks(body, state, d.rim, k * grow, least, layers);
   const from = morph ? leaf(morph.from) : null;
-  if (from && from !== body && from.antennas && (1 - k) * grow > 0.02) stalks(from, state, d.rim, (1 - k) * grow, layers);
+  if (from && from !== body && from.antennas && (1 - k) * grow > 0.02) stalks(from, state, d.rim, (1 - k) * grow, least, layers);
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 
   // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, the mirror flip.
@@ -239,6 +241,9 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
 /** A layer before it is a path: screen polygons, and what it is. */
 interface Piece { id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
 
+/** The thinnest an antenna's stalk is drawn, in pixels across. */
+const STALK_PX = 1.4;
+
 /** Body colours for a key the body does not paint. */
 const UNPAINTED = '#1C1C1C';
 
@@ -246,9 +251,9 @@ const UNPAINTED = '#1C1C1C';
  * The antennas of `of`, grown to `grow`, into `out`: each in front of the body when its base is nearer the
  * camera than the middle of the body at that height (turned side on, the near one), behind it otherwise.
  */
-function stalks(of: Body, state: RigState, rim: number, grow: number, out: Piece[]): void {
+function stalks(of: Body, state: RigState, rim: number, grow: number, least: number, out: Piece[]): void {
   const a = of.antennas!, swing = state.antennas ?? [0, 0];
-  const [left, right] = antennaPieces(a, swing, grow);
+  const [left, right] = antennaPieces(a, swing, grow, least);
   const fill = of.paint?.[a.paint] ?? UNPAINTED;
   [left, right].forEach((pieces, i) => {
     const [p, j] = pieces[0];
@@ -265,7 +270,14 @@ function stalks(of: Body, state: RigState, rim: number, grow: number, out: Piece
  * keeps to its size for a face that draws the eyes wider, growing only as the square root of that, so a rim
  * stays a rim round a wide eye and two of them do not run together.
  */
-function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: number; cv: number; sx: number; sy: number } {
+function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: number; cv: number; sx: number; sy: number; w: number } {
+  if (dc.eye === 'both') {
+    // Halfway between the two eyes, as big as they are on average; a span reaches from one's middle to the
+    // other's. (Each is placed as an eye's own rim would be, so a span's ends stay under the rims.)
+    const l = behindEye(of, { ...dc, eye: 'left', w: of.eyes.w }, state, size), r = behindEye(of, { ...dc, eye: 'right', w: of.eyes.w }, state, size);
+    const k = Math.min(l.sy, r.sy);
+    return { cu: (l.cu + r.cu) / 2, cv: (l.cv + r.cv) / 2, sx: k, sy: k, w: dc.span ? r.cu - l.cu + dc.w * k : dc.w * k };
+  }
   const e = of.eyes, boost = detail(size).boost, side = dc.eye === 'left' ? -1 : 1, i = side < 0 ? 0 : 1;
   const own = e.sizes ? e.sizes[i] : 1, f = state.face;
   const k = boost * own * Math.sqrt(Math.max(1, f.width * (1 + side * f.uneven))) * (state.eyeScale ?? 1) * (1 - (state.dot ?? 0));
@@ -273,17 +285,17 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
   const near = Math.max(0, -side * turned) ** 2, wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
   const out = (side * (wide - 1) * dc.w * k) / 2;
-  return { cu: state.eye.x * e.slideX + side * e.x * boost + out, cv: e.y + state.eye.y * e.slideY, sx: k * wide, sy: k * tall };
+  return { cu: state.eye.x * e.slideX + side * e.x * boost + out, cv: e.y + state.eye.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
 }
 
 /** The decals of `of` that can be seen, each a layer over the body, into `out`. */
 function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>[], out: Piece[]): void {
   const d = detail(size), thin = (THIN_PX * 2) / size;
   for (const dc of of.decals!) {
-    let cu = dc.at[0], cv = dc.at[1], sx = 1 - (state.dot ?? 0), sy = sx;
-    if (dc.eye) ({ cu, cv, sx, sy } = behindEye(of, dc, state, size));
-    if (sx <= 0.02) continue;
-    const shape = decalOutline(dc.shape, dc.w * sx, dc.h * sy, dc.turn ?? 0, d.eye);
+    let cu = dc.at[0], cv = dc.at[1], sx = 1 - (state.dot ?? 0), sy = sx, w = dc.w * sx;
+    if (dc.eye) ({ cu, cv, sx, sy, w } = behindEye(of, dc, state, size));
+    if (sx <= 0.02 || w <= 0) continue;
+    const shape = decalOutline(dc.shape, w, dc.h * sy, dc.turn ?? 0, d.eye);
     const polys = eyePolys(of, R, cu, cv, shape, { outline: fence, rim: EYE_RIM, thin });
     if (polys.length) out.push({ id: dc.id, part: dc.paint, fill: of.paint?.[dc.paint] ?? UNPAINTED, front: true, polys });
   }

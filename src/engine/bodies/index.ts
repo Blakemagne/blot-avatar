@@ -22,7 +22,7 @@ export const BODIES: Record<string, Body> = {
   blob, cloud, square, sparkle, clover, heart, flower, teardrop,
   tablet: capsule,
   wedge, house, star, hex, pebble, pentagon,
-  // Not one of blot's shapes: the Reachy Mini shaped robot, with antennas and stickers (see jacrispy.ts).
+  // Not one of blot's shapes: the Reachy Mini shaped robot, with its lenses and antennas (see jacrispy.ts).
   jacrispy: jacrispy(),
 };
 

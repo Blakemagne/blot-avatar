@@ -14,7 +14,7 @@ export interface MountOptions extends LiveProps {
   fill?: string;
   /** The eyes' colour, any CSS value. Unset, they are dark on a pale '#rrggbb' `color` and white on anything else. */
   eyeFill?: string;
-  /** For a body with antennas or stickers (jacrispy): their colours by key, over the body's own, e.g. { antenna: '#111' }. */
+  /** For a body with antennas or decals (jacrispy): their colours by key, over the body's own, e.g. { antenna: '#111' }. */
   paint?: Paint;
   /** A click, a tap, Enter or Space pokes it (not under reduced motion: nothing would happen). */
   pokeable?: boolean;
@@ -61,7 +61,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   // 2. The drawing.
   const svg = host.ownerDocument.createElementNS(SVG, 'svg');
   const paths = [0, 1, 2].map(() => host.ownerDocument.createElementNS(SVG, 'path'));
-  // Antennas and stickers, for a body that has them: one group under the body, one over it, put in the first
+  // Antennas and decals, for a body that has them: one group under the body, one over it, put in the first
   // time a drawing has any (so an avatar whose body has none stays one svg with three paths).
   const under = host.ownerDocument.createElementNS(SVG, 'g'), over = host.ownerDocument.createElementNS(SVG, 'g');
   let latest = live.first, grouped = false;

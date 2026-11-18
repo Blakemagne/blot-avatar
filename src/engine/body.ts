@@ -46,13 +46,20 @@ export interface Antennas {
   follow: number;
   /** The colour key (in Body.paint) the stalks are drawn in. */
   paint: string;
+  /**
+   * A spring wound round the base, as on the Reachy Mini: where it starts and ends along the base (0 at the
+   * pivot, 1 at the joint), how far it stands out from the middle of the stalk, and how many turns it has.
+   */
+  coil?: { from: number; to: number; r: number; turns: number };
+  /** A cap on the tip, a little thicker than the whip: its length and radius. */
+  cap?: { len: number; r: number };
 }
 
 /** The shape of a decal's outline. */
 export type DecalShape = 'circle' | 'rounded' | 'star' | 'heart' | 'bolt' | 'diamond';
 
 /**
- * A decal: a flat mark stuck on the body's surface, a sticker or a painted part. Like an eye it is a patch of
+ * A decal: a flat mark stuck on the body's surface, a painted part such as a lens's rim. Like an eye it is a patch of
  * the surface, so it leans, thins and goes round the edge as the body turns, and it is on whichever side of
  * the body faces the viewer. Decals are drawn over the body and under the eyes, in the order given.
  */
@@ -71,9 +78,15 @@ export interface Decal {
   paint: string;
   /**
    * Which eye it sits behind, when it belongs to one (a lens's rim): it then slides with that eye, keeps its
-   * size, and shrinks away with it in a spin or a change of shape.
+   * size, and shrinks away with it in a spin or a change of shape. 'both' puts it halfway between the eyes
+   * (a camera between two lenses), moving as they do; `at` is then not used.
    */
-  eye?: 'left' | 'right';
+  eye?: 'left' | 'right' | 'both';
+  /**
+   * With eye 'both': reach from one eye's middle to the other's, plus `w` (a bridge between two lenses, its
+   * ends under their rims), however the eyes slide and open.
+   */
+  span?: boolean;
 }
 
 /**
@@ -100,7 +113,7 @@ export interface Body {
   outline?: Solid;
   /** Stalks on top, drawn in a layer of their own and swung by the rig (see Antennas). */
   antennas?: Antennas;
-  /** Marks on the surface: stickers, a lens's rim (see Decal). */
+  /** Marks on the surface: a lens's rim, the bar between lenses (see Decal). */
   decals?: readonly Decal[];
   /** The body's own colours for its antennas and decals, by key. A renderer may paint any key over. */
   paint?: Readonly<Record<string, string>>;

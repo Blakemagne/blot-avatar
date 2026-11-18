@@ -1,7 +1,7 @@
 // Decals and antennas: what a body may carry besides its eyes, each drawn as a layer of its own.
 //
 // A decal is a flat outline in face coordinates, lifted onto the surface exactly as an eye is (eyePolys), so
-// a sticker leans, thins and goes round the edge with the body. An antenna is two tapered capsules swung
+// a decal leans, thins and goes round the edge with the body. An antenna is two tapered capsules swung
 // about a pivot, outlined as any piece is (silhouette).
 
 import type { Antennas, DecalShape, Sphere } from './body';
@@ -74,16 +74,37 @@ export function decalOutline(shape: DecalShape, w: number, h: number, turn: numb
 /**
  * The two antennas' pieces for a swing (radians from rest, positive outward; the viewer's left, then right),
  * each grown to `grow` of its length (0 to 1, as a body changes shape). Left first. A stalk is two capsules,
- * pivot to joint and joint to tip, the whip bent `follow` further than the base.
+ * pivot to joint and joint to tip, the whip bent `follow` further than the base; then its spring's turns (one
+ * small flat ring each, tipped a little as a helix's turns are, so the spring zigzags as a real one does) and its cap. No
+ * piece is thinner than `least` (body units), so a small drawing still shows its stalks.
  */
-export function antennaPieces(a: Antennas, swing: readonly [number, number], grow: number): [Sphere[][], Sphere[][]] {
+export function antennaPieces(a: Antennas, swing: readonly [number, number], grow: number, least = 0): [Sphere[][], Sphere[][]] {
   const [px, py, pz] = a.pivot, [r0, r1, r2] = a.radii;
+  const r = (v: number): number => Math.max(least, v * grow);
   const one = (side: -1 | 1, s: number): Sphere[][] => {
     const t = a.rest + s, tw = t + a.follow * s;
-    const jx = side * px + side * Math.sin(t) * a.base * grow, jy = py + Math.cos(t) * a.base * grow;
-    const tx = jx + side * Math.sin(tw) * a.whip * grow, ty = jy + Math.cos(tw) * a.whip * grow;
-    const p: Sphere = [side * px, py, pz, r0 * grow], j: Sphere = [jx, jy, pz, r1 * grow], tip: Sphere = [tx, ty, pz, r2 * grow];
-    return [[p, j], [j, tip]];
+    const bx = side * Math.sin(t), by = Math.cos(t), wx = side * Math.sin(tw), wy = Math.cos(tw);
+    const jx = side * px + bx * a.base * grow, jy = py + by * a.base * grow;
+    const tx = jx + wx * a.whip * grow, ty = jy + wy * a.whip * grow;
+    const p: Sphere = [side * px, py, pz, r(r0)], j: Sphere = [jx, jy, pz, r(r1)], tip: Sphere = [tx, ty, pz, r(r2)];
+    const out: Sphere[][] = [[p, j], [j, tip]];
+    if (a.coil && a.coil.turns > 0) {
+      const { from, to, r: rc, turns } = a.coil, wire = r(r1 * 0.55), step = ((to - from) * a.base * grow) / turns;
+      for (let k = 0; k < turns; k++) {
+        // The middle of this turn along the base, and its ring: across the stalk (both ways) and in z.
+        const d = (from * a.base + ((k + 0.5) / turns) * (to - from) * a.base) * grow, tipped = 0.25 * step;
+        const cx = side * px + bx * d, cy = py + by * d, ox = by * side, oy = -bx * side, w = rc * grow;
+        out.push([
+          [cx + ox * w - bx * tipped, cy + oy * w - by * tipped, pz, wire], [cx - ox * w + bx * tipped, cy - oy * w + by * tipped, pz, wire],
+          [cx, cy, pz + w, wire], [cx, cy, pz - w, wire],
+        ]);
+      }
+    }
+    if (a.cap) {
+      const back = Math.min(a.cap.len, a.whip) * grow;
+      out.push([[tx - wx * back, ty - wy * back, pz, r(a.cap.r)], [tx, ty, pz, r(a.cap.r)]]);
+    }
+    return out;
   };
   return [one(-1, swing[0]), one(1, swing[1])];
 }

@@ -13,7 +13,7 @@ import { onMotion, reducedMotion } from './ticker';
  * One live avatar for the life of the component. Put `host` on the element it sits in and `paths` on its
  * body path and its two eye paths, with `first` as their first `d`: after that the frame loop writes the
  * paths in place, with no render per frame. `reduced` is the person's reduced-motion setting, read live.
- * For a body with antennas or stickers (jacrispy), put `layers[0]` on an empty <g> before the body path and
+ * For a body with antennas or decals (jacrispy), put `layers[0]` on an empty <g> before the body path and
  * `layers[1]` on one after it (before the eyes); the frame loop fills them, in `paint`'s colours where given.
  */
 export function useLiveAvatar(p: LiveProps & { paint?: Paint }) {

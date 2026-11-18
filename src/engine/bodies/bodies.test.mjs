@@ -96,13 +96,17 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     const box = size(polys);
     assert.ok(Math.abs(box.cx) < 1e-6, `${id}: off centre by ${box.cx}`);
     // And upright in the middle of its box, so it turns in place; this holds the bodies that have no flat drawing too.
-    assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
+    // A body with a head sits low, to leave room in the picture for its antennas, and tilts about its head, as the
+    // robot's own head does: so the middle of the picture is inside its head instead.
+    if (HEADED.includes(id)) assert.ok(box.cy > 0 && box.cy - box.h / 2 < -0.5, `${id}: the middle is not in its head`);
+    else assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
     // Turning left is the mirror image of turning right.
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
     assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.cx + b.cx) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${id}: turned`);
     const [nearL, farR] = eyes(body, 35), [farL, nearR] = eyes(body, -35);
-    // (Two eyes of different sizes cover different stretches of the surface, so theirs match only to 2 per cent.)
-    const tol = body.eyes.sizes ? 0.02 : 1e-3;
+    // (Two eyes of different sizes cover different stretches of the round head, the big one more of its curve,
+    // so turned towards, theirs match only to 10 per cent; turned away, they still match closely.)
+    const tol = body.eyes.sizes ? 0.1 : 1e-3;
     assert.ok(Math.abs(nearL - nearR) < tol * nearL && Math.abs(farL - farR) < tol * nearL + 1e-9, `${id}: eyes ${[nearL, farR]} against ${[nearR, farL]}`);
   });
   // The cloud is the lopsided one, and still stands in the middle of its box.

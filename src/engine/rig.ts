@@ -282,6 +282,8 @@ export class Rig {
   private paused = false;
   /** The antennas: where they are held (setAntennas), and each one's swing. */
   private held: [number, number] = [0, 0]; private antL = new Stalk(); private antR = new Stalk();
+  /** A slow move to a new hold (setAntennas with a time), while it lasts. */
+  private glide: { from: [number, number]; to: [number, number]; ms: number; at: number } | null = null;
   private before = new Float64Array(MARKS); private after = new Float64Array(MARKS);
   /** One frame's sum of the moves, and what a clip may read. */
   private o: Channels = { yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0 };
@@ -525,11 +527,15 @@ export class Rig {
 
   /**
    * Where the antennas are held, the viewer's left and right, in radians from where they rest (positive is
-   * outward, away from the middle): a mood's pose. They swing there and stay until told otherwise. Only a body
-   * with antennas shows it.
+   * outward, away from the middle): a mood's pose. They swing there (or, given `ms`, move there slowly over
+   * that long) and stay until told otherwise. Only a body with antennas shows it.
    */
-  setAntennas(left: number, right: number): void {
-    if (Number.isFinite(left) && Number.isFinite(right)) this.held = [left, right];
+  setAntennas(left: number, right: number, ms = 0): void {
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return;
+    // Over `ms`, eased in and out (a slow droop), from where they are held now; at once, a spring's swing.
+    if (ms > 0 && Number.isFinite(ms)) this.glide = { from: [this.held[0], this.held[1]], to: [left, right], ms, at: 0 };
+    else this.glide = null;
+    if (!this.glide) this.held = [left, right];
   }
 
   /** Freeze everything where it is; pause(false) carries on from there. */
@@ -757,6 +763,13 @@ export class Rig {
    */
   private antennas(dtMs: number, voice: number): void {
     const s = this.state, o = this.o, act = this.activity, dt = dtMs / 1000;
+    const g = this.glide;
+    if (g) {
+      g.at += dtMs;
+      const k = smooth(Math.min(1, g.at / g.ms));
+      this.held = [g.from[0] + (g.to[0] - g.from[0]) * k, g.from[1] + (g.to[1] - g.from[1]) * k];
+      if (g.at >= g.ms) { this.held = [g.to[0], g.to[1]]; this.glide = null; }
+    }
     let l = this.held[0], r = this.held[1];
     if (act === 'thinking') { l += this.side < 0 ? ANT_THINK : -ANT_THINK / 3; r += this.side > 0 ? ANT_THINK : -ANT_THINK / 3; }
     else if (act === 'working') { l += ANT_WORK; r += ANT_WORK; }
@@ -779,7 +792,7 @@ export class Rig {
     return !this.blinking && this.eyeX.still && this.eyeY.still && this.yaw.still && this.pitch.still && this.roll.still
       && !this.poking && !this.queued.length && !this.change && this.faceAt >= FACE_MS && !this.popping && this.flipAt >= FLIP_MS
       && this.figK === 0 && !this.nodding && this.level.still && this.activity === 'idle' && this.wait.x === 0 && this.talk.x === 0
-      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue() && this.antL.still && this.antR.still;
+      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue() && this.antL.still && this.antR.still && !this.glide;
   }
 
   /** True once it has come to rest (see `rest`): a still picture that no step will change until it is woken, poked or changed. */

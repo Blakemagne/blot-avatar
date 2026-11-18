@@ -3,9 +3,9 @@
 // face or clip in the package shows up here without touching this file. The wave is the one move written here.
 
 import {
-  ACTIVITIES, ANTENNA_POSES, BODIES, CUES, FACE_NAMES, FORMS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, POKES, STICKER_SLOTS,
-  colours, deg, jacrispy, mount, onMotion, reducedMotion,
-  type Clip, type DecalShape, type JacrispyMood, type MountOptions, type Mounted, type Sticker, type StickerSlot,
+  ACTIVITIES, ANTENNA_POSES, BODIES, CUES, FACE_NAMES, FORMS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, POKES,
+  colours, deg, jacrispy, jacrispyFace, mount, onMotion, reducedMotion,
+  type Clip, type JacrispyMood, type MountOptions, type Mounted,
 } from '../src/index';
 import { colorPicker, contrast } from './picker';
 
@@ -259,25 +259,36 @@ writeCode();
   });
 }
 
-// ---- Jacrispy: moods, antenna poses, antenna moves, stickers.
+// ---- Jacrispy: his own body or his face on any other, moods, antenna poses and moves.
 
 {
   const jac = mount($('[data-avatar="jacrispy"]'), {
-    shape: 'jacrispy', size: 220, color: JACRISPY_COLOUR, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
+    shape: 'jacrispy', size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
   });
-  const now = { mood: null as string | null, pose: 'rest' as string | null };
+  const now = { mood: null as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null };
   const syncs: (() => void)[] = [];
-  const hold = ([l, r]: readonly [number, number]): void => jac.live.rig.setAntennas(deg(l), deg(r));
+  const hold = ([l, r]: readonly [number, number], ms = 0): void => jac.live.rig.setAntennas(deg(l), deg(r), ms);
+  // His own body, or his face (lenses, the bar between them, the camera and the antennas) on any other. A new
+  // body morphs in, as a new shape does in the playground.
+  const others = SHAPES.filter((id) => id !== 'jacrispy');
+  syncs.push(chips($('[data-jac="body"]'), ['jacrispy', ...others], () => now.body, (v) => {
+    now.body = v;
+    const id = v ?? 'jacrispy';
+    jac.live.rig.setBody(id === 'jacrispy' ? jacrispy() : jacrispyFace(BODIES[id]));
+    jac.update({ color: id === 'jacrispy' ? JACRISPY_COLOUR : DEFAULT_COLOUR });
+    syncs.forEach((s) => s());
+  }));
+  // A mood is a face, an antenna pose (sad droops slowly) and a move measured from Pollen's recording of it.
   syncs.push(chips($('[data-jac="mood"]'), JACRISPY_MOOD_NAMES, () => now.mood, (v) => {
     now.mood = v; now.pose = null;
     const m = JACRISPY_MOODS[v as JacrispyMood];
     jac.update({ face: m.face });
-    hold(m.antennas);
-    if (m.cue) jac.play(m.cue);
+    hold(m.antennas, m.ms ?? 260);
+    jac.play(m.cue);
     syncs.forEach((s) => s());
   }));
   syncs.push(chips($('[data-jac="pose"]'), Object.keys(ANTENNA_POSES), () => now.pose, (v) => {
-    now.pose = v; hold(ANTENNA_POSES[v ?? 'rest']);
+    now.pose = v; hold(ANTENNA_POSES[v ?? 'rest'], 260);
     syncs.forEach((s) => s());
   }));
   const moveBox = $('[data-jac="moves"]');
@@ -288,24 +299,21 @@ writeCode();
     moveBox.append(b);
   }
 
-  // Stickers: a shape (or none) for each slot. A new set of stickers is a new body, so it changes over with a blink.
-  const SHAPES_ON: (DecalShape | null)[] = [null, 'star', 'heart', 'bolt', 'diamond', 'circle', 'rounded'];
-  const COLOUR: Record<DecalShape, string> = { star: '#F2B33D', heart: '#E2566B', bolt: '#3D8BF2', diamond: '#7C5CE0', circle: '#2FB37A', rounded: '#F28A3D' };
-  const worn: Partial<Record<StickerSlot, DecalShape | null>> = { chest: 'star', hipRight: 'heart' };
-  let rims = true;
-  const wear = (): void => {
-    const stickers: Sticker[] = [];
-    for (const [slot, shape] of Object.entries(worn)) if (shape) stickers.push({ slot: slot as StickerSlot, shape, colour: COLOUR[shape] });
-    jac.live.rig.setBody(jacrispy({ stickers, rims }));
-  };
-  const box = $('[data-jac="stickers"]');
-  for (const slot of Object.keys(STICKER_SLOTS) as StickerSlot[]) {
-    const row = make('div', { className: 'chips' });
-    box.append(make('span', { className: 'sub-label', textContent: slot }), row);
-    chips(row, SHAPES_ON, () => worn[slot] ?? null, (v) => { worn[slot] = v as DecalShape | null; wear(); });
-  }
-  const rimBox = $<HTMLInputElement>('[data-jac-rims]');
-  rimBox.addEventListener('change', () => { rims = rimBox.checked; wear(); });
+  // His face on every other body, each watching the pointer. A click plays a mood picked in turn.
+  const list = $('[data-jac-faces]');
+  others.forEach((id, i) => {
+    const slot = make('div', { className: 'gallery-avatar' });
+    list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: id })));
+    const one = mount(slot, { shape: id, size: 72, color: COLOURS[i % 6][0], eyeFill: JACRISPY_EYE, follow: true, label: `${id} with jacrispy's face`, seed: 300 + i, clips });
+    one.live.rig.setBody(jacrispyFace(BODIES[id]));
+    let next = i;
+    slot.addEventListener('click', () => {
+      const m = JACRISPY_MOODS[JACRISPY_MOOD_NAMES[next++ % JACRISPY_MOOD_NAMES.length]];
+      one.update({ face: m.face });
+      one.live.rig.setAntennas(deg(m.antennas[0]), deg(m.antennas[1]), m.ms ?? 260);
+      one.play(m.cue);
+    });
+  });
 }
 
 // ---- Copy buttons.

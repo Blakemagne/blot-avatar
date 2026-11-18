@@ -12,6 +12,6 @@ export { BLINK_MS, LOOK_PITCH, LOOK_YAW, Rig, random, type RigOptions, type RigS
 export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, colours, detail, drawAvatar, eyeShapes, layerShapes, type Drawing, type Layer } from './draw';
 export { BODIES, bodyFor } from './bodies/index';
 export {
-  ANTENNA_POSES, EXAMPLE_STICKERS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, JACRISPY_PAINT, STICKER_SLOTS, jacrispy,
-  type JacrispyMood, type JacrispyOptions, type Sticker, type StickerSlot,
+  ANTENNA_POSES, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, JACRISPY_PAINT, jacrispy, jacrispyFace,
+  type FaceOptions, type JacrispyMood,
 } from './bodies/jacrispy';
