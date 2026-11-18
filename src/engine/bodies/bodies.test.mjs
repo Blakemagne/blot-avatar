@@ -15,13 +15,17 @@ const { FLAT, flat } = await import('./flat.mjs');
 
 /** The cloud is lopsided, as the flat cloud is. Every other body is its own mirror image left to right. */
 const LOPSIDED = ['cloud'];
+/** Jacrispy is a head on a body, not one blot: its face is up in its head. */
+const HEADED = ['jacrispy'];
 
 const still = (yaw = 0, pitch = 0, roll = 0, ex = 0, ey = 0) => ({ pose: { yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) }, eye: { x: ex, y: ey }, lid: 1, face: FACES.neutral });
 const outline = (body, yaw = 0, pitch = 0, roll = 0) => silhouette(body, rotation({ yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) }), 72);
 const size = (polys) => { const [x0, y0, x1, y1] = bounds(polys); return { w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; };
 const eyeArea = (polys) => polys.reduce((sum, p) => sum + Math.abs(area(p)), 0);
 /** [left, right] eye areas for a pose, drawn large. */
-const eyes = (body, ...pose) => eyeShapes(body, still(...pose), 180).map(eyeArea);
+const eyes = (body, ...pose) => eyeShapes(body, still(...pose), 180).map(eyeArea).map((a, i) => a / own(body)[i] ** 2);
+/** How big a body draws each eye, against its eyes' w and h: 1 and 1 but for a body whose two eyes differ (jacrispy's lenses). */
+const own = (body) => body.eyes.sizes ?? [1, 1];
 const each = (run) => { for (const [id, body] of Object.entries(BODIES)) run(id, body); };
 
 /** Distance from (x, y) to the edge of a flat polygon. */
@@ -97,7 +101,9 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
     assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.cx + b.cx) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${id}: turned`);
     const [nearL, farR] = eyes(body, 35), [farL, nearR] = eyes(body, -35);
-    assert.ok(Math.abs(nearL - nearR) < 1e-3 * nearL && Math.abs(farL - farR) < 1e-3 * nearL + 1e-9, `${id}: eyes ${[nearL, farR]} against ${[nearR, farL]}`);
+    // (Two eyes of different sizes cover different stretches of the surface, so theirs match only to 2 per cent.)
+    const tol = body.eyes.sizes ? 0.02 : 1e-3;
+    assert.ok(Math.abs(nearL - nearR) < tol * nearL && Math.abs(farL - farR) < tol * nearL + 1e-9, `${id}: eyes ${[nearL, farR]} against ${[nearR, farL]}`);
   });
   // The cloud is the lopsided one, and still stands in the middle of its box.
   const cloud = outline(BODIES.cloud);
@@ -117,9 +123,9 @@ test('at pose zero the eyes are whole, centred, level and upright, exactly where
     assert.ok(Math.abs(l.cy - r.cy) < 1e-6, `${id}: level`);
     // Screen y points down; the body's eye line is in y-up face coordinates.
     assert.ok(Math.abs(l.cy + body.eyes.y) < 0.004 && Math.abs(r.cx - body.eyes.x) < 0.004, `${id}: where the body says`);
-    for (const e of [l, r]) {
-      assert.ok(Math.abs(e.w - body.eyes.w) < 0.004, `${id}: eye width ${e.w}`);
-      assert.ok(Math.abs(e.h - body.eyes.h) < 0.004, `${id}: eye height ${e.h}`);
+    for (const [e, k] of [[l, own(body)[0]], [r, own(body)[1]]]) {
+      assert.ok(Math.abs(e.w - body.eyes.w * k) < 0.004, `${id}: eye width ${e.w}`);
+      assert.ok(Math.abs(e.h - body.eyes.h * k) < 0.004, `${id}: eye height ${e.h}`);
     }
     // Upright and unsheared: a mirror image of itself left to right and top to bottom.
     for (const [poly, c] of [[left[0], l], [right[0], r]]) {
@@ -129,7 +135,9 @@ test('at pose zero the eyes are whole, centred, level and upright, exactly where
     }
     // The two eyes are apart, and neither is far from the middle of the body.
     assert.ok(body.eyes.x - body.eyes.w / 2 > 0.06, `${id}: the eyes touch`);
-    assert.ok(Math.abs(body.eyes.y) < 0.2 && body.eyes.x < 0.3, `${id}: the eyes are off in a corner`);
+    // (A body with a head, jacrispy, has its eyes in the middle of the head, which is above the middle of the body.)
+    if (!HEADED.includes(id)) assert.ok(Math.abs(body.eyes.y) < 0.2 && body.eyes.x < 0.3, `${id}: the eyes are off in a corner`);
+    else assert.ok(body.eyes.y > 0 && body.eyes.y < 0.5 && body.eyes.x < 0.45, `${id}: the eyes are off the face`);
   });
 });
 

@@ -1,6 +1,8 @@
 // One frame: (body, colour, rig state, drawn size) in, everything a renderer needs out.
 
-import type { Body } from './body';
+import type { Body, Decal } from './body';
+import { antennaPieces, decalOutline } from './decals';
+import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
 import { eyeOutline } from './faces';
 import { discAt, figureParts, figureRadius } from './figures';
@@ -22,6 +24,25 @@ export interface Drawing {
   eyes: [string, string];
   fill: string;
   eyeFill: string;
+  /**
+   * Everything else the body carries (its antennas, its decals), each a path of its own in a colour of its own.
+   * Paint them in order: the ones with `front` false under the body, then the body, then the ones with `front`
+   * true, then the eyes. Only a body with antennas or decals has any.
+   */
+  layers?: Layer[];
+}
+
+/** One more path of a drawing: an antenna, a decal. */
+export interface Layer {
+  /** The antenna's or the decal's name, the same from frame to frame. */
+  id: string;
+  /** Its colour key (see Body.paint); a renderer may paint the key over. */
+  part: string;
+  d: string;
+  /** The body's colour for it. */
+  fill: string;
+  /** Over the body (true), or under it, behind (false). */
+  front: boolean;
 }
 
 /** How finely to draw at a size: points per sphere rim, points per eye, and how much bigger the eyes are drawn. */
@@ -82,8 +103,9 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   const facing = Math.min(1, Math.max(0, (Math.abs(R[8]) - 0.1) / 0.3));
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
   const shapes = ([-1, 1] as const).map((side, i) => {
-    // 1 body unit is half the drawn size.
-    const eye = eyeOutline(state.face, side, e.w * d.boost, e.h * d.boost, state.lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
+    // 1 body unit is half the drawn size. (A face built with eyes of two sizes draws each at its own.)
+    const own = e.sizes ? e.sizes[i] : 1;
+    const eye = eyeOutline(state.face, side, e.w * d.boost * own, e.h * d.boost * own, state.lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
     // The near eye opens: wider and a little taller about its own middle (so a face's lift and lean stay as
     // they are), and moved outward by what it gained, so its inner edge stays put and all the growth is on the
     // side coming toward the viewer. However wide the face draws its eyes, it never grows into the far one.
@@ -149,19 +171,19 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  * Everything on screen for a state, as flat screen polygons (x right, y down, 1 unit = half the drawing box):
  * the body's path (pieces, and any holes wound the other way) and the two eye paths.
  */
-function compose(given: Body, state: RigState, size: number): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]] } {
+function compose(given: Body, state: RigState, size: number): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[] } {
   const body = state.body ?? given, d = detail(size);
   rotation(state.pose, R);
   const own = silhouette(body, R, d.rim);
   const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
   let outline: Float64Array[] = own, eyes: [Float64Array[], Float64Array[]];
+  let wearer = body, fence: ArrayLike<number>[] = own;
 
   if (!morph && !fig) eyes = eyesOn(body, state, size, own);
   else {
     // The outline as distances from the middle, blended: from the old shape, and toward a figure's disc.
     const n = rays(size);
     let r = radial(own, n);
-    let wearer = body, fence: ArrayLike<number>[] = own;
     if (morph) {
       r = mix(profile(morph.from, R, d.rim, n), r, morph.k);
       // The eyes stay on the old body for the first half and are on the new one for the second. By then they
@@ -191,18 +213,80 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
     }
   }
 
+  // The antennas (of the body it is becoming, and of the one it is leaving) and the decals of the body that
+  // wears the eyes. None of it on a body that has none, so no other body's frames change.
+  const layers: Piece[] = [];
+  const grow = fig ? 1 - fig.k : 1, k = morph ? smooth(morph.k) : 1;
+  if (body.antennas && k * grow > 0.02) stalks(body, state, d.rim, k * grow, layers);
+  const from = morph ? leaf(morph.from) : null;
+  if (from && from !== body && from.antennas && (1 - k) * grow > 0.02) stalks(from, state, d.rim, (1 - k) * grow, layers);
+  if (wearer.decals) marks(wearer, state, size, fence, layers);
+
   // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, the mirror flip.
   const tall = state.stretch ?? 1, big = state.scale ?? 1, up = state.lift ?? 0, flip = state.flip ?? 1;
   if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1) {
     // (The ground is under the body itself: a figure's little ball going round below it does not lift it.)
     const ground = bounds(fig ? [outline[0]] : outline)[3], kx = (big * flip) / tall;
-    for (const polys of [outline, eyes[0], eyes[1]]) {
+    for (const polys of [outline, eyes[0], eyes[1], ...layers.map((l) => l.polys)]) {
       for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] *= kx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
     }
     // Mirrored, the eye that was on the left is on the right.
     if (flip < 0) eyes = [eyes[1], eyes[0]];
   }
-  return { body: outline, eyes };
+  return { body: outline, eyes, layers };
+}
+
+/** A layer before it is a path: screen polygons, and what it is. */
+interface Piece { id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
+
+/** Body colours for a key the body does not paint. */
+const UNPAINTED = '#1C1C1C';
+
+/**
+ * The antennas of `of`, grown to `grow`, into `out`: each in front of the body when its base is nearer the
+ * camera than the middle of the body at that height (turned side on, the near one), behind it otherwise.
+ */
+function stalks(of: Body, state: RigState, rim: number, grow: number, out: Piece[]): void {
+  const a = of.antennas!, swing = state.antennas ?? [0, 0];
+  const [left, right] = antennaPieces(a, swing, grow);
+  const fill = of.paint?.[a.paint] ?? UNPAINTED;
+  [left, right].forEach((pieces, i) => {
+    const [p, j] = pieces[0];
+    // Depth toward the camera of the base's middle, against the body's own middle at that height.
+    const mx = (p[0] + j[0]) / 2, my = (p[1] + j[1]) / 2, mz = (p[2] + j[2]) / 2;
+    const front = R[6] * mx + R[7] * my + R[8] * mz - (R[7] * my) > 1e-3;
+    out.push({ id: i ? 'antenna-right' : 'antenna-left', part: a.paint, fill, front, polys: silhouette({ pieces }, R, Math.max(16, Math.round(rim / 2))) });
+  });
+}
+
+/**
+ * Where a decal that sits behind an eye is, and how big, for this state: it slides with the eye, opens with
+ * the near eye as the body turns (keeping its inner edge, as the eye does), and goes to nothing with a dot. It
+ * keeps to its size for a face that draws the eyes wider, growing only as the square root of that, so a rim
+ * stays a rim round a wide eye and two of them do not run together.
+ */
+function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: number; cv: number; sx: number; sy: number } {
+  const e = of.eyes, boost = detail(size).boost, side = dc.eye === 'left' ? -1 : 1, i = side < 0 ? 0 : 1;
+  const own = e.sizes ? e.sizes[i] : 1, f = state.face;
+  const k = boost * own * Math.sqrt(Math.max(1, f.width * (1 + side * f.uneven))) * (state.eyeScale ?? 1) * (1 - (state.dot ?? 0));
+  const facing = Math.min(1, Math.max(0, (Math.abs(R[8]) - 0.1) / 0.3));
+  const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
+  const near = Math.max(0, -side * turned) ** 2, wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
+  const out = (side * (wide - 1) * dc.w * k) / 2;
+  return { cu: state.eye.x * e.slideX + side * e.x * boost + out, cv: e.y + state.eye.y * e.slideY, sx: k * wide, sy: k * tall };
+}
+
+/** The decals of `of` that can be seen, each a layer over the body, into `out`. */
+function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>[], out: Piece[]): void {
+  const d = detail(size), thin = (THIN_PX * 2) / size;
+  for (const dc of of.decals!) {
+    let cu = dc.at[0], cv = dc.at[1], sx = 1 - (state.dot ?? 0), sy = sx;
+    if (dc.eye) ({ cu, cv, sx, sy } = behindEye(of, dc, state, size));
+    if (sx <= 0.02) continue;
+    const shape = decalOutline(dc.shape, dc.w * sx, dc.h * sy, dc.turn ?? 0, d.eye);
+    const polys = eyePolys(of, R, cu, cv, shape, { outline: fence, rim: EYE_RIM, thin });
+    if (polys.length) out.push({ id: dc.id, part: dc.paint, fill: of.paint?.[dc.paint] ?? UNPAINTED, front: true, polys });
+  }
 }
 
 /**
@@ -220,6 +304,18 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
 
 /** One frame. `body` is drawn unless the state carries its own (a rig that was given one): then that one is. */
 export function drawAvatar(body: Body, colour: string, state: RigState, size: number): Drawing {
-  const { body: outline, eyes } = compose(body, state, size);
-  return { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
+  const { body: outline, eyes, layers } = compose(body, state, size);
+  const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
+  if (layers.length) {
+    // The ones behind first, then the ones in front: the order to paint them in.
+    out.layers = [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)]
+      .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front }));
+  }
+  return out;
+}
+
+/** Screen polygons of the antennas and decals for a rig state, in the order they are painted. */
+export function layerShapes(body: Body, state: RigState, size: number): { id: string; front: boolean; polys: Float64Array[] }[] {
+  const { layers } = compose(body, state, size);
+  return [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)].map((l) => ({ id: l.id, front: l.front, polys: l.polys }));
 }

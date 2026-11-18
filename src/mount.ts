@@ -2,6 +2,7 @@
 // until destroy(). It is the same controller React's useLiveAvatar runs, called in the same order.
 
 import { VIEW_BOX, colours } from './engine/draw';
+import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import { svgBox } from './still';
 import { onMotion, reducedMotion } from './ticker';
@@ -13,6 +14,8 @@ export interface MountOptions extends LiveProps {
   fill?: string;
   /** The eyes' colour, any CSS value. Unset, they are dark on a pale '#rrggbb' `color` and white on anything else. */
   eyeFill?: string;
+  /** For a body with antennas or stickers (jacrispy): their colours by key, over the body's own, e.g. { antenna: '#111' }. */
+  paint?: Paint;
   /** A click, a tap, Enter or Space pokes it (not under reduced motion: nothing would happen). */
   pokeable?: boolean;
   /** Its name, for the poke button's label. */
@@ -58,6 +61,16 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   // 2. The drawing.
   const svg = host.ownerDocument.createElementNS(SVG, 'svg');
   const paths = [0, 1, 2].map(() => host.ownerDocument.createElementNS(SVG, 'path'));
+  // Antennas and stickers, for a body that has them: one group under the body, one over it, put in the first
+  // time a drawing has any (so an avatar whose body has none stays one svg with three paths).
+  const under = host.ownerDocument.createElementNS(SVG, 'g'), over = host.ownerDocument.createElementNS(SVG, 'g');
+  let latest = live.first, grouped = false;
+  const layered = (d: typeof latest) => {
+    latest = d;
+    if (!grouped && !d.layers?.length) return;
+    if (!grouped) { svg.insertBefore(under, paths[0]); svg.insertBefore(over, paths[1]); grouped = true; }
+    writeLayers(under, over, d, opts.paint);
+  };
   const boxed = (size: number) => {
     const b = svgBox(size);
     svg.setAttribute('width', String(b.width));
@@ -80,6 +93,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   paths[2].setAttribute('d', live.first.eyes[1]);
   paint();
   for (const p of paths) svg.appendChild(p);
+  layered(live.first);
   host.appendChild(svg);
 
   // 3. Alive, in React's effect order.
@@ -87,6 +101,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     paths[0].setAttribute('d', d.body);
     paths[1].setAttribute('d', d.eyes[0]);
     paths[2].setAttribute('d', d.eyes[1]);
+    layered(d);
   });
   live.motion();
   live.follow(opts.follow);
@@ -140,6 +155,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       if (changed('face')) live.face(opts.face);
       if (changed('activity', 'form', 'rests', 'shape', 'size')) live.doing();
       if (changed('color', 'fill', 'eyeFill')) paint();
+      if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
     },
     poke: (kind) => { if (!gone) live.poke(kind); },

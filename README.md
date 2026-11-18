@@ -152,6 +152,29 @@ The rig checks extra clips with `checkClips` when it is built. It throws for a n
 
 5. **Look at it.** `npm run site:dev`: it is in the gallery and the playground's shapes by itself. Turn it with the pointer all the way round, poke it, and watch the far eye.
 
+### Antennas, two-size eyes and stickers
+
+A body may also carry (all optional, and a body without them draws exactly as before):
+
+- `eyes.sizes: [left, right]`: each eye's size as a multiple of `w` and `h`, for a face whose two eyes differ.
+- `antennas`: two stalks, drawn as their own paths in their own colour and swung by the rig. Each is a stiff base and a whip that bends further (`follow`), so a swing has a follow-through. They sway a little when idle, lift and drop while thinking, draw in while working and flick when it speaks. Hold a pose with `rig.setAntennas(left, right)` (radians outward); a clip moves them through `o.antL` and `o.antR`.
+- `decals`: flat marks on the surface, stickers or a lens's rim. Each is lifted onto the body as an eye is, so it leans and goes round the edge as the body turns. One with `eye: 'left' | 'right'` sits behind that eye and moves with it.
+- `paint`: the colours of the antennas and decals, by key. A page may paint any key over (`mount(..., { paint: { antenna: '#111' } })`).
+
+Such a body's drawing has `layers`: paths to paint under the body (`front: false`) and over it, under the eyes.
+
+`jacrispy` is the one body that uses them: a Reachy Mini shaped robot. `jacrispy({ stickers, rims })` builds one with stickers in its slots (`STICKER_SLOTS`); `BODIES.jacrispy` wears two example stickers. `JACRISPY_MOODS` maps the eight moods of the friend app to a face, an antenna pose and a move, and `JACRISPY_CLIPS` (`perk`, `wiggle`, `twitch`, `boing`) are its antenna moves, for `RigOptions.clips`:
+
+```ts
+import { JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_MOODS, deg, mount } from '@blot/avatar';
+
+const bot = mount(el, { shape: 'jacrispy', size: 160, color: JACRISPY_COLOUR, clips: JACRISPY_CLIPS });
+const mood = JACRISPY_MOODS.curious;
+bot.update({ face: mood.face });
+bot.live.rig.setAntennas(deg(mood.antennas[0]), deg(mood.antennas[1]));
+if (mood.cue) bot.play(mood.cue);
+```
+
 ## The public API
 
 From `@blot/avatar`:
@@ -163,7 +186,7 @@ From `@blot/avatar`:
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `SMALL`, `LARGE`, `SMALL_LOOK`.
 - **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `destroy`.
 
-From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths.
+From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or stickers, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it.
 
 ### The frame loop's rules
 

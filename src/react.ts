@@ -2,6 +2,7 @@
 // is an optional peer, needed only by whoever imports this file.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import { bodyOf } from './still';
 import { onMotion, reducedMotion } from './ticker';
@@ -12,12 +13,18 @@ import { onMotion, reducedMotion } from './ticker';
  * One live avatar for the life of the component. Put `host` on the element it sits in and `paths` on its
  * body path and its two eye paths, with `first` as their first `d`: after that the frame loop writes the
  * paths in place, with no render per frame. `reduced` is the person's reduced-motion setting, read live.
+ * For a body with antennas or stickers (jacrispy), put `layers[0]` on an empty <g> before the body path and
+ * `layers[1]` on one after it (before the eyes); the frame loop fills them, in `paint`'s colours where given.
  */
-export function useLiveAvatar(p: LiveProps) {
+export function useLiveAvatar(p: LiveProps & { paint?: Paint }) {
   const host = useRef<HTMLSpanElement>(null);
   const body = useRef<SVGPathElement>(null);
   const left = useRef<SVGPathElement>(null);
   const right = useRef<SVGPathElement>(null);
+  const under = useRef<SVGGElement>(null);
+  const over = useRef<SVGGElement>(null);
+  const paint = useRef(p.paint);
+  paint.current = p.paint;
   /** Read live, so turning it on stops an avatar that is already on the page. */
   const reduced = useSyncExternalStore(onMotion, reducedMotion, reducedMotion);
   const r = useRef<Live | null>(null);
@@ -31,6 +38,7 @@ export function useLiveAvatar(p: LiveProps) {
     body.current?.setAttribute('d', d.body);
     left.current?.setAttribute('d', d.eyes[0]);
     right.current?.setAttribute('d', d.eyes[1]);
+    writeLayers(under.current, over.current, d, paint.current);
   }) : undefined), []);
   useEffect(() => live.motion(), [reduced]);
   useEffect(() => live.follow(p.follow), [p.follow]);
@@ -38,5 +46,5 @@ export function useLiveAvatar(p: LiveProps) {
   useEffect(() => live.face(p.face), [p.face]);
   useEffect(() => live.doing(), [p.activity, p.form, p.rests, p.shape, p.size]);
 
-  return { host, paths: [body, left, right] as const, first: live.first, reduced, live };
+  return { host, paths: [body, left, right] as const, layers: [under, over] as const, first: live.first, reduced, live };
 }

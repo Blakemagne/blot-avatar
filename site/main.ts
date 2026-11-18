@@ -3,9 +3,9 @@
 // face or clip in the package shows up here without touching this file. The wave is the one move written here.
 
 import {
-  ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, POKES,
-  colours, mount, onMotion, reducedMotion,
-  type Clip, type MountOptions, type Mounted,
+  ACTIVITIES, ANTENNA_POSES, BODIES, CUES, FACE_NAMES, FORMS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, POKES, STICKER_SLOTS,
+  colours, deg, jacrispy, mount, onMotion, reducedMotion,
+  type Clip, type DecalShape, type JacrispyMood, type MountOptions, type Mounted, type Sticker, type StickerSlot,
 } from '../src/index';
 import { colorPicker, contrast } from './picker';
 
@@ -17,7 +17,8 @@ const wave: Clip = {
     o.roll += p.cue.dir * p.cue.amount * 0.12 * Math.sin(3 * Math.PI * p.u) * (1 - p.u);
   },
 };
-const clips = { wave };
+// (Jacrispy's antenna moves too, so that the playground's jacrispy has them.)
+const clips = { wave, ...JACRISPY_CLIPS };
 
 interface Move { name: string; lane: 'poke' | 'cue'; here?: boolean }
 const MOVES: Move[] = [
@@ -256,6 +257,55 @@ writeCode();
     sizes.append(make('li', {}, slot, make('span', { textContent: `${size} px` })));
     mount(slot, { shape: 'star', size, color: DEFAULT_COLOUR, follow: true, pokeable: size >= 64, label: `the ${size} px star`, seed: 200 + i });
   });
+}
+
+// ---- Jacrispy: moods, antenna poses, antenna moves, stickers.
+
+{
+  const jac = mount($('[data-avatar="jacrispy"]'), {
+    shape: 'jacrispy', size: 220, color: JACRISPY_COLOUR, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
+  });
+  const now = { mood: null as string | null, pose: 'rest' as string | null };
+  const syncs: (() => void)[] = [];
+  const hold = ([l, r]: readonly [number, number]): void => jac.live.rig.setAntennas(deg(l), deg(r));
+  syncs.push(chips($('[data-jac="mood"]'), JACRISPY_MOOD_NAMES, () => now.mood, (v) => {
+    now.mood = v; now.pose = null;
+    const m = JACRISPY_MOODS[v as JacrispyMood];
+    jac.update({ face: m.face });
+    hold(m.antennas);
+    if (m.cue) jac.play(m.cue);
+    syncs.forEach((s) => s());
+  }));
+  syncs.push(chips($('[data-jac="pose"]'), Object.keys(ANTENNA_POSES), () => now.pose, (v) => {
+    now.pose = v; hold(ANTENNA_POSES[v ?? 'rest']);
+    syncs.forEach((s) => s());
+  }));
+  const moveBox = $('[data-jac="moves"]');
+  for (const name of Object.keys(JACRISPY_CLIPS)) {
+    const b = make('button', { type: 'button', className: 'chip move', textContent: name });
+    b.addEventListener('click', () => jac.play(name, { dir: name === 'twitch' && Math.random() < 0.5 ? -1 : 1 }));
+    moveButtons.push(b);
+    moveBox.append(b);
+  }
+
+  // Stickers: a shape (or none) for each slot. A new set of stickers is a new body, so it changes over with a blink.
+  const SHAPES_ON: (DecalShape | null)[] = [null, 'star', 'heart', 'bolt', 'diamond', 'circle', 'rounded'];
+  const COLOUR: Record<DecalShape, string> = { star: '#F2B33D', heart: '#E2566B', bolt: '#3D8BF2', diamond: '#7C5CE0', circle: '#2FB37A', rounded: '#F28A3D' };
+  const worn: Partial<Record<StickerSlot, DecalShape | null>> = { chest: 'star', hipRight: 'heart' };
+  let rims = true;
+  const wear = (): void => {
+    const stickers: Sticker[] = [];
+    for (const [slot, shape] of Object.entries(worn)) if (shape) stickers.push({ slot: slot as StickerSlot, shape, colour: COLOUR[shape] });
+    jac.live.rig.setBody(jacrispy({ stickers, rims }));
+  };
+  const box = $('[data-jac="stickers"]');
+  for (const slot of Object.keys(STICKER_SLOTS) as StickerSlot[]) {
+    const row = make('div', { className: 'chips' });
+    box.append(make('span', { className: 'sub-label', textContent: slot }), row);
+    chips(row, SHAPES_ON, () => worn[slot] ?? null, (v) => { worn[slot] = v as DecalShape | null; wear(); });
+  }
+  const rimBox = $<HTMLInputElement>('[data-jac-rims]');
+  rimBox.addEventListener('change', () => { rims = rimBox.checked; wear(); });
 }
 
 // ---- Copy buttons.

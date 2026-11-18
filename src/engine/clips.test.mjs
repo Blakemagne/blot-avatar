@@ -10,7 +10,7 @@ const { BLINK_MS, BOUNCE_MS, CLIPS, CUES, DOTS_MS, HOP_DOWN, HOP_HEIGHT, HOP_STR
 const { smooth, track } = await import('./ease.ts');
 
 /** Channels as the rig resets them each step. */
-const reset = () => ({ yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0 });
+const reset = () => ({ yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0 });
 /** The same numbers, bit for bit (Object.is: -0 is not 0). */
 const same = (a, b, note) => { for (const k of Object.keys(a)) assert.ok(Object.is(a[k], b[k]), `${note}: ${k} ${a[k]} against ${b[k]}`); };
 /** A clip that is playing, `at` ms in. */
