@@ -2,9 +2,9 @@
 // React's useLiveAvatar (react.ts) and mount() (mount.ts) are both this, wired to a page in their own way.
 
 import type { Body } from './engine/body';
-import type { Clip } from './engine/clips';
+import { PERSONALITY, type Clip, type Personality } from './engine/clips';
 import { drawAvatar, type Drawing } from './engine/draw';
-import { FACES } from './engine/faces';
+import { ACTIVITY_FACES, FACES, faceFor } from './engine/faces';
 import { Rig, type RigState } from './engine/rig';
 import { bodyOf, stillState } from './still';
 import { onFrame, onSeen, pointer, reducedMotion, watchPointer } from './ticker';
@@ -36,6 +36,10 @@ export interface LiveProps {
   level?: () => number;
   /** Extra clips, passed to the rig (see RigOptions.clips). Read once, when the rig is built. */
   clips?: Readonly<Record<string, Clip>>;
+  /** A mark on its outline that it glances at: something is waiting for whoever is watching (Rig.setMark). */
+  mark?: boolean;
+  /** What it is like to move (the engine's Personality, each 0..1); left out, the engine's own feel. */
+  personality?: Partial<Personality>;
 }
 
 export interface Live {
@@ -61,6 +65,8 @@ export interface Live {
   poke(kind?: string): void;
   /** Play a clip by name (see Rig.play). False under reduced motion. */
   play(name: string, cue?: { dir?: number; amount?: number }): boolean;
+  /** Go to another shape for a moment and come back (Rig.visit). Nothing under reduced motion. */
+  visit(shape: string, stay?: number): void;
 }
 
 /** Below this size an avatar is drawn at most 30 times a second. */
@@ -104,6 +110,19 @@ export function lookFor(size: number, dx: number, dy: number, span: number): { x
 const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 
 /**
+ * The still picture for reduced motion: the still's pose (or the front), wearing what it is doing (a thinking
+ * face, shut eyes asleep) or the face it was given, with its mark if it has one. Nothing moves, but it still says
+ * what is going on.
+ */
+function calmOf(base: RigState, q: LiveProps): RigState {
+  const act = q.activity && q.activity !== 'idle' && Object.hasOwn(ACTIVITY_FACES, q.activity) ? q.activity as keyof typeof ACTIVITY_FACES : null;
+  const face = act ? ACTIVITY_FACES[act] : q.face ? faceFor(q.face) : base.face;
+  const s: RigState = { ...base, face, lid: act === 'sleeping' ? 0.1 : base.lid };
+  if (q.mark) s.fx = [{ kind: 'mark', u: 0, t: 0, dir: 1, amount: 1 }];
+  return s;
+}
+
+/**
  * A live avatar: one rig that lasts as long as this does. A new shape morphs, a new activity eases in, and
  * nothing starts over. While the person prefers reduced motion it is one still picture (the still's pose if
  * it rests, facing front if not), whenever that was turned on. It does not tick while it is off screen,
@@ -112,12 +131,12 @@ const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, level: q.level, calm: q.rests ? stillState(q.shape, q.size) : FRONT });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
   // A resting avatar starts where the still stands; any other starts facing front.
-  const build = (): Rig => new Rig({ seed: props.seed ?? 1, body: want.body, pose: props.rests ? stillState(props.shape, props.size).pose : undefined, rest: props.rests && idleOf(props), clips: props.clips });
+  const build = (): Rig => new Rig({ seed: props.seed ?? 1, body: want.body, pose: props.rests ? stillState(props.shape, props.size).pose : undefined, rest: props.rests && idleOf(props), clips: props.clips, personality: props.personality });
   let rig = build();
   const first = drawAvatar(want.body, 'gray', rig.state, want.size);
 
@@ -129,7 +148,9 @@ export function createLive(p: LiveProps): Live {
   /** What it is doing, and where it rests when it is doing nothing. */
   const doing = (r: Rig) => {
     r.setActivity(props.activity ?? 'idle', props.form ?? null);
-    r.rest(props.rests ? stillState(props.shape, props.size).pose : null);
+    r.rest(props.rests && !props.mark ? stillState(props.shape, props.size).pose : null);
+    r.setMark(!!props.mark);
+    r.setPersonality({ ...PERSONALITY, ...props.personality });
   };
 
   return {
@@ -206,11 +227,14 @@ export function createLive(p: LiveProps): Live {
       if (name === undefined && !faced) return;
       faced = name !== undefined;
       rig.setFace(name ?? 'neutral');
+      // (Under reduced motion nothing ticks, so the still picture, which wears the face, is drawn again now.)
+      if (reducedMotion()) live?.draw();
       live?.wake();
     },
     // What it is doing, and where it rests when it is doing nothing.
     doing() {
       doing(rig);
+      if (reducedMotion()) live?.draw();
       live?.wake();
     },
     poke(kind) {
@@ -223,6 +247,11 @@ export function createLive(p: LiveProps): Live {
       const played = rig.play(name, cue);
       live?.wake();
       return played;
+    },
+    visit(shape, stay) {
+      if (reducedMotion()) return;
+      rig.visit(bodyOf(shape), stay);
+      live?.wake();
     },
   };
 }

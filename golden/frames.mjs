@@ -18,7 +18,7 @@ let frames = 0;
 
 // The face's numbers in the rig's own order (FACE_KEYS in faces.ts), and the forms in FORMS order.
 const FACE_KEYS = ['width', 'height', 'round', 'tilt', 'lift', 'arc', 'uneven', 'skew', 'brow', 'slant', 'wink'];
-const FORMS = ['orbit', 'radar', 'progress', 'ring'];
+const FORMS = ['orbit', 'radar', 'progress', 'ring', 'dots'];
 const bodyList = Object.values(BODIES);
 const stateFd = stateOut ? openSync(stateOut, 'w') : null;
 let stateBuf = [];
@@ -29,7 +29,8 @@ function stateRow(rig, changed) {
   const s = rig.state, g = s.figure, f = s.face;
   const b = s.body ? bodyList.indexOf(s.body) : -2;
   const nums = [s.pose.yaw, s.pose.pitch, s.pose.roll, s.eye.x, s.eye.y, s.lid, s.dot, s.eyeScale, s.stretch, s.lift, s.scale, s.flip,
-    s.morph ? s.morph.k : -1, b, g ? g.k : -1, g ? g.turn : 0, g ? g.progress : 0, g ? FORMS.indexOf(g.form) : -1, ...FACE_KEYS.map((k) => f[k])];
+    s.morph ? s.morph.k : -1, b, g ? g.k : -1, g ? g.turn : 0, g ? g.progress : 0, g ? FORMS.indexOf(g.form) : -1, ...FACE_KEYS.map((k) => f[k]),
+    s.shift, s.arc, s.lids?.[0], s.lids?.[1], s.glow, ...(s.fx ?? []).flatMap((x) => [x.kind, x.u, x.t, x.dir, x.amount])];
   return `${changed ? 1 : 0}|${rig.still ? 1 : 0}|${rig.resting ? 1 : 0}|${nums.map(n).join(',')}\n`;
 }
 
@@ -41,7 +42,7 @@ function run(name, body, opts, script, ms, dt = 16, size = 96) {
     script(rig, t);
     const changed = rig.step(dt);
     const d = drawAvatar(rig.state.body ?? BODIES[body], 'gray', rig.state, size);
-    rows.push(`${changed ? 1 : 0}|${rig.still ? 1 : 0}|${rig.resting ? 1 : 0}|${d.body}|${d.eyes[0]}|${d.eyes[1]}|${(d.marks ?? []).join(';')}`);
+    rows.push(`${changed ? 1 : 0}|${rig.still ? 1 : 0}|${rig.resting ? 1 : 0}|${d.body}|${d.eyes[0]}|${d.eyes[1]}|${(d.effects ?? []).map((e) => `${e.layer}:${e.role}:${e.opacity}:${e.d}`).join(';')}|${d.glow ?? ''}`);
     if (stateFd !== null) stateBuf.push(stateRow(rig, changed));
     frames++;
   }
@@ -67,7 +68,7 @@ for (const b of bodies) {
   for (const a of ['thinking', 'working', 'waiting', 'speaking']) {
     run(`act-${a}`, b, { seed: 6 }, (r, t) => { at(t, 160, () => r.setActivity(a)); at(t, 7000, () => r.setActivity('idle')); }, 9000);
   }
-  for (const f of ['ring', 'orbit', 'radar', 'progress']) {
+  for (const f of ['ring', 'orbit', 'radar', 'progress', 'dots']) {
     run(`form-${f}`, b, { seed: 6 }, (r, t) => { at(t, 160, () => r.setActivity('working', f)); if (f === 'progress' && t % 500 === 0) r.setProgress(t / 8000); at(t, 7200, () => r.setActivity('thinking', f === 'ring' ? 'orbit' : null)); at(t, 9000, () => r.setActivity('idle')); }, 10000);
   }
   run('speak-level', b, { seed: 8 }, (r, t) => { at(t, 160, () => r.setActivity('speaking')); if (t > 160 && t < 3000) r.setLevel(Math.abs(Math.sin(t / 90)) * (t % 700 < 400 ? 1 : 0.01)); at(t, 3000, () => r.setLevel(0)); at(t, 5200, () => r.setActivity('idle')); }, 6500);
@@ -81,6 +82,18 @@ for (const b of bodies) {
   }, 3500);
   run('no-idle', b, { seed: 1, idle: false, blinks: false }, (r, t) => { at(t, 200, () => r.look(0.5, 0)); at(t, 1500, () => r.poke('nod')); }, 3000);
   run('odd-dt', b, { seed: 12 }, (r, t) => { at(t, 37, () => r.look(1, 1)); at(t, 37 * 20, () => r.poke('hop')); }, 3000, 37);
+  // Added on 18 November 2026: how faces are worn, the new moves, sleep, the mark, a visit, and personality.
+  run('manners', b, { seed: 13 }, (r, t) => {
+    ['surprised', 'sad', 'scared', 'sleepy', 'excited', 'shy', 'confused', 'neutral'].forEach((f, i) => at(t, 160 + i * 1400, () => r.setFace(f)));
+  }, 11500);
+  run('cues-new', b, { seed: 14 }, (r, t) => {
+    ['delight', 'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock'].forEach((c, i) => at(t, 160 + i * 1200, () => r.play(c, { dir: i % 2 ? -1 : 1, amount: i % 3 ? 1 : 1.5 })));
+  }, 18500);
+  run('float-cue', b, { seed: 14 }, (r, t) => { at(t, 160, () => r.play('float')); }, 5200);
+  run('sleep', b, { seed: 15 }, (r, t) => { at(t, 160, () => r.setActivity('sleeping')); at(t, 6000, () => r.setActivity('idle')); }, 8500);
+  run('mark', b, { seed: 16 }, (r, t) => { at(t, 160, () => r.setMark(true)); at(t, 400, () => r.look(0.5, 0.2)); at(t, 2000, () => r.stop()); at(t, 5200, () => r.setMark(false)); }, 7000);
+  run('visit', b, { seed: 17 }, (r, t) => { at(t, 160, () => r.visit(BODIES[b === 'heart' ? 'wedge' : 'heart'], 700)); }, 3200);
+  run('personality', b, { seed: 18, personality: { weight: 0.1, squash: 0.9, wobble: 1, flare: 0.8, float: 0.6 } }, (r, t) => { at(t, 300, () => r.poke('hop')); at(t, 1300, () => r.play('bounce')); at(t, 2600, () => r.play('recoil')); }, 4200);
 }
 writeFileSync(out, JSON.stringify(record));
 if (stateFd !== null) closeSync(stateFd);

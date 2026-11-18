@@ -21,10 +21,11 @@
 // slowly from side to side; speaking bobs with each syllable. Left idle, it breathes.
 
 import type { Body } from './body';
-import { BLINK_MS, CLIPS, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Playing, type View } from './clips';
+import { BLINK_MS, CLIPS, PERSONALITY, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Personality, type Playing, type View } from './clips';
 import { inOut, smooth, track } from './ease';
-import { ACTIVITY_FACES, FACES, FACE_KEYS, faceFor, mixFace, type Face } from './faces';
+import { ACTIVITY_FACES, FACES, FACE_KEYS, MANNER_KEYS, PLAIN, faceFor, mannerFor, mixFace, type Face, type Manner } from './faces';
 import { FORMS, type Figure, type Form } from './figures';
+import type { Fx } from './fx';
 import { deg, type Pose } from './math';
 import { caught, type Source } from './morph';
 
@@ -59,11 +60,21 @@ export interface RigState {
    * outward). Set only while the body has antennas.
    */
   antennas?: [left: number, right: number];
+  /** Body units the body is moved to the right (a dash, a rock). */
+  shift?: number;
+  /** Added to the face's bend: the eyes' arches of a moment of delight. */
+  arc?: number;
+  /** Each eye's own height factor on top of `lid`, viewer's left then right: a wink shuts one. */
+  lids?: [number, number];
+  /** 0..1: a glow, for a renderer that draws one. */
+  glow?: number;
+  /** The effects showing (fx.ts): a mark, a "!", Zs, sparks, rings, a pulse, speed lines. */
+  fx?: Fx[] | null;
 }
 
 export { BLINK_MS, HOP_DOWN, HOP_HEIGHT, HOP_UP, NOD, NOD_SQUASH, POKES, POKE_MS, POP, POP_MS, type PokeKind } from './clips';
-export type Activity = 'idle' | 'thinking' | 'working' | 'waiting' | 'speaking';
-export const ACTIVITIES: readonly Activity[] = ['idle', 'thinking', 'working', 'waiting', 'speaking'];
+export type Activity = 'idle' | 'thinking' | 'working' | 'waiting' | 'speaking' | 'sleeping';
+export const ACTIVITIES: readonly Activity[] = ['idle', 'thinking', 'working', 'waiting', 'speaking', 'sleeping'];
 
 export interface RigOptions {
   /** Seed for the blink and idle timing. The same seed and the same steps give the same frames. */
@@ -80,6 +91,8 @@ export interface RigOptions {
   rest?: boolean;
   /** Extra clips, played as pokes or cues after the rig's own (see clips.ts and checkClips). */
   clips?: Readonly<Record<string, Clip>>;
+  /** What it is like to move (clips.ts Personality); left out, the engine's own feel. */
+  personality?: Partial<Personality>;
 }
 
 /** How far a full look turns the body. */
@@ -153,8 +166,45 @@ const SPEAK_SWAY = deg(2), SPEAK_SWAY_MS = 2300;
  */
 export const ANT_SWAY = deg(5), ANT_SWAY_MS = 4000;
 const ANT_THINK = deg(22), ANT_WORK = deg(-9), ANT_WAIT = deg(10), ANT_SPEAK = deg(12);
-/** A figure's own turning, in radians per ms. */
-const SPIN: Record<Form, number> = { ring: TAU / 1000, orbit: TAU / 1400, radar: TAU / 1900, progress: 0 };
+/** A figure's own turning, in radians per ms. (The dots' is the pace of their pulse: once along the row every 1.5 s.) */
+const SPIN: Record<Form, number> = { ring: TAU / 1000, orbit: TAU / 1400, radar: TAU / 1900, progress: 0, dots: TAU / 1500 };
+
+/**
+ * A face's manner (faces.ts) comes on over MANNER_SLOW ms for a face with no energy, MANNER_QUICK for one with
+ * all of it. The posture is thrown a little past where it is going and settles (THROWN); the habits fade in.
+ */
+export const MANNER_SLOW = 800, MANNER_QUICK = 300;
+const THROWN = [0, 0, 0.42, 1.22, 0.75, 0.97, 1, 1];
+/** The habits at full strength: the tremble's lean, the sway's lean and how long one takes, how far the eyes search and how long a search takes, how fast a happy bounce goes, how long one nodding off takes. */
+export const TREMBLE = deg(1.2), SWAY = deg(3.2), SWAY_MS = 4200, SCAN = 0.32, SCAN_MS = 7300, BOUNCE_HZ = 2.2, DOZE_MS = 4600;
+/**
+ * Left alone it is never quite still: the eyes wander a little, never repeating, and the head goes with them.
+ * As far as WANDER_X and WANDER_Y of a look and WANDER_ROLL of lean, worked out on the
+ * breath's own clock and steps, so an idle avatar is not redrawn more often than it was). While it watches the pointer, less.
+ */
+export const WANDER_X = 0.1, WANDER_Y = 0.08, WANDER_ROLL = deg(1.8);
+/** Watching the pointer it leans toward it: this much per unit of look, and this much more per unit of look a second it moves. */
+export const LEAN = deg(3.5), LEAN_SPEED = deg(0.5);
+/** One blink in TWICE is a double, the second TWICE_MS after the first. */
+export const TWICE = 0.16, TWICE_MS = 80;
+/**
+ * Asleep: the lids close (SLEEP_SHUT of the way, at SLEEP_RATE), the body sinks SLEEP_SINK, and the breath
+ * goes SLEEP_DEEP times as deep and slows by 1 + SLEEP_SLOW.
+ */
+export const SLEEP_RATE = 2.2, SLEEP_SHUT = 0.94, SLEEP_SINK = 0.04, SLEEP_DEEP = 2.5, SLEEP_SLOW = 0.7;
+/** Waking is quicker than falling asleep. */
+export const WAKE_RATE = 7;
+/** A body that floats (Personality.float) hovers this high at most, bobbing this share of it every HOVER_MS. */
+export const HOVER = 0.12, HOVER_BOB = 0.25, HOVER_MS = 2600;
+/** With a mark showing, it glances at it once every GLANCE_MS. */
+export const GLANCE_MS = 3400;
+/** A visit to another shape (Rig.visit) stays this long by default before it changes back. */
+export const VISIT_MS = 900;
+
+/** A smooth wander that never repeats: three waves of unrelated lengths, -1..1. */
+export function wander(t: number, ms: number): number {
+  return 0.55 * Math.sin((TAU * t) / ms) + 0.3 * Math.sin((TAU * t) / (ms * 0.537) + 1.7) + 0.15 * Math.sin((TAU * t) / (ms * 0.291) + 4.1);
+}
 
 /** A small seedable random source (mulberry32): numbers in [0, 1). */
 export function random(seed: number): () => number {
@@ -175,7 +225,7 @@ export function random(seed: number): () => number {
  */
 class Spring {
   x = 0; v = 0; to = 0;
-  private rate: number;
+  rate: number;
   constructor(rate: number) { this.rate = rate; }
   step(dt: number): void {
     const d = this.x - this.to, k = this.rate, e = Math.exp(-k * dt), c = this.v + k * d;
@@ -225,7 +275,8 @@ class Stalk {
 /** Into 0..1; anything that is not a number is 0. */
 const unit = (v: number): number => (v > 0 ? Math.min(1, v) : 0);
 /** How many numbers `mark` writes. */
-const MARKS = 20 + FACE_KEYS.length;
+const MARKS = 26 + FACE_KEYS.length;
+const clampUnit = (v: unknown, or: number): number => (typeof v === 'number' && v === v ? Math.max(0, Math.min(1, v)) : or);
 
 export class Rig {
   readonly state: RigState = {
@@ -278,15 +329,34 @@ export class Rig {
   private figK = 0; private figForm: Form = 'ring'; private figClock = 0; private turn = 0;
   private figure: Figure = { form: 'ring', k: 0, turn: 0, progress: 0 };
   private popping: Playing | null = null;
+  /** The manner it is wearing (blended), the one it is going to and the one it came from, and how far in; the clock its habits keep; the jolt of a face coming on. */
+  private manner: Manner = { ...PLAIN }; private mannerTo: Manner = PLAIN; private mannerFrom: Manner = { ...PLAIN }; private mannerAt = 1; private mannerMs = 1;
+  private habitAt = 0; private kicking: Playing | null = null;
+  /** What it is like to move. */
+  private feel: Personality = { ...PERSONALITY };
+  /** The wander and its clock; the lean toward the pointer; a second blink owed. */
+  private wanderGate = new Spring(GATE_RATE); private wanderAt = 0; private wanderK = 0; private tick = -1;
+  /** What the wander added last frame: eyes across, eyes up, lean, turn. */
+  private wandered = new Float64Array(4);
+  private leanGate = new Spring(GATE_RATE); private twice = false;
+  /** Asleep (0..1) and for how long; the mark (0..1), whether it is wanted, and its clock; a hover's clock. */
+  private sleep = new Spring(SLEEP_RATE); private sleepAt = 0;
+  private markOn = false; private markK = new Spring(GATE_RATE); private markAt = 0;
+  /** How far it floats (Personality.float, eased so a change does not jump). */
+  private hover = new Spring(GATE_RATE / 3);
+  /** A visit to another shape: the body to go back to, how long it has been, and how long it stays. */
+  private visiting: { back: Body; at: number; stay: number } | null = null;
   private flipFrom = 1; private flipTo = 1; private flipAt = FLIP_MS;
   private paused = false;
   /** The antennas: where they are held (setAntennas), and each one's swing. */
   private held: [number, number] = [0, 0]; private antL = new Stalk(); private antR = new Stalk();
   /** A slow move to a new hold (setAntennas with a time), while it lasts. */
   private glide: { from: [number, number]; to: [number, number]; ms: number; at: number } | null = null;
+  /** Whether it has been stepped yet. */
+  private stepped = false;
   private before = new Float64Array(MARKS); private after = new Float64Array(MARKS);
   /** One frame's sum of the moves, and what a clip may read. */
-  private o: Channels = { yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0 };
+  private o: Channels = { yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0, x: 0, arc: 0, winkL: 0, winkR: 0, glow: 0, fx: [] };
   private view: View;
 
   constructor(opts: RigOptions = {}) {
@@ -313,7 +383,14 @@ export class Rig {
         const left = 1 - Math.min(1, Math.abs(r.eyeX.x) / r.most()), p = r.poking;
         return p && p.clip === CLIPS.spin ? left * (1 - smooth(Math.min(p.u, 1 - p.u) / 0.12)) : left;
       },
+      get feel() { return r.feel; },
     };
+    if (opts.personality) this.setPersonality(opts.personality);
+    // (A body built to float is floating from the start.)
+    this.hover.x = this.hover.to = this.idle && !opts.rest ? this.feel.float : 0;
+    // Where in its wander it starts: two avatars side by side do not wander in step. (It eases in from the first
+    // frame, as after a look: the first picture is the one it was built with.)
+    this.wanderAt = Math.floor(this.rnd() * 60000);
     this.awake.x = this.awake.to = 1;
     const at = opts.pose;
     if (at) {
@@ -329,8 +406,8 @@ export class Rig {
 
   private between(a: number, b: number): number { return a + (b - a) * this.rnd(); }
 
-  /** Thinking and working move the eyes themselves; a look waits until they are over. */
-  private get driven(): boolean { return this.activity === 'thinking' || this.activity === 'working'; }
+  /** Thinking, working and sleeping move the eyes themselves; a look waits until they are over. */
+  private get driven(): boolean { return this.activity === 'thinking' || this.activity === 'working' || this.activity === 'sleeping'; }
 
   /**
    * Look toward (x, y): x right, y up, 0 0 straight ahead. The eyes go first. A look is a direction and how
@@ -346,7 +423,20 @@ export class Rig {
     if (far === Infinity) { x = Math.max(-1, Math.min(1, x)); y = Math.max(-1, Math.min(1, y)); far = Math.hypot(x, y); }
     this.target = far > 1 ? { x: x / far, y: y / far } : { x, y };
     this.away = false;
+    this.unwander();
     if (!this.driven) this.face();
+  }
+
+  /**
+   * The wander stops while it looks at something. What it had wandered to is handed to the springs, so the eyes
+   * and head go on from where they are to the look, and nothing jumps.
+   */
+  private unwander(): void {
+    if (this.wanderK === 0) return;
+    const w = this.wandered;
+    this.eyeX.x += w[0]; this.eyeY.x += w[1]; this.roll.x += w[2]; this.yaw.x += w[3];
+    w.fill(0);
+    this.wanderK = 0; this.wanderGate.x = this.wanderGate.v = this.wanderGate.to = 0;
   }
 
   /** Stop looking: back to the front, and the idle drift may start again. */
@@ -375,8 +465,31 @@ export class Rig {
     this.away = false;
   }
 
-  /** Blink now. */
-  blink(): void { if (!this.blinking) this.blinking = start(CLIPS.blink); }
+  /** Blink now. (At the pace of the face it wears: a sleepy face blinks slowly.) */
+  blink(): void { if (!this.blinking) this.blinking = start(CLIPS.blink, undefined, BLINK_MS * this.mannerTo.blink); }
+
+  /**
+   * What it is like to move (clips.ts Personality): each 0..1, 0.5 the engine's own feel. Only the numbers
+   * given change; one that is not a number is left as it was.
+   */
+  setPersonality(p: Partial<Personality>): void {
+    const f = this.feel;
+    for (const k of ['weight', 'squash', 'wobble', 'flare', 'float'] as const) f[k] = clampUnit(p?.[k], f[k]);
+  }
+
+  /** A mark on its outline, up and to the right, that it glances at now and then: something waits for whoever is watching. */
+  setMark(on: boolean): void { this.markOn = !!on; }
+
+  /**
+   * Go to another shape for a moment and come back: the change of shape there, `stay` ms (VISIT_MS) as that
+   * shape, and the change back. A setBody meanwhile ends the visit where it is.
+   */
+  visit(body: Body, stay = VISIT_MS): void {
+    const back = this.visiting ? this.visiting.back : this.state.body;
+    if (!back || !body) return;
+    this.morphTo(body);
+    this.visiting = body === back ? null : { back, at: 0, stay: Number.isFinite(stay) && stay >= 0 ? stay : VISIT_MS };
+  }
 
   /** Aim the eyes. The body is never aimed at the target: it turns after the eyes (see `step`). */
   private aim(x: number, y: number, roll: number): void {
@@ -397,17 +510,31 @@ export class Rig {
     else this.aim(0, 0, 0);
   }
 
-  /** Wear a face by name; a name the engine does not know is the neutral face. It eases over FACE_MS. */
+  /**
+   * Wear a face by name; a name the engine does not know is the neutral face. The eyes ease into it over
+   * FACE_MS; its manner (faces.ts) comes on with it: the posture thrown and settled, a jolt if it has one, its habits.
+   */
   setFace(name: string): void {
     this.given = name;
-    this.wear(faceFor(name));
+    // (While it does something its manner waits: every activity is worn plainly, and the face's manner comes on
+    // when the activity ends.)
+    this.wear(faceFor(name), this.activity === 'idle' ? mannerFor(name) : PLAIN);
   }
 
-  private wear(face: Face): void {
-    if (face === this.worn) return;
-    this.faceFrom = { ...this.state.face };
-    this.worn = face;
-    this.faceAt = 0;
+  private wear(face: Face, manner: Manner): void {
+    if (face !== this.worn) {
+      this.faceFrom = { ...this.state.face };
+      this.worn = face;
+      this.faceAt = 0;
+    }
+    if (manner !== this.mannerTo) {
+      this.mannerFrom = { ...this.manner };
+      this.mannerTo = manner;
+      this.mannerAt = 0;
+      this.mannerMs = MANNER_SLOW + (MANNER_QUICK - MANNER_SLOW) * manner.energy;
+      // (A jolt during a jolt is not started again: that would drop the one in flight back to nothing in one frame.)
+      if (manner.kick !== 0 && !this.kicking) this.kicking = start(CLIPS.kick, { dir: Math.sign(manner.kick), amount: Math.abs(manner.kick) });
+    }
   }
 
   /**
@@ -468,6 +595,11 @@ export class Rig {
    * the new body lands with a soft tilt, then it blinks. A change during a change starts from the in-between.
    */
   setBody(body: Body): void {
+    this.visiting = null;
+    this.morphTo(body);
+  }
+
+  private morphTo(body: Body): void {
     const s = this.state;
     if (body === s.body) return;
     const from: Source | undefined = s.morph ? caught(s.morph.from, s.body!, s.morph.k) : s.body;
@@ -496,13 +628,16 @@ export class Rig {
     }
     this.activity = k; this.form = f; this.actAt = 0; this.figClock = 0; this.cycle = 0;
     this.away = false;
+    // A blink as one thing gives way to another: the switch happens behind it. (Not before the first frame: an
+    // avatar that starts out busy has nothing to switch from.)
+    if (this.blinks && this.stepped && (!this.home || k !== 'idle')) this.blink();
     if (k === 'thinking') this.side = this.rnd() < 0.5 ? -1 : 1;
     if (k === 'waiting') this.nodIn = this.between(1300, 2400);
     // Starting to speak with no voice to follow, its own rhythm is there from the first syllable.
     if (k === 'speaking' && this.talk.x === 0) { this.own.x = this.quiet >= SPEAK_QUIET_MS ? 1 : 0; this.own.v = 0; }
     if (k === 'idle') this.driftIn = this.between(1800, 4500);
     if (!this.driven) this.face();
-    this.wear(k === 'idle' ? faceFor(this.given) : ACTIVITY_FACES[k]);
+    this.wear(k === 'idle' ? faceFor(this.given) : ACTIVITY_FACES[k], k === 'idle' ? mannerFor(this.given) : PLAIN);
   }
 
   /** How loud the Bot's voice is right now, 0..1. While it is speaking it bobs to this; given none, it bobs to a rhythm of its own. */
@@ -549,19 +684,27 @@ export class Rig {
     out[12] = s.morph ? s.morph.k : -1; out[13] = this.bodies;
     out[14] = g ? g.k : -1; out[15] = g ? g.turn : 0; out[16] = g ? g.progress : 0; out[17] = g ? FORMS.indexOf(g.form) : -1;
     for (let i = 0; i < FACE_KEYS.length; i++) out[18 + i] = f[FACE_KEYS[i]];
-    const a = s.antennas;
-    out[18 + FACE_KEYS.length] = a ? a[0] : 0; out[19 + FACE_KEYS.length] = a ? a[1] : 0;
+    const at = 18 + FACE_KEYS.length, a = s.antennas, lids = s.lids;
+    out[at] = a ? a[0] : 0; out[at + 1] = a ? a[1] : 0;
+    out[at + 2] = s.shift ?? 0; out[at + 3] = s.arc ?? 0; out[at + 4] = lids ? lids[0] : 1; out[at + 5] = lids ? lids[1] : 1; out[at + 6] = s.glow ?? 0; out[at + 7] = s.fx ? s.fx.length : 0;
   }
 
   /** Advance by dt milliseconds. True when the picture changed. Time only runs forward: a dt that is negative or not a finite number is no step. */
   step(dtMs: number): boolean {
     if (this.paused || !(dtMs >= 0) || dtMs === Infinity) return false;
     const s = this.state, o = this.o, v = this.view;
+    this.stepped = true;
     this.mark(this.before);
 
     if (this.faceAt < FACE_MS) {
       this.faceAt = Math.min(FACE_MS, this.faceAt + dtMs);
       mixFace(this.faceFrom, this.worn, smooth(this.faceAt / FACE_MS), s.face);
+    }
+    if (this.mannerAt < this.mannerMs) {
+      // The posture is thrown past where it is going and settles; everything else simply eases in.
+      this.mannerAt = Math.min(this.mannerMs, this.mannerAt + dtMs);
+      const a = this.mannerAt / this.mannerMs, thrown = a >= 1 ? 1 : track(THROWN, a), eased = smooth(a), m = this.manner, from = this.mannerFrom, to = this.mannerTo;
+      for (const k of MANNER_KEYS) m[k] = a >= 1 ? to[k] : from[k] + (to[k] - from[k]) * (k === 'yaw' || k === 'pitch' || k === 'roll' || k === 'rise' ? thrown : eased);
     }
 
     // Where the eyes are sent. Idle drifts; thinking and working move them by the clock; otherwise the look stands.
@@ -605,6 +748,9 @@ export class Rig {
         // loading figure: a progress ring holds its shape.
         const line = Math.floor(this.actAt / WORK_MS + 1 - WORK_READ);
         if (line !== this.cycle) { this.cycle = line; if (this.figK === 0) this.squash.v -= WORK_KICK; }
+      } else if (act === 'sleeping') {
+        // Asleep: the eyes low and the head tipped a little.
+        this.aim(0, -0.3, deg(3));
       }
     }
 
@@ -650,9 +796,18 @@ export class Rig {
 
     // The little moves: each adds to the pose and comes back to nothing (clips.ts).
     o.yaw = 0; o.pitch = 0; o.roll = 0; o.eyeY = 0; o.eyeX = 0; o.lift = 0; o.stretch = 1; o.scale = 1; o.open = 1; o.antL = 0; o.antR = 0;
+    o.x = 0; o.arc = 0; o.winkL = 0; o.winkR = 0; o.glow = 0; o.fx.length = 0;
 
     if (!this.poking && this.queued.length) this.begin(this.queued.shift()!);
     this.poking = advance(this.poking, dtMs, o, v);
+    this.kicking = advance(this.kicking, dtMs, o, v);
+
+    // A visit to another shape: back again once it has been there long enough.
+    const visit = this.visiting;
+    if (visit) {
+      visit.at += dtMs;
+      if (visit.at >= CHANGE_MS + visit.stay) { this.visiting = null; this.morphTo(visit.back); }
+    }
 
     const ch = this.change;
     if (ch) {
@@ -719,11 +874,97 @@ export class Rig {
     } else { this.talkAt = 0; this.sylAt = 0; this.sylLen = 0; this.sylLeft = 0; }
     if (voice !== 0) { o.lift += SPEAK_LIFT * voice; o.stretch *= 1 + SPEAK_STRETCH * voice; o.open += SPEAK_EYES * voice; }
 
+    // The face's manner: its posture, and its habits. (All of it fades as it comes to rest, and the habits as it falls asleep.)
+    const m = this.manner, awake = this.awake.x, lively = awake * (1 - this.sleep.x);
+    // The breath's clock, which the wander and a hover keep too: quicker for a lively face, slower asleep.
+    const pace = 1 + ((m.energy - 0.4) * 0.7) / 0.98;
+    if (this.idle) this.breathAt += this.sleep.x > 0 ? (dtMs * pace) / (1 + SLEEP_SLOW * this.sleep.x) : dtMs * pace;
+    if (awake > 0) {
+      o.yaw += m.yaw * v.room * awake; o.pitch += m.pitch * awake; o.roll += m.roll * awake; o.lift += m.rise * awake;
+    }
+    if (this.idle && lively > 0 && (m.tremble || m.sway || m.scan || m.bounce || m.doze)) {
+      this.habitAt += dtMs;
+      // (The quick habits, the tremble and the bounce, every frame; the slow ones on the breath's steps, so a face
+      // that only sways or searches is redrawn no more often than the breath.)
+      const t = this.habitAt, sec = t / 1000, slow = Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP;
+      if (m.tremble) {
+        const w = m.tremble * lively;
+        o.roll += w * TREMBLE * (Math.sin(41 * sec) + 0.6 * Math.sin(53.7 * sec + 1) + 0.4 * Math.sin(29.3 * sec + 2)) / 2;
+        o.eyeX += w * 0.015 * Math.sin(37 * sec + 0.5);
+      }
+      if (m.sway) {
+        const w = m.sway * lively, a = (TAU * slow) / SWAY_MS;
+        o.roll += w * SWAY * Math.sin(a); o.eyeX += w * 0.05 * v.room * Math.sin(a - 0.6);
+      }
+      if (m.scan) {
+        // Searching: the eyes go slowly from side to side, the head part of the way with them.
+        const w = m.scan * lively, n = wander(slow, SCAN_MS);
+        o.eyeX += w * SCAN * n * v.room; o.yaw += w * deg(10) * n * v.room;
+      }
+      if (m.bounce) {
+        const w = m.bounce * lively, q = Math.abs(Math.sin(Math.PI * BOUNCE_HZ * sec));
+        o.lift += w * 0.035 * q; o.stretch *= 1 + w * 0.03 * (q - 0.5);
+      }
+      if (m.doze) {
+        // Nodding off: a long slow sink, the lids coming down with it, and a sudden catch back up.
+        const w = m.doze * lively, u = (slow % DOZE_MS) / DOZE_MS, sink = u < 0.84 ? (u / 0.84) ** 2 : 1 - smooth((u - 0.84) / 0.16);
+        o.lift -= w * 0.04 * sink; o.pitch -= w * deg(9) * sink; o.open *= 1 - w * 0.45 * sink;
+      }
+    } else this.habitAt = 0;
+
+    // The wander: the eyes are never quite still, and the head goes a little way with them.
+    // (While it watches the pointer the eyes are on that.)
+    this.wanderGate.to = act === 'idle' && this.idle && !home && !this.target ? 1 : 0;
+    this.wanderGate.step(dt);
+    // (On the breath's clock and its steps, the gate included, so the two change on the same frames: an idle
+    // avatar is redrawn no more often for it.)
+    const tick = Math.floor(this.breathAt / BREATH_STEP);
+    if (tick !== this.tick) { this.tick = tick; this.wanderK = this.wanderGate.x; }
+    if (this.wanderK > 0) {
+      const w = this.wanderK, tq = this.wanderAt + tick * BREATH_STEP;
+      const nx = WANDER_X * wander(tq, 11300) + 0.03 * wander(tq, 3700), d = this.wandered;
+      d[0] = w * nx; d[1] = w * (WANDER_Y * wander(tq, 9100) + 0.025 * wander(tq, 4300));
+      d[2] = w * WANDER_ROLL * wander(tq, 13700); d[3] = w * nx * LOOK_YAW * 0.6 * v.room;
+      o.eyeX += d[0]; o.eyeY += d[1]; o.roll += d[2]; o.yaw += d[3];
+    } else this.wandered.fill(0);
+    // Watching the pointer, it leans toward it, and more while the pointer moves.
+    this.leanGate.to = this.target && !this.driven && !home ? 1 : 0;
+    this.leanGate.step(dt);
+    if (this.leanGate.x > 0) o.roll += this.leanGate.x * (LEAN * this.eyeX.x + LEAN_SPEED * Math.max(-5, Math.min(5, this.eyeX.v)));
+
+    // Asleep: the lids close, it sinks, and Zs go up.
+    this.sleep.to = act === 'sleeping' ? 1 : 0;
+    this.sleep.rate = act === 'sleeping' ? SLEEP_RATE : WAKE_RATE;
+    this.sleep.step(dt);
+    const asleep = this.sleep.x;
+    if (asleep > 0) {
+      this.sleepAt += dtMs;
+      o.open *= 1 - SLEEP_SHUT * asleep; o.lift -= SLEEP_SINK * asleep;
+      if (asleep > 0.02) o.fx.push({ kind: 'zzz', u: 0, t: this.sleepAt, dir: 1, amount: asleep });
+    } else this.sleepAt = 0;
+
+    // A body that floats hovers off the ground, bobbing. (Worked out 30 times a second.)
+    this.hover.to = this.idle && !home ? this.feel.float : 0;
+    this.hover.step(dt);
+    if (this.hover.x > 0) {
+      const tq = Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP;
+      o.lift += this.hover.x * HOVER * awake * (1 + HOVER_BOB * Math.sin((TAU * tq) / HOVER_MS));
+    }
+
+    // The mark: it pops on, sends out a ring now and then, and the eyes go to it every so often.
+    this.markK.to = this.markOn ? 1 : 0;
+    this.markK.step(dt);
+    if (this.markK.x > 0) {
+      this.markAt += dtMs;
+      const k = this.markK.x, g = k * track([0, 0, 0.12, 1, 0.4, 1, 0.52, 0, 1, 0], (this.markAt % GLANCE_MS) / GLANCE_MS);
+      o.eyeX += 0.32 * g * v.room * this.flipTo; o.eyeY += 0.28 * g; o.roll += deg(3) * g * this.flipTo;
+      o.fx.push({ kind: 'mark', u: 0, t: this.markAt, dir: 1, amount: k });
+    } else this.markAt = 0;
+
     // Idle or not, it breathes: a little taller and back, slowly. (Not with idle off: then a rig left alone
-    // is still. And not as a loading figure: a ring stays round.)
+    // is still. And not as a loading figure: a ring stays round.) A lively face breathes quicker, a sleeper slower and deeper.
     if (this.idle) {
-      this.breathAt += dtMs;
-      o.stretch *= 1 + BREATH * this.awake.x * (1 - (s.figure ? s.figure.k : 0)) * Math.sin((Math.PI * Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP) / BREATH_MS) ** 2;
+      o.stretch *= 1 + BREATH * (1 + (SLEEP_DEEP - 1) * asleep) * awake * (1 - (s.figure ? s.figure.k : 0)) * Math.sin((Math.PI * Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP) / BREATH_MS) ** 2;
     }
 
     // The pop, then the cues, in the order the clips are listed.
@@ -735,13 +976,23 @@ export class Rig {
       s.flip = this.flipAt >= FLIP_MS ? this.flipTo : this.flipFrom + (this.flipTo - this.flipFrom) * inOut(this.flipAt / FLIP_MS);
     }
 
-    if (!this.blinking && home) {
-      // At rest it does not blink.
+    if (!this.blinking && (home || asleep > 0.3)) {
+      // At rest it does not blink, nor asleep.
     } else if (this.blinks && !this.blinking) {
-      this.blinkIn -= dtMs;
-      if (this.blinkIn <= 0) { this.blinking = start(CLIPS.blink); this.blinkIn = this.between(2200, 6500); }
+      // A lively face blinks more often. Now and then a blink comes twice.
+      this.blinkIn -= dtMs * pace;
+      if (this.blinkIn <= 0) {
+        this.blinking = start(CLIPS.blink, undefined, BLINK_MS * this.manner.blink);
+        if (!this.twice && this.rnd() < TWICE) { this.blinkIn = TWICE_MS; this.twice = true; } else { this.blinkIn = this.between(2200, 6500); this.twice = false; }
+      }
     } else this.blinking = advance(this.blinking, dtMs, o, v);
     s.lid = o.open;
+    // (The newer numbers are on the state only while they show, so a rig that never uses them has the state it always had.)
+    if (o.winkL > 0 || o.winkR > 0) s.lids = [1 - SLEEP_SHUT * Math.min(1, o.winkL), 1 - SLEEP_SHUT * Math.min(1, o.winkR)]; else if (s.lids) delete s.lids;
+    if (o.x) s.shift = o.x; else if (s.shift !== undefined) delete s.shift;
+    if (o.arc) s.arc = o.arc; else if (s.arc !== undefined) delete s.arc;
+    if (o.glow > 0) s.glow = Math.min(1, o.glow); else if (s.glow !== undefined) delete s.glow;
+    if (o.fx.length) s.fx = o.fx.slice(); else if (s.fx !== undefined) delete s.fx;
 
     // (`|| 0` so that a move that has come back to nothing leaves a plain zero, never a negative one.)
     // (The eyes slide no further than the body's own full look: past it a ball's far eye is round the rim.)
@@ -752,6 +1003,8 @@ export class Rig {
     if (s.body?.antennas) this.antennas(dtMs, voice); else if (s.antennas) s.antennas = undefined;
 
     this.mark(this.after);
+    // (An effect is always on its way somewhere: a frame with one is a new picture.)
+    if (s.fx) return true;
     for (let i = 0; i < MARKS; i++) if (this.before[i] !== this.after[i]) return true;
     return false;
   }
@@ -787,17 +1040,22 @@ export class Rig {
     a[0] = sl || 0; a[1] = sr || 0;
   }
 
-  /** True when nothing is moving but the breath (a blink or a drift may still be on its way). */
+  /**
+   * True when nothing is moving but its life: the breath, the wander, a hover, a face's habits (a blink or a
+   * drift may still be on its way).
+   */
   get still(): boolean {
     return !this.blinking && this.eyeX.still && this.eyeY.still && this.yaw.still && this.pitch.still && this.roll.still
       && !this.poking && !this.queued.length && !this.change && this.faceAt >= FACE_MS && !this.popping && this.flipAt >= FLIP_MS
       && this.figK === 0 && !this.nodding && this.level.still && this.activity === 'idle' && this.wait.x === 0 && this.talk.x === 0
-      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue() && this.antL.still && this.antR.still && !this.glide;
+      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue()
+      && !this.kicking && this.mannerAt >= this.mannerMs && this.sleep.x === 0 && !this.markOn && this.markK.x === 0 && !this.visiting && this.leanGate.still
+      && this.antL.still && this.antR.still && !this.glide;
   }
 
   /** True once it has come to rest (see `rest`): a still picture that no step will change until it is woken, poked or changed. */
   get resting(): boolean {
     const home = this.home;
-    return home !== null && this.awake.x === 0 && this.still && this.yaw.x === home.yaw && this.pitch.x === home.pitch && this.roll.x === home.roll;
+    return home !== null && this.awake.x === 0 && this.still && this.wanderK === 0 && this.hover.x === 0 && this.yaw.x === home.yaw && this.pitch.x === home.pitch && this.roll.x === home.roll;
   }
 }

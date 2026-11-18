@@ -1,5 +1,5 @@
 // createLive: a live avatar's rig on the one shared frame loop. Nothing ticks before it is seen, at rest, or
-// under reduced motion; one under 48 px is drawn at most 30 times a second. Run with: npm test
+// under reduced motion; one under 48 px is drawn at most 30 times a second. Run with: npm test -w @blot/avatar
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -24,6 +24,7 @@ const element = () => ({ getBoundingClientRect: () => ({ left: 0, top: 0, width:
 const { createLive } = await import('./live.ts');
 const { ticking } = await import('./ticker.ts');
 const { FACES, Rig, drawAvatar } = await import('./engine/index.ts');
+const { ACTIVITY_FACES } = await import('./engine/faces.ts');
 const { bodyOf, stillState } = await import('./still.ts');
 
 /** Attach and run the steps React's effects run on mount, in their order. Returns what was drawn, and the way to stop. */
@@ -34,6 +35,8 @@ function mounted(props) {
   return { live, el, drawn, detach };
 }
 const FRONT = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
+/** Facing front, wearing what it is doing: under reduced motion nothing moves, but the face still says what is going on. */
+const THINKING = { ...FRONT, face: ACTIVITY_FACES.thinking };
 
 test('nothing subscribes until the avatar is seen, and it stops when it goes off screen', () => {
   const a = mounted({ shape: 'blob', size: 72, activity: 'thinking' });
@@ -117,7 +120,7 @@ test('under reduced motion it draws the calm pose, never subscribes, and a poke 
     see(resting.el, true); see(front.el, true);
     assert.deepEqual(ticking(), { count: 0, running: false });
     assert.deepEqual(resting.drawn.at(-1), drawAvatar(bodyOf('wedge'), 'gray', stillState('wedge', 72), 72), 'the still\'s pose');
-    assert.deepEqual(front.drawn.at(-1), drawAvatar(bodyOf('wedge'), 'gray', FRONT, 72), 'facing front');
+    assert.deepEqual(front.drawn.at(-1), drawAvatar(bodyOf('wedge'), 'gray', THINKING, 72), 'facing front, with the face of what it is doing');
     let poked = 0;
     front.live.rig.poke = () => { poked++; };
     front.live.poke();
@@ -138,7 +141,7 @@ test('motion() after reduced motion is toggled redraws: the calm picture, then t
   const n = a.drawn.length;
   a.live.motion();
   assert.equal(a.drawn.length, n + 1);
-  assert.deepEqual(a.drawn.at(-1), drawAvatar(bodyOf('star'), 'gray', FRONT, 72));
+  assert.deepEqual(a.drawn.at(-1), drawAvatar(bodyOf('star'), 'gray', THINKING, 72));
   assert.equal(ticking().count, 0, 'and it unsubscribes');
   prefer(false);
   a.live.motion();
@@ -216,4 +219,34 @@ test('a rig built again under reduced motion keeps its face and what it is doing
     assert.equal(a.live.rig, tear, 'the same rig');
   } finally { prefer(false); }
   a.detach();
+});
+
+test('under reduced motion the still says what is going on: asleep with its eyes shut, and a mark if it has one', () => {
+  prefer(true);
+  try {
+    const a = mounted({ shape: 'blob', size: 72, activity: 'sleeping', mark: true });
+    see(a.el, true);
+    const want = drawAvatar(bodyOf('blob'), 'gray', { ...FRONT, face: ACTIVITY_FACES.sleeping, lid: 0.1, fx: [{ kind: 'mark', u: 0, t: 0, dir: 1, amount: 1 }] }, 72);
+    assert.deepEqual(a.drawn.at(-1), want);
+    assert.ok(want.effects.length >= 1);
+    assert.deepEqual(ticking(), { count: 0, running: false });
+    a.detach();
+  } finally { prefer(false); }
+});
+
+test('under reduced motion a new face, activity or mark redraws the still picture at once', () => {
+  prefer(true);
+  try {
+    const a = mounted({ shape: 'blob', size: 72 });
+    see(a.el, true);
+    const n = a.drawn.length;
+    a.live.want({ shape: 'blob', size: 72, mark: true, activity: 'thinking' });
+    a.live.doing();
+    assert.equal(a.drawn.length, n + 1);
+    assert.ok(a.drawn.at(-1).effects?.length >= 1, 'the mark');
+    a.live.want({ shape: 'blob', size: 72, face: 'happy' });
+    a.live.face('happy');
+    assert.deepEqual(a.drawn.at(-1), drawAvatar(bodyOf('blob'), 'gray', { ...FRONT, face: FACES.happy }, 72));
+    a.detach();
+  } finally { prefer(false); }
 });

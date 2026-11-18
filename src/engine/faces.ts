@@ -91,7 +91,71 @@ export const ACTIVITY_FACES = {
   waiting: face({ width: 1.34, height: 0.96, lift: 0.22 }),
   /** Bright. (The eyes also open with each syllable: see the rig.) */
   speaking: face({ width: 1.14, height: 1, lift: 0.08 }),
+  /** Asleep: wide flat lids, low. (The rig closes them the rest of the way, slowly.) */
+  sleeping: face({ width: 1.4, height: 0.5, lift: -0.22, round: 0.85 }),
 } satisfies Record<string, Face>;
+
+/**
+ * How a face is worn: what the body does while the eyes show it. A face says what the eyes look like; its
+ * manner says how the rest of the avatar carries it. Sad looks down and sinks a little and sways; proud lifts
+ * its chin; scared flinches as the face comes on and trembles while it lasts; sleepy keeps nodding off and
+ * catching itself. Every number is 0 for "nothing", except `energy` and `blink`.
+ */
+export interface Manner {
+  /** The head's own turn while the face is worn, radians, added to wherever it looks: right, up, and leaning right. */
+  yaw: number; pitch: number; roll: number;
+  /** Body units: up (a lift of the chest), or down (a sinking). */
+  rise: number;
+  /**
+   * 0..1, how lively the face is. 0.4 is ordinary. A lively face comes on quicker and blinks and breathes
+   * faster; a low one comes on slowly and blinks and breathes slower.
+   */
+  energy: number;
+  /** A jolt as the face comes on, body units: up (a pop of surprise), or down (a flinch). */
+  kick: number;
+  /** Habits while the face is worn, each 0..1: a fine tremble, a slow sway, the eyes searching side to side, a happy bounce, nodding off. */
+  tremble: number; sway: number; scan: number; bounce: number; doze: number;
+  /** How long its blinks take, as a multiple of a plain blink: a sleepy one is slow, a scared one quick. */
+  blink: number;
+}
+
+const manner = (m: Partial<Manner>): Manner => ({ yaw: 0, pitch: 0, roll: 0, rise: 0, energy: 0.4, kick: 0, tremble: 0, sway: 0, scan: 0, bounce: 0, doze: 0, blink: 1, ...m });
+const d = (deg: number): number => (deg * Math.PI) / 180;
+
+/** The way each face is worn. The neutral manner changes nothing: a face without one moves as faces always did. */
+export const MANNERS: Record<FaceName, Manner> = {
+  neutral: manner({}),
+  attentive: manner({ pitch: d(3), energy: 0.6, rise: 0.012 }),
+  surprised: manner({ pitch: d(4), energy: 0.85, kick: 0.07, blink: 0.8 }),
+  excited: manner({ pitch: d(3), energy: 1, rise: 0.02, bounce: 1 }),
+  happy: manner({ pitch: d(3), energy: 0.55, rise: 0.012, sway: 0.25 }),
+  laughing: manner({ pitch: d(5), energy: 0.9, bounce: 0.7 }),
+  angry: manner({ pitch: d(-4), energy: 0.8, rise: -0.01, tremble: 0.35, blink: 0.8 }),
+  sad: manner({ pitch: d(-9), roll: d(-3), energy: 0.15, rise: -0.035, sway: 0.6, blink: 1.5 }),
+  scared: manner({ pitch: d(2), energy: 0.95, kick: -0.06, tremble: 1, blink: 0.65 }),
+  suspicious: manner({ yaw: d(7), roll: d(-2), energy: 0.45, scan: 0.5 }),
+  confused: manner({ roll: d(7), energy: 0.5, scan: 0.9 }),
+  curious: manner({ yaw: d(5), roll: d(-6), pitch: d(2), energy: 0.6, scan: 0.35 }),
+  proud: manner({ pitch: d(8), roll: d(-2), energy: 0.5, rise: 0.02 }),
+  shy: manner({ yaw: d(-10), pitch: d(-8), roll: d(4), energy: 0.25, rise: -0.02, sway: 0.7 }),
+  bored: manner({ pitch: d(-3), roll: d(3), energy: 0.12, rise: -0.015, blink: 1.4 }),
+  sleepy: manner({ pitch: d(-2), energy: 0.05, rise: -0.02, doze: 1, blink: 2.6 }),
+  inspecting: manner({ yaw: d(5), roll: d(-3), energy: 0.5, scan: 0.25 }),
+  squinted: manner({ energy: 0.5 }),
+  calm: manner({ energy: 0.2, blink: 1.3 }),
+  oval: manner({}),
+};
+
+/** The plain manner: no pose, no habits, ordinary energy. What a face without one (and every activity) wears. */
+export const PLAIN: Manner = MANNERS.neutral;
+
+/** The manner for a face's name; a name the engine does not know is worn plainly. */
+export function mannerFor(name: string): Manner {
+  return Object.hasOwn(MANNERS, name) ? MANNERS[name as FaceName] : PLAIN;
+}
+
+/** Every number of a manner, in the order the rig blends them. */
+export const MANNER_KEYS: readonly (keyof Manner)[] = ['yaw', 'pitch', 'roll', 'rise', 'energy', 'kick', 'tremble', 'sway', 'scan', 'bounce', 'doze', 'blink'];
 
 /** Every number of a face, in the order the rig compares them. */
 export const FACE_KEYS: readonly (keyof Face)[] = ['width', 'height', 'round', 'tilt', 'lift', 'arc', 'uneven', 'skew', 'brow', 'slant', 'wink'];
@@ -104,8 +168,8 @@ export function mixFace(a: Face, b: Face, k: number, out: Face): Face {
 
 export const sameFace = (a: Face, b: Face): boolean => FACE_KEYS.every((key) => a[key] === b[key]);
 
-/** How tall the eyes are at the middle of a blink, as a fraction of their height. */
-export const BLINK_HEIGHT = 0.3;
+/** How tall the eyes are at the middle of a blink, as a fraction of their height: nearly shut, a line. (A tiny avatar still draws the line: see LINE_PX.) */
+export const BLINK_HEIGHT = 0.12;
 /** A full wink takes this much off the eye's height. */
 const WINK = 0.82;
 

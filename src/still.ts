@@ -23,7 +23,11 @@ export function stillState(shape: string, size: number): RigState {
 /** The drawing overflows its slot by this much, so a body that turns or leans is not clipped. */
 export const OVERDRAW = VIEW / 36;
 
-/** The SVG box a drawing sits in, for a slot of `size` px: placed absolutely, `left` and `top` px from the slot's corner. */
+/**
+ * The SVG box a drawing sits in, for a slot of `size` px: placed absolutely, `left` and `top` px from the slot's
+ * corner. Give the svg `overflow: visible`: a "!" and sleep's Zs go above even this box. (A host that clips its
+ * overflow clips them too.)
+ */
 export function svgBox(size: number): { width: number; height: number; viewBox: string; left: number; top: number } {
   const draw = size * OVERDRAW, off = (draw - size) / 2;
   return { width: draw, height: draw, viewBox: VIEW_BOX, left: -off, top: -off };

@@ -9,5 +9,5 @@ export { surfaceAt } from './field';
 export { barWidth, eyePolys, type Trim } from './eyes';
 export { BLINK_HEIGHT, FACES, eyeOutline, type Face, type FaceName } from './faces';
 export { BLINK_MS, LOOK_PITCH, LOOK_YAW, Rig, random, type RigOptions, type RigState } from './rig';
-export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, colours, detail, drawAvatar, eyeShapes, layerShapes, type Drawing, type Layer } from './draw';
+export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, colours, detail, drawAvatar, effectShapes, eyeShapes, layerShapes, type Drawing, type DrawnFx, type Layer } from './draw';
 export { BODIES, bodyFor } from './bodies/index';

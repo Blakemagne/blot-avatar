@@ -39,7 +39,8 @@ const { ticking } = await import('./ticker.ts');
 const { VIEW_BOX, colours } = await import('./engine/index.ts');
 const { OVERDRAW } = await import('./still.ts');
 
-const paths = (host) => host.children[0].children;
+/** The body path and the two eye paths (between the effects' two groups). */
+const paths = (host) => host.children[0].children.filter((c) => c.tag === 'path');
 
 test('one svg with three paths, drawn as the first picture, in a slot of size px', () => {
   const host = new El('div');
@@ -52,7 +53,7 @@ test('one svg with three paths, drawn as the first picture, in a slot of size px
   assert.equal(svg.getAttribute('width'), String(72 * OVERDRAW));
   assert.equal(svg.getAttribute('aria-hidden'), 'true');
   assert.equal(svg.style.position, 'absolute');
-  assert.deepEqual(paths(host).map((p) => p.tag), ['path', 'path', 'path']);
+  assert.deepEqual(host.children[0].children.map((p) => p.tag), ['g', 'path', 'path', 'path', 'g']);
   assert.deepEqual(paths(host).map((p) => p.getAttribute('d')), [m.live.first.body, ...m.live.first.eyes]);
   const c = colours('#FD690F');
   assert.deepEqual(paths(host).map((p) => p.style.fill), [c.fill, c.eyeFill, c.eyeFill]);
@@ -179,4 +180,41 @@ test('one avatar per host: a second mount throws until the first is destroyed', 
   m.destroy();
   const again = mount(host, { shape: 'heart', size: 24 });
   again.destroy();
+});
+
+test('effects are painted into a group behind the body and one in front, reusing their paths, in the role colours', async () => {
+  const { paintEffects, glowFilter } = await import('./paint.ts');
+  const back = new El('g'), front = new El('g');
+  const paint = { fill: '#FD690F', eyeFill: '#FFFFFF', accent: '#7C5CFF' };
+  const d = { body: '', eyes: ['', ''], effects: [
+    { layer: 'back', role: 'shadow', opacity: 0.2, d: 'M0 0L1 0L1 1Z' },
+    { layer: 'front', role: 'accent', opacity: 1, d: 'M0 0L2 0L2 2Z' },
+    { layer: 'front', role: 'body', opacity: 0.5, d: 'M0 0L3 0L3 3Z' },
+  ] };
+  paintEffects(back, front, d, paint);
+  assert.deepEqual(back.children.map((p) => [p.getAttribute('d'), p.style.fill, p.style.opacity]), [['M0 0L1 0L1 1Z', '#000', '0.2']]);
+  assert.deepEqual(front.children.map((p) => [p.style.fill, p.style.opacity]), [['#7C5CFF', '1'], ['#FD690F', '0.5']]);
+  const kept = front.children[0];
+  paintEffects(back, front, { ...d, effects: [d.effects[1]] }, { ...paint, accent: undefined });
+  assert.equal(back.children.length, 0);
+  assert.equal(front.children.length, 1);
+  assert.equal(front.children[0], kept, 'the same path, rewritten');
+  assert.equal(kept.style.fill, '#FD690F', 'no accent: the body\'s colour');
+  paintEffects(back, front, { body: '', eyes: ['', ''] }, paint);
+  assert.equal(front.children.length, 0);
+  assert.equal(glowFilter({ glow: 0 }, 72, paint), '');
+  assert.match(glowFilter({ glow: 0.5 }, 72, paint), /^drop-shadow\(0 0 [\d.]+px #7C5CFF\)$/);
+});
+
+test('a mounted avatar with a mark draws it in front of the body, and the mark goes when it is turned off', () => {
+  const host = new El('div');
+  const m = mount(host, { shape: 'blob', size: 72, mark: true, accent: '#7C5CFF' });
+  see(host, true);
+  for (let t = 1000; t < 2600; t += 16) pump(t);
+  const front = host.children[0].children.at(-1);
+  assert.ok(front.children.length >= 1 && front.children.every((p) => p.style.fill === '#7C5CFF'), `${front.children.length} parts`);
+  m.update({ mark: false });
+  for (let t = 2600; t < 5000; t += 16) pump(t);
+  assert.equal(front.children.length, 0);
+  m.destroy();
 });

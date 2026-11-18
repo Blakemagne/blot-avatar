@@ -175,6 +175,8 @@ legend { font-size: 13px; font-weight: 650; color: var(--muted); text-transform:
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 10px; }
 .toggle, .range { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.feel { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px 10px; font-size: 14px; color: var(--muted); }
+.feel input { width: 100%; }
 .range.grow { flex: 1 1 220px; }
 .range.grow input { flex: 1; }
 .range output { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 4.5ch; }

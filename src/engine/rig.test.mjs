@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { BLINK_HEIGHT, BLINK_MS, BODIES, FACES, LOOK_PITCH, LOOK_YAW, Rig, deg, drawAvatar, eyeShapes, area } = await import('./index.ts');
+const { BLINK_SHUT } = await import('./clips.ts');
+const { WANDER_X, WANDER_ROLL } = await import('./rig.ts');
 
 test('a look moves the eyes first and the body after', () => {
   const rig = new Rig({ seed: 1, idle: false, blinks: false });
@@ -86,7 +88,7 @@ test('a look never overshoots, whatever the frame time', () => {
   }
 });
 
-test('a blink lasts about 150 ms, drops the eyes to about a third, and comes at random every few seconds', () => {
+test('a blink lasts about 150 ms, nearly shuts the eyes, comes at random every few seconds, and now and then twice', () => {
   const rig = new Rig({ seed: 3, idle: false });
   const blinks = [];
   let start = null, low = 1;
@@ -101,15 +103,17 @@ test('a blink lasts about 150 ms, drops the eyes to about a third, and comes at 
     assert.ok(b.ms >= 120 && b.ms <= 180, `a blink of ${b.ms} ms`);
     assert.ok(Math.abs(b.low - BLINK_HEIGHT) < 0.01, `eyes down to ${b.low}`);
   }
-  assert.ok(BLINK_MS >= 120 && BLINK_MS <= 180 && BLINK_HEIGHT > 0.25 && BLINK_HEIGHT < 0.4);
-  const gaps = blinks.slice(1).map((b, i) => b.at - blinks[i].at);
-  assert.ok(Math.min(...gaps) >= 2000 && Math.max(...gaps) <= 7000, `gaps ${gaps}`);
+  assert.ok(BLINK_MS >= 120 && BLINK_MS <= 180 && BLINK_HEIGHT > 0.08 && BLINK_HEIGHT < 0.2);
+  // A few come twice, the second just after the first (TWICE_MS after it opens); the rest are seconds apart.
+  const gaps = blinks.slice(1).map((b, i) => b.at - blinks[i].at), twice = gaps.filter((g) => g < 400), apart = gaps.filter((g) => g >= 400);
+  assert.ok(twice.length >= 1 && twice.length <= blinks.length * 0.35 && twice.every((g) => g >= BLINK_MS && g <= BLINK_MS + 120), `doubles ${twice}`);
+  assert.ok(Math.min(...apart) >= 2000 && Math.max(...apart) <= 7000, `gaps ${apart}`);
   assert.ok(new Set(gaps.map((g) => Math.round(g / 100))).size > 4, 'the gaps vary');
   // The eyes are drawn shorter in a blink, and the same width.
   const quiet = new Rig({ idle: false, blinks: false });
   const open = eyeShapes(BODIES.wedge, quiet.state, 180)[0][0];
   quiet.blink();
-  quiet.step(BLINK_MS / 2);
+  quiet.step(BLINK_MS * BLINK_SHUT);
   const shut = eyeShapes(BODIES.wedge, quiet.state, 180)[0][0];
   const height = (p) => { let a = Infinity, b = -Infinity; for (let i = 1; i < p.length; i += 2) { a = Math.min(a, p[i]); b = Math.max(b, p[i]); } return b - a; };
   assert.ok(Math.abs(height(shut) / height(open) - BLINK_HEIGHT) < 0.02, `${height(shut)} of ${height(open)}`);
@@ -126,14 +130,16 @@ test('left alone it drifts into a subtle three-quarter view and back, and a look
     rig.step(4);
     const p = rig.state.pose;
     yaw = Math.max(yaw, Math.abs(p.yaw)); pitch = Math.max(pitch, Math.abs(p.pitch)); roll = Math.max(roll, Math.abs(p.roll));
-    const atFront = Math.abs(p.yaw) < deg(1);
+    // (Facing front, give or take the wander.)
+    const atFront = Math.abs(p.yaw) < deg(5);
     if (atFront) front++; else away++;
     if (was && !atFront) turns++;
     was = atFront;
   }
-  assert.ok(yaw > deg(12) && yaw <= deg(22.01), `yaw up to ${(yaw * 180) / Math.PI}`);
+  // (The drift's own reach, and a few degrees more of the wander on top: WANDER_X of a look turns the head 0.6 of that.)
+  assert.ok(yaw > deg(12) && yaw <= deg(22.01) + 0.6 * (WANDER_X + 0.03) * LOOK_YAW, `yaw up to ${(yaw * 180) / Math.PI}`);
   assert.ok(pitch > deg(3) && pitch <= deg(10.01), `pitch up to ${(pitch * 180) / Math.PI}`);
-  assert.ok(roll > deg(1.5) && roll <= deg(4.51), `roll up to ${(roll * 180) / Math.PI}`);
+  assert.ok(roll > deg(1.5) && roll <= deg(4.51) + WANDER_ROLL, `roll up to ${(roll * 180) / Math.PI}`);
   assert.ok(turns >= 8 && turns <= 30, `${turns} drifts in two minutes`);
   assert.ok(front > away * 0.5, 'it spends a good share of the time facing front');
   // While something is being looked at there is no drift.

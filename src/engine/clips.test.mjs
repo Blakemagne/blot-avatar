@@ -6,13 +6,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { BLINK_HEIGHT, BODIES, LOOK_YAW, Rig, deg, eyeShapes, random } = await import('./index.ts');
-const { BLINK_MS, BOUNCE_MS, CLIPS, CUES, DOTS_MS, HOP_DOWN, HOP_HEIGHT, HOP_STRETCH, HOP_UP, NOD, NOD_SQUASH, POKES, POKE_MS, POP, POP_MS, SHAKE_MS, TILT_MS, WAIT_NOD, WAIT_NOD_MS, advance, checkClips, spinCurve, start } = await import('./clips.ts');
+const { BLINK_MS, BOUNCE_MS, blinkCurve, CLIPS, CUES, DOTS_MS, HOP_DOWN, HOP_HEIGHT, HOP_STRETCH, HOP_UP, NOD, NOD_SQUASH, POKES, POKE_MS, POP, POP_MS, SHAKE_MS, TILT_MS, WAIT_NOD, WAIT_NOD_MS, advance, checkClips, spinCurve, start } = await import('./clips.ts');
 const { smooth, track } = await import('./ease.ts');
 
 /** Channels as the rig resets them each step. */
-const reset = () => ({ yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0 });
+const reset = () => ({ yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0, x: 0, arc: 0, winkL: 0, winkR: 0, glow: 0, fx: [] });
+/** The channels that are numbers (the effects are a list). */
+const numeric = (o) => Object.keys(o).filter((k) => k !== 'fx');
 /** The same numbers, bit for bit (Object.is: -0 is not 0). */
-const same = (a, b, note) => { for (const k of Object.keys(a)) assert.ok(Object.is(a[k], b[k]), `${note}: ${k} ${a[k]} against ${b[k]}`); };
+const same = (a, b, note) => {
+  for (const k of numeric(a)) assert.ok(Object.is(a[k], b[k]), `${note}: ${k} ${a[k]} against ${b[k]}`);
+  assert.equal(JSON.stringify(a.fx ?? []), JSON.stringify(b.fx ?? []), `${note}: the effects`);
+};
 /** A clip that is playing, `at` ms in. */
 const at = (clip, ms, cue) => { const p = start(clip, cue); p.at = ms; p.u = ms / clip.ms; return p; };
 /** Every time a clip of `ms` is sampled: steps of dt from 0 up to the end. */
@@ -51,20 +56,21 @@ test('a clip plays until u reaches 1, and the frame that reaches it is not appli
 });
 
 test('the clips are listed in an order that is pinned: the pokes play in it and the golden frames depend on it', () => {
-  assert.deepEqual(Object.keys(CLIPS), ['spin', 'nod', 'hop', 'pop', 'blink', 'waitNod', 'dots', 'shake', 'bounce', 'tilt']);
+  assert.deepEqual(Object.keys(CLIPS), ['spin', 'nod', 'hop', 'pop', 'blink', 'waitNod', 'dots', 'shake', 'bounce', 'tilt', 'delight', 'kick',
+    'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'float', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock']);
   assert.deepEqual(POKES, ['spin', 'nod', 'hop']);
-  assert.deepEqual(CUES, ['shake', 'bounce', 'tilt']);
-  assert.deepEqual(Object.values(CLIPS).map((c) => c.lane), ['poke', 'poke', 'poke', 'pop', 'blink', 'wait', 'change', 'cue', 'cue', 'cue']);
-  assert.deepEqual(Object.values(CLIPS).map((c) => c.ms), [POKE_MS.spin, POKE_MS.nod, POKE_MS.hop, POP_MS, BLINK_MS, WAIT_NOD_MS, DOTS_MS, SHAKE_MS, BOUNCE_MS, TILT_MS]);
+  assert.deepEqual(CUES, ['shake', 'bounce', 'tilt', 'delight', 'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'float', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock']);
+  assert.deepEqual(Object.values(CLIPS).slice(0, 12).map((c) => c.lane), ['poke', 'poke', 'poke', 'pop', 'blink', 'wait', 'change', 'cue', 'cue', 'cue', 'cue', 'mood']);
+  assert.deepEqual(Object.values(CLIPS).slice(0, 10).map((c) => c.ms), [POKE_MS.spin, POKE_MS.nod, POKE_MS.hop, POP_MS, BLINK_MS, WAIT_NOD_MS, DOTS_MS, SHAKE_MS, BOUNCE_MS, TILT_MS]);
   assert.deepEqual([POKE_MS.spin, POKE_MS.nod, POKE_MS.hop, POP_MS, BLINK_MS, WAIT_NOD_MS, DOTS_MS, SHAKE_MS, BOUNCE_MS, TILT_MS], [560, 420, 560, 380, 150, 460, 420, 700, 720, 1100]);
 });
 
 test('checkClips takes extra pokes and cues, and refuses anything else', () => {
   const apply = () => {};
   checkClips({});
-  checkClips({ wave: { lane: 'poke', ms: 300, apply }, lean: { lane: 'cue', ms: 0.5, apply } });
+  checkClips({ wave: { lane: 'poke', ms: 300, apply }, teeter: { lane: 'cue', ms: 0.5, apply } });
   for (const name of Object.keys(CLIPS)) assert.throws(() => checkClips({ [name]: { lane: 'cue', ms: 300, apply } }), /has one of that name/, name);
-  for (const lane of ['pop', 'blink', 'wait', 'change', 'nope', undefined]) assert.throws(() => checkClips({ x: { lane, ms: 300, apply } }), /lane/, String(lane));
+  for (const lane of ['pop', 'blink', 'wait', 'change', 'mood', 'nope', undefined]) assert.throws(() => checkClips({ x: { lane, ms: 300, apply } }), /lane/, String(lane));
   for (const ms of [0, -1, NaN, Infinity, -Infinity, '300', undefined]) assert.throws(() => checkClips({ x: { lane: 'cue', ms, apply } }), /ms/, String(ms));
   for (const fn of [undefined, null, 'apply', {}]) assert.throws(() => checkClips({ x: { lane: 'poke', ms: 300, apply: fn } }), /apply/);
   assert.throws(() => checkClips({ x: null }), /lane/);
@@ -91,9 +97,9 @@ const OLD = {
   pop(at, amount, from, scale) {
     return scale * (1 + POP * amount * track([0, 0, 0.3, 1, 0.62, -0.18, 1, 0], at / POP_MS) + from * (1 - smooth(at / 90)));
   },
+  // (Not the old formula: on 18 November 2026 the blink was made to shut quicker than it opens, and further.)
   blink(at, open) {
-    const closed = Math.sin((Math.PI * at) / BLINK_MS) ** 2;
-    return (1 - (1 - BLINK_HEIGHT) * closed) * open;
+    return (1 - (1 - BLINK_HEIGHT) * blinkCurve(at / BLINK_MS)) * open;
   },
   waitNod(at, pitch) { return pitch - WAIT_NOD * track([0, 0, 0.34, 1, 0.74, -0.12, 1, 0], at / WAIT_NOD_MS); },
   dots(at, from, dot) { return Math.max(dot, at < 150 ? from + (1 - from) * smooth(at / 150) : at < 250 ? 1 : 1 - smooth((at - 250) / 170)); },
@@ -182,9 +188,9 @@ test('RigOptions.clips adds pokes and cues, and refuses a clip of a name the rig
 
   // A cue plays where nothing else moves: the roll is the cue's, with its direction and amount.
   seen.length = 0;
-  const rig = new Rig({ seed: 1, idle: false, blinks: false, clips: { lean } });
+  const rig = new Rig({ seed: 1, idle: false, blinks: false, clips: { teeter: lean } });
   assert.ok(rig.still);
-  assert.equal(rig.play('lean', { dir: -1, amount: 0.5 }), true);
+  assert.equal(rig.play('teeter', { dir: -1, amount: 0.5 }), true);
   assert.equal(rig.still, false, 'a cue playing is not still');
   let t = 0, most = 0;
   while (t < 1000) { rig.step(16); t += 16; most = Math.min(most, rig.state.pose.roll); if (rig.still) break; }
@@ -195,25 +201,25 @@ test('RigOptions.clips adds pokes and cues, and refuses a clip of a name the rig
   // Direction is a sign; the amount is clamped to 0..2, and one that is not a number is 1.
   for (const [cue, want] of [[{ dir: 3, amount: 5 }, { dir: 1, amount: 2 }], [{ dir: -0.1, amount: -3 }, { dir: -1, amount: 0 }], [{ amount: NaN }, { dir: 1, amount: 1 }], [undefined, { dir: 1, amount: 1 }]]) {
     seen.length = 0;
-    const r = new Rig({ seed: 1, idle: false, blinks: false, clips: { lean } });
-    r.play('lean', cue);
+    const r = new Rig({ seed: 1, idle: false, blinks: false, clips: { teeter: lean } });
+    r.play('teeter', cue);
     r.step(16);
     assert.deepEqual({ dir: seen[0].dir, amount: seen[0].amount }, want, JSON.stringify(cue));
   }
   // Played again while it plays, it plays on, as if it had not been (started over it would jump to its start).
-  const again = new Rig({ seed: 1, idle: false, blinks: false, clips: { lean } });
-  const played1 = new Rig({ seed: 1, idle: false, blinks: false, clips: { lean } });
-  again.play('lean'); played1.play('lean');
+  const again = new Rig({ seed: 1, idle: false, blinks: false, clips: { teeter: lean } });
+  const played1 = new Rig({ seed: 1, idle: false, blinks: false, clips: { teeter: lean } });
+  again.play('teeter'); played1.play('teeter');
   for (let i = 0; i < 20; i++) { again.step(16); played1.step(16); }
-  assert.equal(again.play('lean', { dir: -1, amount: 2 }), true);
+  assert.equal(again.play('teeter', { dir: -1, amount: 2 }), true);
   while (!played1.still) { again.step(16); played1.step(16); assert.deepEqual(again.state, played1.state); }
   assert.ok(again.still);
-  // A cue is not a poke: poke('lean') plays the next poke, as poke() would.
-  assert.deepEqual(film(new Rig({ seed: 2, clips: { lean } }), 1500, 16, (r, s) => once(s, 160, () => r.poke('lean'))), film(new Rig({ seed: 2, clips: { lean } }), 1500, 16, (r, s) => once(s, 160, () => r.poke())));
+  // A cue is not a poke: poke('teeter') plays the next poke, as poke() would.
+  assert.deepEqual(film(new Rig({ seed: 2, clips: { teeter: lean } }), 1500, 16, (r, s) => once(s, 160, () => r.poke('teeter'))), film(new Rig({ seed: 2, clips: { teeter: lean } }), 1500, 16, (r, s) => once(s, 160, () => r.poke())));
 
   // Once a cue is over, the rig is exactly the rig that never played it: a cue draws no random numbers and
   // moves no spring.
-  const twin = (play) => film(new Rig({ seed: 9, body: BODIES.heart, clips: { lean } }), 6000, 16, (r, s) => { r.look(s > 2000 ? 0.4 : 0, 0); if (play) { once(s, 320, () => r.play('lean', { dir: -1 })); once(s, 480, () => r.play('lean')); } });
+  const twin = (play) => film(new Rig({ seed: 9, body: BODIES.heart, clips: { teeter: lean } }), 6000, 16, (r, s) => { r.look(s > 2000 ? 0.4 : 0, 0); if (play) { once(s, 320, () => r.play('teeter', { dir: -1 })); once(s, 480, () => r.play('teeter')); } });
   const played = twin(true), not = twin(false);
   assert.notDeepEqual(played.slice(20, 50), not.slice(20, 50), 'the cue shows');
   assert.deepEqual(played.slice(64), not.slice(64), 'and leaves nothing behind');
@@ -240,11 +246,11 @@ test('RigOptions.clips adds pokes and cues, and refuses a clip of a name the rig
 
 test('a resting rig that plays a cue wakes for it and comes back to the same picture', () => {
   const pose = { yaw: 0.3, pitch: -0.1, roll: 0.05 };
-  const rig = new Rig({ seed: 7, body: BODIES.blob, pose, rest: true, clips: { lean } });
+  const rig = new Rig({ seed: 7, body: BODIES.blob, pose, rest: true, clips: { teeter: lean } });
   for (let i = 0; i < 200 && !rig.resting; i++) rig.step(16);
   assert.ok(rig.resting);
   const before = JSON.stringify(rig.state);
-  assert.equal(rig.play('lean'), true);
+  assert.equal(rig.play('teeter'), true);
   assert.equal(rig.resting, false);
   assert.equal(rig.step(16), true);
   for (let i = 0; i < 100 && !rig.resting; i++) rig.step(16);
@@ -256,7 +262,7 @@ test('a resting rig that plays a cue wakes for it and comes back to the same pic
 // The cues: shake ("no"), bounce ("done!") and tilt ("hm?"). Their own rules, then what the rig does with them.
 
 /** The channels that add, and the ones that scale. */
-const ADDS = ['yaw', 'pitch', 'roll', 'eyeX', 'eyeY', 'lift'], SCALES = ['stretch', 'scale', 'open', 'eyeScale'];
+const ADDS = ['yaw', 'pitch', 'roll', 'eyeX', 'eyeY', 'lift', 'x', 'arc', 'winkL', 'winkR', 'glow'], SCALES = ['stretch', 'scale', 'open', 'eyeScale'];
 /** Every cue each way, at every amount it may be played at. */
 const CUED = CUES.flatMap((name) => [1, -1].flatMap((dir) => [0, 0.4, 1, 2].map((amount) => ({ name, dir, amount }))));
 const VIEWS = [{ yaw: 0, room: 1 }, { yaw: 0.6, room: 0.35 }, { yaw: -0.84, room: 0 }];
@@ -272,7 +278,7 @@ test('each cue starts and ends at nothing: identity at u = 0 and within 1e-9 of 
       const p = start(clip, { dir, amount });
       p.u = 1 - 1e-9; p.at = p.u * clip.ms;
       clip.apply(last, p, v);
-      for (const k of Object.keys(last)) assert.ok(Math.abs(last[k] - reset()[k]) < 1e-9, `${name} ${dir} ${amount} at the end: ${k} ${last[k]}`);
+      for (const k of numeric(last)) assert.ok(Math.abs(last[k] - reset()[k]) < 1e-9, `${name} ${dir} ${amount} at the end: ${k} ${last[k]}`);
       // And once it is over nothing of it plays: advance gives null at u = 1 without applying.
       const after = reset();
       const q = start(clip, { dir, amount });
@@ -297,9 +303,9 @@ test('a cue only adds to the channels or scales them: on top of anything it is t
         for (const k of ADDS) before[k] = rnd() * 2 - 1;
         for (const k of SCALES) before[k] = 0.5 + rnd();
         before.dot = rnd();
-        const over = { ...before };
+        const over = { ...before, fx: [] };
         clip.apply(over, at(clip, t, { dir, amount }), v);
-        const want = { ...before };
+        const want = { ...before, fx: alone.fx };
         for (const k of ADDS) want[k] = before[k] + alone[k];
         for (const k of SCALES) want[k] = before[k] * alone[k];
         same(over, want, `${name} ${dir} ${amount} at ${t}`);
@@ -323,8 +329,9 @@ test('a cue turns the body only in the room a look has left, and moves smoothly 
         turned = Math.max(turned, Math.abs(all.yaw));
       }
     }
-    // Only the shake turns.
+    // Only the shake, the recoil, the lean and the look turn.
     if (name === 'shake') assert.ok(turned > deg(20), `the shake at amount 2 turns ${(turned * 180) / Math.PI} degrees`);
+    else if (['recoil', 'lean', 'look'].includes(name)) assert.ok(turned > deg(5), `${name} turns ${(turned * 180) / Math.PI} degrees`);
     else assert.equal(turned, 0, name);
     // A millisecond at a time nothing jumps, at the strongest amount: no channel moves more than 0.02 (radians,
     // look units, body units or a share) between two frames. The quickest is the eyes setting off in a shake.
@@ -332,7 +339,7 @@ test('a cue turns the body only in the room a look has left, and moves smoothly 
     for (let t = 1; t < clip.ms; t++) {
       const o = reset();
       clip.apply(o, at(clip, t, { dir: 1, amount: 2 }), { yaw: 0, room: 1 });
-      for (const k of Object.keys(o)) assert.ok(Math.abs(o[k] - prev[k]) < 0.02, `${name} at ${t} ms: ${k} jumped from ${prev[k]} to ${o[k]}`);
+      for (const k of numeric(o)) assert.ok(Math.abs(o[k] - prev[k]) < 0.02, `${name} at ${t} ms: ${k} jumped from ${prev[k]} to ${o[k]}`);
       prev = o;
     }
   }
@@ -416,7 +423,7 @@ test('a resting rig that plays any cue wakes for it and comes back to the same p
       assert.equal(rig.resting, false, `${name}: not resting while it plays`);
       assert.equal(rig.step(16), true, `${name}: the first frame shows`);
       let t = 16;
-      for (; t < 3000 && !rig.resting; t += 16) rig.step(16);
+      for (; t < 6000 && !rig.resting; t += 16) rig.step(16);
       assert.ok(rig.resting && t <= CLIPS[name].ms + 16, `${name} rests again after ${t} ms`);
       assert.equal(JSON.stringify(rig.state), before, name);
       assert.equal(rig.step(16), false);

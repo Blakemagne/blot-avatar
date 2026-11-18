@@ -6,6 +6,7 @@ import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
 import { discAt, figureParts, figureRadius } from './figures';
+import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
 import { area, bounds, rotation, type Mat3 } from './math';
 import { isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
 import type { RigState } from './rig';
@@ -24,6 +25,10 @@ export interface Drawing {
   eyes: [string, string];
   fill: string;
   eyeFill: string;
+  /** What is drawn beside the body (fx.ts): `back` before the body path, `front` after the eyes. None when nothing shows. */
+  effects?: DrawnFx[];
+  /** 0..1: how much the body glows, for a renderer that draws a glow. */
+  glow?: number;
   /**
    * Everything else the body carries (its antennas, its decals), each a path of its own in a colour of its own.
    * Paint them in order: the ones with `front` false under the body, then the body, then the ones with `front`
@@ -44,6 +49,12 @@ export interface Layer {
   /** Over the body (true), or under it, behind (false). */
   front: boolean;
 }
+
+/** One part of an effect as a path: paint it in its role's colour at its opacity, behind the body or in front. */
+export interface DrawnFx { layer: 'back' | 'front'; role: FxRole; opacity: number; d: string }
+
+/** A shadow under a body that is off the ground: this dark at most, and gone by the time it is this high. */
+export const SHADOW = 0.2, SHADOW_GONE = 0.7;
 
 /** How finely to draw at a size: points per sphere rim, points per eye, and how much bigger the eyes are drawn. */
 export function detail(size: number): { rim: number; eye: number; boost: number } {
@@ -108,10 +119,14 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   // on nothing is opened: the eye there is going round the rim, and a wide one would jump from rim to rim.)
   const facing = Math.min(1, Math.max(0, (Math.abs(R[8]) - 0.1) / 0.3));
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
+  // (The arches of delight bend the eyes of a face: never a fixed lens.)
+  const face: Face = state.arc && !e.fixed ? { ...look.face, arc: look.face.arc + state.arc } : look.face;
   const shapes = ([-1, 1] as const).map((side, i) => {
-    // 1 body unit is half the drawn size. (A face built with eyes of two sizes draws each at its own.)
+    // 1 body unit is half the drawn size. (A face built with eyes of two sizes draws each at its own, and a wink
+    // shuts one eye on top of the blink: never a fixed lens.)
     const own = e.sizes ? e.sizes[i] : 1;
-    const eye = eyeOutline(look.face, side, e.w * d.boost * own, e.h * d.boost * own, look.lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
+    const lid = look.lid * (state.lids && !e.fixed ? state.lids[i] : 1);
+    const eye = eyeOutline(face, side, e.w * d.boost * own, e.h * d.boost * own, lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
     // The near eye opens: wider and a little taller about its own middle (so a face's lift and lean stay as
     // they are), and moved outward by what it gained, so its inner edge stays put and all the growth is on the
     // side coming toward the viewer. However wide the face draws its eyes, it never grows into the far one.
@@ -177,7 +192,7 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  * Everything on screen for a state, as flat screen polygons (x right, y down, 1 unit = half the drawing box):
  * the body's path (pieces, and any holes wound the other way) and the two eye paths.
  */
-function compose(given: Body, state: RigState, size: number): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[] } {
+function compose(given: Body, state: RigState, size: number): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[] } {
   const body = state.body ?? given, d = detail(size);
   rotation(state.pose, R);
   const own = silhouette(body, R, d.rim);
@@ -233,18 +248,63 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
   if (from && from !== body && from.antennas && kOut * grow > 0.02) stalks(from, state, d.rim, kOut * grow, least, layers);
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 
-  // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, the mirror flip.
-  const tall = state.stretch ?? 1, big = state.scale ?? 1, up = state.lift ?? 0, flip = state.flip ?? 1;
-  if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1) {
+  // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, a move to the side, the mirror flip.
+  // (A move to the side is mirrored with everything else: a lean that slides right slides left when mirrored.)
+  const tall = state.stretch ?? 1, big = state.scale ?? 1, up = state.lift ?? 0, flip = state.flip ?? 1, dx = (state.shift ?? 0) * flip;
+  let shadow: Float64Array | null = null, opacity = 0;
+  if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1 || dx !== 0) {
     // (The ground is under the body itself: a figure's little ball going round below it does not lift it.)
-    const ground = bounds(fig ? [outline[0]] : outline)[3], kx = (big * flip) / tall;
+    const box = bounds(fig ? [outline[0]] : outline), ground = box[3], kx = (big * flip) / tall;
     for (const polys of [outline, eyes[0], eyes[1], ...layers.map((l) => l.polys)]) {
-      for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] *= kx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
+      for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] = p[i] * kx + dx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
     }
     // Mirrored, the eye that was on the left is on the right.
     if (flip < 0) eyes = [eyes[1], eyes[0]];
+    // Off the ground, a shadow on it: smaller and fainter the higher it goes, so the height of a hop reads.
+    if (up > 0.002) {
+      const high = Math.min(1, up / SHADOW_GONE), half = ((box[2] - box[0]) / 2) * Math.abs(kx) * (0.85 - 0.4 * high);
+      // (Not for the hair a face lifts its chest by: only for a body plainly off the ground.)
+      opacity = SHADOW * smooth((up - 0.015) / 0.05) * (1 - high);
+      if (opacity > 0.004) {
+        shadow = disc(0, 0, 1, 24);
+        const cx = ((box[0] + box[2]) / 2) * kx + dx, cy = ground * big + 0.03;
+        for (let i = 0; i < shadow.length; i += 2) { shadow[i] = cx + shadow[i] * half; shadow[i + 1] = cy + shadow[i + 1] * Math.max(0.035, half * 0.16); }
+      }
+    }
   }
-  return { body: outline, eyes, layers };
+  // The effects are placed against the body itself: not a figure's little ball going round it.
+  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline };
+}
+
+/** The body as the effects see it this frame: its box, its middle, and (only if asked for) its reach from the middle. */
+function frameOf(outline: Float64Array[], size: number): FxFrame {
+  const [x0, y0, x1, y1] = bounds(outline), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  let reach: Float64Array | null = null;
+  return {
+    x0, y0, x1, y1, cx, cy,
+    reach() {
+      if (!reach) reach = radial(outline.map((p) => { const q = new Float64Array(p.length); for (let i = 0; i < p.length; i += 2) { q[i] = p[i] - cx; q[i + 1] = p[i + 1] - cy; } return q; }), rays(size));
+      return reach;
+    },
+  };
+}
+
+/** The effects of a state, drawn against the body's outline, plus the shadow of a lifted body. */
+function effectsOf(state: RigState, outline: Float64Array[], size: number, shadow: Float64Array | null, opacity: number): FxPart[] {
+  const parts: FxPart[] = [];
+  if (shadow) parts.push({ layer: 'back', role: 'shadow', opacity, polys: [shadow] });
+  if (state.fx && state.fx.length) {
+    const f = frameOf(outline, size), way = (state.flip ?? 1) < 0 ? -1 : 1;
+    // (Mirrored, an effect that has a way to go, speed lines or sparks, goes the other way with the body.)
+    for (const fx of state.fx) parts.push(...fxParts(way < 0 && fx.dir ? { ...fx, dir: -fx.dir } : fx, f, 2 / size));
+  }
+  return parts;
+}
+
+/** Screen polygons of the effects for a rig state (the shadow of a lifted body included). */
+export function effectShapes(body: Body, state: RigState, size: number): FxPart[] {
+  const c = compose(body, state, size);
+  return effectsOf(state, c.frame, size, c.shadow, c.opacity);
 }
 
 /** A layer before it is a path: screen polygons, and what it is. */
@@ -325,13 +385,16 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
 
 /** One frame. `body` is drawn unless the state carries its own (a rig that was given one): then that one is. */
 export function drawAvatar(body: Body, colour: string, state: RigState, size: number): Drawing {
-  const { body: outline, eyes, layers } = compose(body, state, size);
+  const { body: outline, eyes, layers, shadow, opacity, frame } = compose(body, state, size);
   const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
     out.layers = [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)]
       .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front }));
   }
+  const parts = shadow || state.fx?.length ? effectsOf(state, frame, size, shadow, opacity) : null;
+  if (parts && parts.length) out.effects = parts.filter((p) => p.opacity > 0.004 && p.polys.length).map((p) => ({ layer: p.layer, role: p.role, opacity: Math.round(p.opacity * 1000) / 1000, d: toPath(p.polys, UNIT, MID) }));
+  if (state.glow) out.glow = state.glow;
   return out;
 }
 

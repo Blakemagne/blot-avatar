@@ -3,8 +3,8 @@
 // face or clip in the package shows up here without touching this file. The wave is the one move written here.
 
 import {
-  ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, POKES, colours, deg, mount, onMotion, reducedMotion,
-  type Clip, type MountOptions, type Mounted,
+  ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, PERSONALITY, POKES, colours, deg, mount, onMotion, reducedMotion,
+  type Clip, type MountOptions, type Mounted, type Personality,
 } from '@blot/avatar';
 import {
   ANTENNA_POSES, JACRISPY, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, jacrispyFace, type JacrispyMood,
@@ -37,11 +37,34 @@ const SAYS: Record<string, string> = {
   shake: 'A shake of the head: no.',
   bounce: 'Two quick hops: done!',
   tilt: 'The head leans over and holds: hm?',
+  delight: 'Up off the ground with happy eyes, and sparks thrown up.',
+  wink: 'One eye shuts and opens again.',
+  wide: 'A squint, then the eyes go wide.',
+  alert: 'Up sharply, eyes open, and a pulse of its own outline.',
+  recoil: 'A jump back away from something on one side.',
+  lean: 'A lean to one side, held, and back.',
+  tug: 'Pulled one way, then it springs back and rings out.',
+  settle: 'A wobble that dies away, as if set down hard.',
+  flare: 'A surge of glow that flickers out; the body swells with it.',
+  float: 'Up off the ground for two slow bobs.',
+  look: 'A glance to one side and up: the eyes first, the head after.',
+  exclaim: 'A "!" gathers above its head out of sparks, and falls apart.',
+  burst: 'It draws in and lets go: sparks fly off all round.',
+  comet: 'A wind-up, a dash with speed lines behind it, and back.',
+  rings: 'Rings come round it, passing behind and in front.',
+  rock: 'A rock from side to side about a point below it.',
   wave: 'A rock from side to side. Written on this page, not in the package.',
 };
 
 /** Who does each move on its card, so every card shows another body. */
-const CARD_SHAPE: Record<string, string> = { spin: 'star', nod: 'blob', hop: 'cloud', shake: 'wedge', bounce: 'heart', tilt: 'tablet', wave: 'flower' };
+const CARD_SHAPE: Record<string, string> = {
+  spin: 'star', nod: 'blob', hop: 'cloud', shake: 'wedge', bounce: 'heart', tilt: 'tablet', wave: 'flower',
+  delight: 'blob', wink: 'pebble', exclaim: 'heart', rings: 'blob', comet: 'teardrop', rock: 'teardrop', flare: 'star',
+};
+/** The effects' colour (a mark, sparks, rings, Zs, a glow) on every avatar here. */
+const ACCENT = '#7C5CFF';
+/** The shapes a visit goes to. */
+const VISITS = ['teardrop', 'hex', 'wedge', 'star'];
 
 const COLOURS: [string, string][] = [
   ['#FD690F', 'Orange'], ['#2F6BFF', 'Blue'], ['#14A05A', 'Green'], ['#8B5CF6', 'Violet'],
@@ -94,11 +117,11 @@ matchMedia('(max-width: 720px)').addEventListener('change', () => hero.update({ 
 
 const pg = {
   shape: 'heart', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
-  size: 180, follow: true, dir: 1, amount: 1, last: null as Move | null,
+  size: 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
 };
 const options = (): MountOptions => ({
   shape: pg.shape, size: pg.size, color: pg.color, eyeFill: pg.eyes ?? undefined, face: pg.face, activity: pg.activity,
-  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow,
+  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT,
 });
 const bot = mount($('[data-avatar="play"]'), { ...options(), pokeable: true, label: 'the playground avatar', seed: 7, clips });
 
@@ -134,6 +157,27 @@ chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => {
   changed();
 });
 chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; changed(); });
+
+// The mark, a visit, and what it is like to move.
+{
+  const mark = $<HTMLInputElement>('[data-mark]');
+  mark.addEventListener('change', () => { pg.mark = mark.checked; changed(); });
+  const visits = $('[data-visit]');
+  for (const shape of VISITS) {
+    const b = make('button', { type: 'button', className: 'chip', textContent: shape });
+    b.addEventListener('click', () => { if (pg.shape !== shape) bot.visit(shape); pg.last = null; writeCode(); });
+    visits.append(b);
+    moveButtons.push(b);
+  }
+  const feel = $('[data-feel]');
+  for (const k of ['weight', 'squash', 'wobble', 'flare', 'float'] as const) {
+    const input = make('input', { type: 'range', min: '0', max: '1', step: '0.05', value: String(pg.feel[k]) });
+    input.setAttribute('aria-label', k);
+    const out = make('output', { textContent: pg.feel[k].toFixed(2) });
+    input.addEventListener('input', () => { pg.feel = { ...pg.feel, [k]: Number(input.value) }; out.textContent = pg.feel[k].toFixed(2); changed(); });
+    feel.append(make('span', { textContent: k }), input, out);
+  }
+}
 
 // Colours: the body's and the eyes', each a row of swatches and a panel for any colour at all. Each panel has a
 // little avatar in the colours so far, for a phone where the playground's is off screen.
@@ -195,6 +239,10 @@ function writeCode(): void {
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
   if (pg.follow) o.push('follow: true');
+  if (pg.mark) o.push('mark: true');
+  const feel = (Object.keys(PERSONALITY) as (keyof Personality)[]).filter((k) => pg.feel[k] !== PERSONALITY[k]).map((k) => `${k}: ${pg.feel[k]}`);
+  if (feel.length) o.push(`personality: { ${feel.join(', ')} }`);
+  o.push(`accent: '${ACCENT}'`);
   o.push('pokeable: true');
   if (pg.last?.here) o.push('clips: { wave }');
   const lines: string[] = [];
@@ -229,7 +277,7 @@ writeCode();
       button);
     list.append(card);
     const shape = CARD_SHAPE[m.name] ?? SHAPES[i % SHAPES.length];
-    const one = mount(slot, { shape, size: 88, color: COLOURS[i % 6][0], seed: 20 + i, clips });
+    const one = mount(slot, { shape, size: 88, color: COLOURS[i % 6][0], seed: 20 + i, clips, accent: ACCENT });
     button.addEventListener('click', () => play(one, m));
     moveButtons.push(button);
   });

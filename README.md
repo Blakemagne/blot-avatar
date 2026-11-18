@@ -2,7 +2,7 @@
 
 The avatar of blot's Bots, as a package anyone can use. The demo page in `site/` shows every body, every move and a playground: `npm run site:dev`, or [blakemagne.github.io/blot-avatar](https://blakemagne.github.io/blot-avatar/) once GitHub Pages is on.
 
-A body is a real 3D shape made of a few rounded solids. The eyes are patches of its surface, so they lean, thin and go round the edge with it. The package turns a body, a pose and a face into three SVG path strings: the body and two eyes.
+A body is a real 3D shape made of a few rounded solids. The eyes are patches of its surface, so they lean, thin and go round the edge with it. The package turns a body, a pose and a face into three SVG path strings: the body and two eyes. Beside them it draws effects (a mark, a "!", sleep's Zs, sparks, rings that pass behind the body, a hop's shadow) as more paths, behind the body or in front.
 
 It is pure TypeScript with no dependency. The engine has no DOM and runs the same in node and in a browser. React is an optional peer, needed only for `@blot/avatar/react`. There is no build step: the package is source, and whoever uses it compiles it (Vite, esbuild, tsx). A project that type-checks it needs `lib` ES2022 or later and `moduleResolution: "bundler"`, as in this package's own `tsconfig.json`; your compiler flags apply to it too.
 
@@ -11,13 +11,14 @@ npm install github:Blakemagne/blot-avatar
 ```
 
 ```
-src/engine/       the engine: bodies, eyes, faces, the rig, the clips (no DOM)
+src/engine/       the engine: bodies, eyes, faces and their manners, the rig, the clips, the effects (no DOM)
 src/engine/bodies one file per body, and the list of them
 src/ticker.ts     the one frame loop every live avatar shares
 src/live.ts       createLive: one live avatar, no framework
 src/react.ts      useLiveAvatar: the same, as a React hook
 src/mount.ts      mount: the same, on any page
 src/still.ts      the still pictures and the svg box
+src/paint.ts      painting the effects into an svg (mount and the React hook)
 golden/           frozen hashes of every frame the rig draws
 site/             the demo page (built into _site/ for GitHub Pages)
 scripts/          the demo page's build
@@ -35,7 +36,7 @@ scripts/          the demo page's build
 
 Node 22 or later.
 
-The golden check drives the rig through every behaviour, frame by frame, and hashes two things: every drawn path, and every number the rig's change test reads, at full precision. Both hashes are frozen in `golden/frames.sha256`. Run it after any change to `rig.ts`, `clips.ts` or a curve the rig uses. A new cue does not change it, because a cue that is not playing does no arithmetic. If you mean to change an existing move, the hashes change too: freeze the new ones in the same change and say why.
+The golden check drives the rig through every behaviour, frame by frame, and hashes two things: every drawn path, and every number the rig's change test reads, at full precision. Both hashes are frozen in `golden/frames.sha256` (first on the engine before it became this package; again on 18 November 2026, when faces gained their manners, the blink and the idle life changed, and runs for the new moves, sleep, the mark, a visit and personality were added). Run it after any change to `rig.ts`, `clips.ts` or a curve the rig uses. A new cue does not change it, because a cue that is not playing does no arithmetic. If you mean to change an existing move, the hashes change too: freeze the new ones in the same change and say why.
 
 Tests and the eye judge different things. A test says a move starts and ends at nothing, or never hides an eye. Only looking says it reads as a shake at 22 px. Do both.
 
@@ -50,9 +51,14 @@ interface Channels {
   lift: number;                               // body units off the ground (start 0)
   stretch: number; scale: number; open: number; // factors (start 1)
   eyeScale: number; dot: number;              // the rig's; a clip may multiply eyeScale
+  x: number;                                  // body units moved to the right (start 0)
+  arc: number;                                // added to the eyes' bend: happy arches (start 0)
+  winkL: number; winkR: number;               // how far one eye is shut on top of the blink, 0..1 (start 0)
+  glow: number;                               // a glow, for a renderer that draws one (start 0)
+  fx: Fx[];                                   // the effects showing this frame (start empty): push yours
 }
-interface View { readonly yaw: number; readonly room: number }   // the body's turn, and the room a look has left
-interface Playing { clip: Clip; at: number; u: number; cue: { dir: number; amount: number; from: number } }
+interface View { readonly yaw: number; readonly room: number; readonly feel?: Personality }   // the body's turn, the room a look has left, what it is like to move
+interface Playing { clip: Clip; at: number; u: number; ms: number; cue: { dir: number; amount: number; from: number } }
 interface Clip { lane: 'poke' | 'cue' | ...; ms: number; apply(o: Channels, p: Playing, v: View): void }
 ```
 
@@ -93,6 +99,8 @@ The tilt is a cue: the head leans over ("hm?"), holds, and comes back.
    - No randomness. A clip reads only `p` and `v`.
    - Scale any yaw by `v.room`. A ball held at a full look has no turn left, and more would lose its far eye.
    - Move smoothly from frame to frame.
+   - Push an effect only while it plays (0 < u < 1) and only at an amount over 0.
+   - Read what the avatar is like to move through `v.feel` (`give(f)` for a stretch, `high(f)` for a height): at 0.5 everything is exactly as before.
 
 4. **It is listed by itself.** `CUES` is every clip in lane 'cue', in key order, so the new cue is in `CUES`, `play('tilt')` works, and the demo page gets a button and a card for it.
 
@@ -120,6 +128,56 @@ mount(el, { shape: 'blob', size: 72, clips: { wave } }).play('wave', { dir: -1 }
 ```
 
 The rig checks extra clips with `checkClips` when it is built. It throws for a name the rig already has, a lane other than 'poke' or 'cue', a time that is not a finite number over 0, or a clip with no `apply`. An extra poke joins the turn of pokes after the rig's own.
+
+## How a face is worn
+
+A face (`FACES`) says what the eyes look like. Its **manner** (`MANNERS` in `faces.ts`) says how the rest of the avatar carries it:
+
+- a head pose (`yaw`, `pitch`, `roll`) and a `rise`: sad looks down and sinks, proud lifts its chin, shy looks away;
+- an `energy`, 0..1: a lively face comes on quicker, blinks and breathes faster; a dull one comes on slowly;
+- a `kick`, the jolt as the face comes on: surprised pops up, scared flinches;
+- habits while it is worn: `tremble` (scared, angry), `sway` (sad, shy), `scan` (the eyes searching: suspicious, confused), `bounce` (excited, laughing), and `doze` (sleepy nods off and catches itself);
+- a `blink` pace: a sleepy blink is slow, a scared one quick.
+
+The posture is thrown a little past where it is going and settles; the eyes ease in over 150 ms as before. The habits play only while the rig is alive (`idle` on), so a still rig with a face is still; the quick ones (tremble, bounce) move every frame, the slow ones on the breath's steps. Every activity is worn plainly: a face set while it does something waits for its manner until the activity ends. To give a face a manner, add a line to `MANNERS`; a face with none moves as faces always did.
+
+## What it is like to move
+
+`new Rig({ personality })`, `rig.setPersonality(p)`, or `personality` on `createLive` and `mount`: five numbers, each 0..1. **The engine's own feel is `PERSONALITY`: weight, squash and wobble at 0.5, flare and float at 0. There every move is exactly as before.** A change eases in (a floater rises, it does not jump).
+
+| | low | high |
+|---|---|---|
+| `weight` | hops high and hangs | hops low, lands hard |
+| `squash` | hardly gives | every stretch goes further |
+| `wobble` (over 0.5) | | rings after it lands |
+| `flare` (default 0) | no glow | glows as it moves |
+| `float` (default 0) | stands | hovers, bobbing, with a shadow under it |
+
+## States, the mark, a visit
+
+- `setActivity('sleeping')`: the lids close slowly, it sinks, the breath slows and deepens, and Zs go up. It wakes quicker than it fell asleep.
+- An activity change blinks, so the switch happens behind the blink.
+- `setActivity('thinking', 'dots')`: the body becomes the middle of three dots, with a pulse running along them.
+- `setMark(true)`: a dot on the outline, up and to the right, with a sonar ring, which the eyes glance at now and then. It means something is waiting for whoever is watching. A resting avatar with a mark keeps ticking.
+- `visit(body, stay)`: go to another shape for a moment and come back. A `setBody` meanwhile ends the visit.
+- Left alone, the eyes wander a little and the head goes with them, on the breath's clock, so an idle avatar is redrawn no more often. Watching the pointer, the wander stops (what it had wandered to is handed to the springs, so nothing jumps) and the body leans toward the pointer, more while it moves.
+
+## Effects
+
+An effect is data: `{ kind, u, t, dir, amount }` (`fx.ts`). The rig and the clips push the ones that show into `Channels.fx`; `drawAvatar` places them against the body's outline for that frame and returns them as `effects: { layer, role, opacity, d }[]`. Paint each part in its role's colour: `body`, `eye`, `accent` (the renderer's accent colour, the body's colour if it has none) or `shadow`. `back` parts go before the body path, `front` parts after the eyes. `paintEffects(back, front, drawing, paint)` does it for an svg; `glowFilter` gives the CSS filter for `drawing.glow`.
+
+| kind | what | played by |
+|---|---|---|
+| `mark` | a dot on the outline and its sonar ring | `setMark` |
+| `bang` | a "!" that gathers from sparks above the head and falls apart | the `exclaim` cue |
+| `spray` | sparks thrown up from the head | `delight` |
+| `burst` | sparks flying off all round, half behind | `burst` |
+| `pulse` | the outline going out and fading | `alert`, `burst` |
+| `rings` | tilted rings, the far half behind the body, each with a light going round | `rings` |
+| `streaks` | speed lines off the trailing edge | `comet` |
+| `zzz` | Zs rising | sleeping |
+
+A body off the ground also gets a `shadow` part under it. Effects never touch the body or eye paths.
 
 ## Add a shape
 
@@ -171,20 +229,20 @@ To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`.
 
 From `@blot/avatar`:
 
-- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right] }`, three path strings in the box `VIEW_BOX`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`.
-- **The rig.** `new Rig({ seed, body, pose, rest, clips })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `setActivity(activity, form)`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
+- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right], effects?, glow? }`: three path strings in the box `VIEW_BOX`, and the effects as more. `effectShapes`, `paintEffects`, `glowFilter`, `FX_KINDS`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`.
+- **The rig.** `new Rig({ seed, body, pose, rest, clips, personality })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `visit(body, stay)`, `setActivity(activity, form)`, `setMark`, `setPersonality`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `MANNERS`, `mannerFor`, `PERSONALITY`, `ACTIVITY_FACES`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
 - **Clips.** `CLIPS`, `POKES`, `CUES`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `SMALL`, `LARGE`, `SMALL_LOOK`.
-- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `destroy`.
+- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality` and `accent` (the effects' colour).
 
-From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it.
+From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box.
 
 ### The frame loop's rules
 
 - There is one frame loop for the page (`ticker.ts`). Nothing else in the package calls `requestAnimationFrame`. Do not give an avatar its own.
 - An avatar is drawn only while it is on screen and the tab is showing.
-- Under reduced motion nothing ticks. An avatar shows its still picture, and `poke` and `play` do nothing.
+- Under reduced motion nothing ticks. An avatar shows its still picture, wearing what it is doing (a thinking face, shut eyes asleep) or the face it was given, with its mark if it has one; `poke`, `play` and `visit` do nothing.
 - An avatar at rest unsubscribes and costs nothing until something wakes it.
 - One under 48 px (`SMALL`) is drawn at most 30 times a second.
 - Only one of 64 px (`LARGE`) and up takes a full look. A small one turns at most `SMALL_LOOK` of the way. `mount()` leaves whether it can be poked to you (`pokeable`); blot makes only avatars of 64 px and up pokeable.
@@ -229,7 +287,10 @@ Only the moves that are a curve over a fixed time are clips: spin, nod and hop (
 | shape morph and dots | impulses into lasting wobbles, a captured dot, the blink restart |
 | loading figures | a state machine with an aim override and the blink restart |
 | face easing, mirror flip | one-way blends written to `state.face` and `state.flip` |
-| scheduling of the blink and the waiting nod | random timing; only their curves are clips |
+| scheduling of the blink and the waiting nod | random timing (a double blink now and then); only their curves are clips |
+| a face's manner and habits | blended with the face, gated by being alive and awake, timed by the face's energy |
+| the wander, the lean, a hover | on the breath's clock and gates the rig owns; the wander hands itself to the springs on a look |
+| sleep, the mark, a visit | springs, clocks and a body to go back to that the rig owns |
 
 Moving these would need a kind of loop with access to the springs and the random numbers. That is more code and more risk for no new move.
 

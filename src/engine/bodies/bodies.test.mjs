@@ -526,7 +526,7 @@ test('held in any look, with the face of anything a Bot does, every body shows t
   // lost its far eye in half its frames.
   const { ACTIVITY_FACES } = await import('../faces.ts');
   const faces = { neutral: FACES.neutral, ...ACTIVITY_FACES };
-  assert.deepEqual(Object.keys(faces).sort(), ['neutral', 'speaking', 'thinking', 'waiting', 'working']);
+  assert.deepEqual(Object.keys(faces).sort(), ['neutral', 'sleeping', 'speaking', 'thinking', 'waiting', 'working']);
   const looks = [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0.8], [-1, 0.8], [0.8, 1], [1, -0.8], [-1, -0.8]];
   for (let a = 0; a < 360; a += 20) looks.push([Math.cos(deg(a)), Math.sin(deg(a))]);
   let looked = 0;

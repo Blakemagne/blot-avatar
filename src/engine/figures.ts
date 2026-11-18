@@ -7,8 +7,8 @@
 import { smooth } from './ease';
 import { polar } from './morph';
 
-export type Form = 'orbit' | 'radar' | 'progress' | 'ring';
-export const FORMS: readonly Form[] = ['orbit', 'radar', 'progress', 'ring'];
+export type Form = 'orbit' | 'radar' | 'progress' | 'ring' | 'dots';
+export const FORMS: readonly Form[] = ['orbit', 'radar', 'progress', 'ring', 'dots'];
 
 /** A figure on screen. */
 export interface Figure {
@@ -23,7 +23,11 @@ export interface Figure {
 
 const TAU = 2 * Math.PI;
 /** The radius of the disc the body becomes. */
-const RADIUS: Record<Form, number> = { orbit: 0.6, radar: 0.9, progress: 0.9, ring: 0.88 };
+const RADIUS: Record<Form, number> = { orbit: 0.6, radar: 0.9, progress: 0.9, ring: 0.88, dots: 0.24 };
+/** The dots: where the two side dots end up, how big they are, and how much bigger a dot is at the top of its pulse. */
+export const DOTS = { at: 0.62, r: 0.22, peak: 0.28 };
+/** How big dot i (0 left, 1 the body, 2 right) is at the figure's turn: a pulse that runs along the row. */
+export const dotPulse = (turn: number, i: number): number => { const w = frac(turn / TAU - i / 3); return 1 + DOTS.peak * (w < 0.45 ? Math.sin((Math.PI * w) / 0.45) : 0); };
 export const figureRadius = (form: Form): number => RADIUS[form];
 
 /** The body is a disc by 60% of the way in; the figure's own parts grow from 35%. */
@@ -79,6 +83,14 @@ export function figureParts(fig: Figure, n: number, px: number, rim?: Float64Arr
       r[i] = g * (R - thick);
     }
     body.push(polar(r, true));
+  } else if (fig.form === 'dots') {
+    // Three dots: the body is the middle one, and the other two bud out of its sides. A pulse runs along them.
+    const m = Math.max(12, n >> 1);
+    body.push(polar(new Float64Array(m).fill(R * dotPulse(fig.turn, 1))));
+    for (const side of [-1, 1]) {
+      const r = Math.max(DOTS.r * g, 1.2 * px * g) * dotPulse(fig.turn, side < 0 ? 0 : 2);
+      body.push(polar(new Float64Array(m).fill(r), false, side * (R * 0.5 + (DOTS.at - R * 0.5) * g), 0));
+    }
   } else if (fig.form === 'orbit') {
     // A small ball that buds out of the body and circles it.
     const at = 0.25 + (ORBIT.at - 0.25) * g, r = ORBIT.r * g;

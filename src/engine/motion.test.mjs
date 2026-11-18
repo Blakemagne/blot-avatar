@@ -8,7 +8,7 @@ const { BLINK_HEIGHT, BLINK_MS, BODIES, FACES, LOOK_YAW, Rig, area, bounds, deg,
 const { ACTIVITIES, BLINK_AT, BREATH, BREATH_MS, CHANGE_MS, FACE_MS, FIGURE_AFTER, FIGURE_HOLD, FIGURE_MS, FIGURE_REST, HOP_HEIGHT, KICK_MS, LAND_AT, MORPH_MS, NOD, NOD_SQUASH, POKES, POKE_MS, POKE_QUEUE, POP, POP_MS, FLIP_MS,
   SPEAK_EYES, SPEAK_FLOOR, SPEAK_GAIN, SPEAK_LIFT, SPEAK_QUIET_MS, SPEAK_STRETCH, WAIT_ROCK, WAIT_ROCK_MS, WAIT_TURN, WORK_FOLLOW, WORK_MS, WORK_READ, WORK_SWEEP } = await import('./rig.ts');
 const { ACTIVITY_FACES, FACE_ALIASES, FACE_NAMES, faceFor, sameFace } = await import('./faces.ts');
-const { COMET, FORMS, ORBIT, figureParts, figureRadius } = await import('./figures.ts');
+const { COMET, DOTS, FORMS, ORBIT, figureParts, figureRadius } = await import('./figures.ts');
 const { crosses, polar, radial } = await import('./morph.ts');
 const { DOT, bodyShapes } = await import('./draw.ts');
 
@@ -371,7 +371,8 @@ test('a change of shape during a change of shape starts from the in-between, wit
 });
 
 const LIST = ['neutral', 'attentive', 'surprised', 'excited', 'happy', 'laughing', 'angry', 'sad', 'scared', 'suspicious', 'confused', 'curious', 'proud', 'shy', 'bored', 'sleepy', 'inspecting', 'squinted', 'calm', 'oval'];
-const worn = (name) => { const rig = quiet(); rig.setFace(name); settle(rig); return rig.state; };
+/** A face as the eyes draw it, facing front: the face alone, without the way it is worn (its manner moves the head). */
+const worn = (name) => { const rig = quiet(); rig.setFace(name); settle(rig); return { ...rig.state, pose: { yaw: 0, pitch: 0, roll: 0 }, lift: 0 }; };
 
 test('every face name is a face of its own (or a declared alias), and an unknown name is the neutral face', () => {
   assert.deepEqual([...FACE_NAMES].sort(), [...LIST].sort());
@@ -481,7 +482,8 @@ test('one face eases into another over about 150 ms: it does not snap', () => {
   rig.setFace('surprised');
   assert.deepEqual(rig.state.face, FACES.neutral, 'nothing changes until it is stepped');
   const widths = [];
-  for (let t = 5; t <= 200; t += 5) { assert.equal(rig.step(5), t <= FACE_MS); widths.push(rig.state.face.width); }
+  // (The step goes on saying the picture changed after that: the face's manner, the head's own pose, is still coming on.)
+  for (let t = 5; t <= 200; t += 5) { const changed = rig.step(5); if (t <= FACE_MS) assert.equal(changed, true); widths.push(rig.state.face.width); }
   const from = FACES.neutral.width, to = FACES.surprised.width;
   for (let i = 1; i < 30; i++) assert.ok(widths[i] >= widths[i - 1] && widths[i] <= to);
   assert.ok(widths[0] > from && widths[0] < from + (to - from) * 0.05, `first 5 ms: ${widths[0]}`);
@@ -799,7 +801,8 @@ test('with a form the body turns into a loading figure and back, by the same mor
           let most = 0;
           for (let i = 0; i < last.length; i += 2) most = Math.max(most, Math.hypot(polys[0][i] - last[i], polys[0][i + 1] - last[i + 1]));
           // (The spinner's comet is turning as it forms, and its round head passes a ray in two frames: that is motion, not a pop.)
-          assert.ok(most < (form === 'ring' ? 0.09 : 0.05), `${form} at ${t}: a point moved ${most}`);
+          // (The dots draw the body in furthest, to a small middle dot, so their outline moves furthest in a frame.)
+          assert.ok(most < (form === 'ring' ? 0.09 : form === 'dots' ? 0.08 : 0.05), `${form} at ${t}: a point moved ${most}`);
         }
         last = polys[0];
       });
@@ -838,6 +841,13 @@ test('with a form the body turns into a loading figure and back, by the same mor
         assert.ok(area(polys[0]) * area(polys[1]) > 0 && Math.abs(ball.w / 2 - ORBIT.r) < 0.01 && Math.abs(Math.hypot(cx, cy) - ORBIT.at) < 0.01);
         assert.ok(s.dot === 1 && eyes[0].length === 1 && eyes[1].length === 1);
         for (const [eye] of eyes) for (let i = 0; i < eye.length; i += 2) assert.ok(Math.hypot(eye[i], eye[i + 1]) < R, 'a dot off the ball');
+      } else if (form === 'dots') {
+        // Three dots in a row: the body as the middle one (with its pulse), one each side, level with it. No eyes.
+        assert.equal(polys.length, 4);
+        const sides = [box([polys[2]]), box([polys[3]])];
+        for (const b of sides) assert.ok(Math.abs((b.y0 + b.y1) / 2) < 1e-9 && b.w / 2 > DOTS.r * 0.99 && b.w / 2 < DOTS.r * (1 + DOTS.peak) + 0.01, `${form}: a side dot ${b.w} across`);
+        assert.ok(Math.abs((sides[0].x0 + sides[0].x1) / 2 + DOTS.at) < 1e-9 && Math.abs((sides[1].x0 + sides[1].x1) / 2 - DOTS.at) < 1e-9);
+        assert.ok(s.eyeScale === 0 && eyes[0].length === 0 && eyes[1].length === 0);
       } else {
         // Radar: the sweep and its ring are marks in the eye colour, inside the disc. The face stays: two
         // dots on the scope, in the same path and wound against the sweep, so a dot the sweep is passing
@@ -1060,7 +1070,9 @@ test('a rig at rest does not change the picture: nothing here makes a still avat
   rig.setActivity('idle'); rig.mirror(false);
   settle(rig);
   for (let i = 0; i < 2000; i++) assert.equal(rig.step(16), false);
-  assert.deepEqual(drawAvatar(heart, 'orange', rig.state, 120), drawAvatar(star, 'orange', worn('proud'), 120));
+  // The same picture as a rig that was only ever given the face (its manner included: proud holds its head up).
+  const proud = quiet({ body: star }); proud.setFace('proud'); settle(proud);
+  assert.deepEqual(drawAvatar(heart, 'orange', rig.state, 120), drawAvatar(star, 'orange', proud.state, 120));
 });
 
 test('a second change of shape early in the first keeps the eyes on the body they are on', () => {

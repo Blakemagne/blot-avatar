@@ -4,6 +4,7 @@
 import { VIEW_BOX, colours } from './engine/draw';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
+import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { svgBox } from './still';
 import { onMotion, reducedMotion } from './ticker';
 
@@ -16,6 +17,8 @@ export interface MountOptions extends LiveProps {
   eyeFill?: string;
   /** For a body with antennas or decals: their colours by key, over the body's own, e.g. { antenna: '#111' }. */
   paint?: Paint;
+  /** The effects' colour (a mark, sparks, rings, Zs, a glow), any CSS value. Unset, the body's. */
+  accent?: string;
   /** A click, a tap, Enter or Space pokes it (not under reduced motion: nothing would happen). */
   pokeable?: boolean;
   /** Its name, for the poke button's label. */
@@ -28,6 +31,8 @@ export interface Mounted {
   update(next: Partial<MountOptions>): void;
   poke(kind?: string): void;
   play(name: string, cue?: { dir?: number; amount?: number }): boolean;
+  /** Go to another shape for a moment and come back. */
+  visit(shape: string, stay?: number): void;
   /** Stop, and leave the host as it was found. */
   destroy(): void;
 }
@@ -71,6 +76,8 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     if (!grouped) { svg.insertBefore(under, paths[0]); svg.insertBefore(over, paths[1]); grouped = true; }
     writeLayers(under, over, d, opts.paint);
   };
+  // The effects: what is behind the body, and what is in front of it.
+  const back = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, front = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement;
   const boxed = (size: number) => {
     const b = svgBox(size);
     svg.setAttribute('width', String(b.width));
@@ -81,10 +88,16 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     svg.style.top = `${b.top}px`;
     svg.style.overflow = 'visible';
   };
-  const paint = () => {
+  const colour = (): FxPaint => {
     const c = colours(opts.color ?? '#FD690F');
-    paths[0].style.fill = opts.fill ?? c.fill;
-    paths[1].style.fill = paths[2].style.fill = opts.eyeFill ?? c.eyeFill;
+    return { fill: opts.fill ?? c.fill, eyeFill: opts.eyeFill ?? c.eyeFill, accent: opts.accent };
+  };
+  let last = live.first;
+  const paint = () => {
+    const c = colour();
+    paths[0].style.fill = c.fill;
+    paths[1].style.fill = paths[2].style.fill = c.eyeFill;
+    paintEffects(back, front, last, c);
   };
   boxed(opts.size);
   svg.setAttribute('aria-hidden', 'true');
@@ -92,16 +105,22 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   paths[1].setAttribute('d', live.first.eyes[0]);
   paths[2].setAttribute('d', live.first.eyes[1]);
   paint();
+  svg.appendChild(back);
   for (const p of paths) svg.appendChild(p);
   layered(live.first);
+  svg.appendChild(front);
   host.appendChild(svg);
 
   // 3. Alive, in React's effect order.
   const detach = live.attach(host, (d) => {
+    last = d;
     paths[0].setAttribute('d', d.body);
     paths[1].setAttribute('d', d.eyes[0]);
     paths[2].setAttribute('d', d.eyes[1]);
     layered(d);
+    const c = colour();
+    paintEffects(back, front, d, c);
+    svg.style.filter = glowFilter(d, opts.size, c);
   });
   live.motion();
   live.follow(opts.follow);
@@ -153,13 +172,14 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
         live.shape();
       }
       if (changed('face')) live.face(opts.face);
-      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size')) live.doing();
-      if (changed('color', 'fill', 'eyeFill')) paint();
+      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size', 'mark', 'personality')) live.doing();
+      if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
     },
     poke: (kind) => { if (!gone) live.poke(kind); },
     play: (name, cue) => !gone && live.play(name, cue),
+    visit: (shape, stay) => { if (!gone) live.visit(shape, stay); },
     destroy() {
       if (gone) return;
       gone = true;
