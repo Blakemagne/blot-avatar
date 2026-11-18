@@ -4,7 +4,7 @@
 
 import {
   ACTIVITIES, ANTENNA_POSES, BODIES, CUES, FACE_NAMES, FORMS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, POKES,
-  colours, deg, jacrispy, jacrispyFace, mount, onMotion, reducedMotion,
+  colours, deg, jacrispyFace, mount, onMotion, reducedMotion,
   type Clip, type JacrispyMood, type MountOptions, type Mounted,
 } from '../src/index';
 import { colorPicker, contrast } from './picker';
@@ -268,14 +268,14 @@ writeCode();
   const now = { mood: null as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null };
   const syncs: (() => void)[] = [];
   const hold = ([l, r]: readonly [number, number], ms = 0): void => jac.live.rig.setAntennas(deg(l), deg(r), ms);
-  // His own body, or his face (lenses, the bar between them, the camera and the antennas) on any other. A new
-  // body morphs in, as a new shape does in the playground.
+  // His own body, or his face (lenses, the bar between them, the camera and the antennas) on any other, in his
+  // white. A new body morphs in, as a new shape does in the playground.
   const others = SHAPES.filter((id) => id !== 'jacrispy');
+  const faced = Object.fromEntries(others.map((id) => [id, jacrispyFace(BODIES[id])]));
   syncs.push(chips($('[data-jac="body"]'), ['jacrispy', ...others], () => now.body, (v) => {
     now.body = v;
     const id = v ?? 'jacrispy';
-    jac.live.rig.setBody(id === 'jacrispy' ? jacrispy() : jacrispyFace(BODIES[id]));
-    jac.update({ color: id === 'jacrispy' ? JACRISPY_COLOUR : DEFAULT_COLOUR });
+    jac.update(id === 'jacrispy' ? { shape: 'jacrispy', body: undefined } : { shape: id, body: faced[id] });
     syncs.forEach((s) => s());
   }));
   // A mood is a face, an antenna pose (sad droops slowly) and a move measured from Pollen's recording of it.
@@ -304,8 +304,7 @@ writeCode();
   others.forEach((id, i) => {
     const slot = make('div', { className: 'gallery-avatar' });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: id })));
-    const one = mount(slot, { shape: id, size: 72, color: COLOURS[i % 6][0], eyeFill: JACRISPY_EYE, follow: true, label: `${id} with jacrispy's face`, seed: 300 + i, clips });
-    one.live.rig.setBody(jacrispyFace(BODIES[id]));
+    const one = mount(slot, { shape: id, body: faced[id], size: 72, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, label: `${id} with jacrispy's face`, seed: 300 + i, clips });
     let next = i;
     slot.addEventListener('click', () => {
       const m = JACRISPY_MOODS[JACRISPY_MOOD_NAMES[next++ % JACRISPY_MOOD_NAMES.length]];

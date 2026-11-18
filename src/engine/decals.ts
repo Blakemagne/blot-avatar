@@ -89,7 +89,11 @@ export function antennaPieces(a: Antennas, swing: readonly [number, number], gro
     const p: Sphere = [side * px, py, pz, r(r0)], j: Sphere = [jx, jy, pz, r(r1)], tip: Sphere = [tx, ty, pz, r(r2)];
     const out: Sphere[][] = [[p, j], [j, tip]];
     if (a.coil && a.coil.turns > 0) {
-      const { from, to, r: rc, turns } = a.coil, wire = r(r1 * 0.55), step = ((to - from) * a.base * grow) / turns;
+      // As many turns as fit with a gap between them as wide as the wire, so a small drawing shows a few clear
+      // turns instead of one dark lump; with room for fewer than three, none: a small antenna is a plain stalk.
+      const wire = r(r1 * 0.55), span = (a.coil.to - a.coil.from) * a.base * grow;
+      const fit = Math.min(a.coil.turns, Math.floor(span / (4 * wire))), turns = fit < 3 ? 0 : fit;
+      const { from, to, r: rc } = a.coil, step = span / Math.max(1, turns);
       for (let k = 0; k < turns; k++) {
         // The middle of this turn along the base, and its ring: across the stalk (both ways) and in z.
         const d = (from * a.base + ((k + 0.5) / turns) * (to - from) * a.base) * grow, tipped = 0.25 * step;

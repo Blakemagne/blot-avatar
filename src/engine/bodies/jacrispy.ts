@@ -1,11 +1,11 @@
-// Jacrispy: a Reachy Mini shaped body, as a chibi. A wide rounded head with two round lenses for eyes (a big
-// one on the viewer's left, a smaller one on the right, as the robot's own are), two thin antennas on top that
-// swing, and a round body that tapers up to the head from a broad foot. jacrispyFace() puts the same face
-// (lenses, rims, the bar between them, the camera and the antennas) on any other body.
+// Jacrispy: the head of a Reachy Mini, as an avatar. A wide rounded head with two round black lenses (a big
+// one on the viewer's left, a smaller one on the right, as the robot's own are), the bar that holds them, and
+// two thin antennas that come up from the back of the head and swing. jacrispyFace() puts the same face (the
+// lenses, the bar and the antennas) on any other body.
 //
-// The proportions are measured from the Reachy Mini's published model (Pollen Robotics) and then squeezed:
-// the head is the same shape but bigger against the body, and the antennas are a little shorter, so it
-// reads at avatar size. No geometry from that model is used here; only its proportions. See THIRD_PARTY_NOTICES.
+// The proportions are measured from the Reachy Mini's published model (Pollen Robotics): the head is 150 by
+// 94 mm, the lenses are 41 and 32 mm across and 68 mm apart. No geometry from that model is used here; only
+// its proportions. See THIRD_PARTY_NOTICES.
 
 import type { Antennas, Body, Decal, Piece, Sphere } from '../body';
 import type { Channels, Clip } from '../clips';
@@ -21,80 +21,64 @@ function box(x: number, y0: number, y1: number, z: number, r: number): Piece {
 }
 
 /**
- * A round band seen from above: `n` spheres of radius t whose hull is a circle of radius `out` at height y.
- * Set half a step off the axes, so it is its own mirror image front to back and left to right.
+ * His head, and nothing else of him: 150 mm wide and 94 tall on the robot, here 1.96 wide and 1.2 tall and a
+ * little less deep, with well rounded corners: the white tablet of the station's icon. It sits low in the
+ * picture to leave room above it for the antennas.
  */
-const band = (y: number, out: number, t: number, n = 12): Sphere[] =>
-  Array.from({ length: n }, (_, i): Sphere => {
-    const a = ((i + 0.5) * 2 * Math.PI) / n;
-    return [(out - t) * Math.cos(a), y, (out - t) * Math.sin(a), t];
-  });
-
-/**
- * The head: 1.62 wide, 1.04 tall and as deep, its middle 0.12 above the body's middle, low enough that the antennas fit the frame (a chibi: on the robot the head
- * is as wide as the body and half as tall as the whole). Two spheres on its middle line stand a little proud
- * of the face, front and back, so the face is a low roof with a flank for each eye: turned, the near eye opens
- * up and the far one thins, as on every blot body. (Flat, the far eye stayed as big as the near one.)
- */
-const HEAD_Y = 0.12, HW = 0.53, HH = 0.24, HZ = 0.24, HR = 0.28, RIDGE = 0.13;
-const HEAD: Piece = [
-  ...box(HW, HEAD_Y - HH, HEAD_Y + HH, HZ, HR),
-  ...[-1, 1].flatMap((sz) => [-1, 1].map((sy): Sphere => [0, HEAD_Y + sy * HH, sz * (HZ + RIDGE), HR])),
-];
-/** The body: a broad foot, a short round middle, and a dome that narrows up into the head. */
-const T = 0.1;
-const FOOT: Piece = [...band(-1.06, 0.48, T), ...band(-0.96, 0.48, T)];
-const MIDDLE: Piece = [...band(-0.98, 0.6, T), ...band(-0.76, 0.6, T)];
-const DOME: Piece = [...band(-0.77, 0.6, T), ...band(-0.28, 0.42, T)];
+const MID_Y = -0.42, HW = 0.62, HH = 0.24, HZ = 0.12, HR = 0.36;
+const HEAD: Piece = box(HW, MID_Y - HH, MID_Y + HH, HZ, HR);
+/** A millimetre on the robot, in body units: the head is 1.96 wide for 150 mm. */
+const MM = (2 * (HW + HR)) / 150;
 
 /**
  * Its colours, from the robot's own model: black antennas, near-black lens caps for rims, the dark grey
  * glasses holder for the bridge and the grey camera between the lenses. The lenses themselves (the eyes) are
  * JACRISPY_EYE. A renderer may paint any of these over.
  */
-export const JACRISPY_PAINT = { antenna: '#111111', rim: '#191919', bridge: '#2B2B2B', camera: '#7F7F7F' } as const;
+export const JACRISPY_PAINT = { antenna: '#141414', rim: '#141414', bridge: '#141414', camera: '#7F7F7F' } as const;
 /** The colour to draw its body in: the white of its shell. */
 export const JACRISPY_COLOUR = '#F4F2EC';
-/** The colour to draw its eyes in: its grey-blue glass lenses, seen over the dark inside of the head. */
-export const JACRISPY_EYE = '#3B4249';
+/** The colour to draw its eyes in: his lenses, black as on the station's icon and the stickers. */
+export const JACRISPY_EYE = '#161616';
 
 /**
- * What makes a face his, measured from the Reachy Mini's model (mm, its head 150 wide). The lenses: 35 and 26
- * across, inside lens caps 3 thick. The glasses holder shows as a bar 5.3 tall between them, at their middle
- * height, with the camera, 6 across, in the middle of it. Each antenna: a rod about 4 across, a spring 10
- * across wound round it from 11 mm to 43 mm above the head, and a cap on its tip.
+ * What makes a face his, measured from the Reachy Mini's model (mm, its head 150 wide). The lenses, with their
+ * caps: 41 and 32 across. The glasses holder shows as a bar between them at their middle height; drawn a
+ * sixth as tall as a lens, a little more than on the robot, so it reads at avatar size. The camera, 6 across, sits in
+ * the middle of it. Each antenna: a rod about 4 across, a spring 10 across wound round it from 11 mm to 43 mm
+ * above the head, and a cap on its tip.
  */
-const LENS_BIG = 35, LENS_SMALL = 26, CAP = 3, BAR = 5.3, CAMERA = 6;
+const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 6, CAP = 3;
 
 export interface FaceOptions {
-  /** Grey rims round the lenses (default on). */
+  /** A ring round each lens, in the rim colour (default off: on the icon each lens is one black disc). */
   rims?: boolean;
   /** The bar between the lenses (default on). */
   bridge?: boolean;
-  /** The camera in the middle of the bar (default on). */
+  /** The camera in the middle of the bar (default off: too small to read at avatar size). */
   camera?: boolean;
   /** The two antennas (default on). */
   antennas?: boolean;
 }
 
 /**
- * The face: two lenses of the robot's two sizes, their rims, the bar between them and the camera on it, all
- * worked out from a body's own eyes, so it fits any body. The eyes keep their place and their average size.
+ * The face: two lenses of the robot's two sizes, the bar between them, and if asked for their rims and the
+ * camera, all worked out from a body's own eyes, so it fits any body. The eyes keep their place and their
+ * average size. Lenses are rigid: neither opens as the body turns.
  */
 function lenses(eyes: Body['eyes'], o: FaceOptions): { eyes: Body['eyes']; decals: Decal[] } {
-  // The two sizes, kept to the same average as the body's own eye (the robot's are 35 and 26: 1.15 and 0.85).
   const mean = (LENS_BIG + LENS_SMALL) / 2, sizes = [LENS_BIG / mean, LENS_SMALL / mean] as const;
-  const glass = eyes.w, mm = glass / mean;
+  const mm = eyes.w / mean;
   const decals: Decal[] = [];
-  if (o.bridge ?? true) decals.push({ id: 'bridge', at: [0, 0], w: 0, h: BAR * mm, shape: 'rounded', paint: 'bridge', eye: 'both', span: true });
-  if (o.rims ?? true) {
+  if (o.bridge ?? true) decals.push({ id: 'bridge', at: [0, 0], w: 0, h: BAR * eyes.w, shape: 'rounded', paint: 'bridge', eye: 'both', span: true });
+  if (o.rims ?? false) {
     for (const eye of ['left', 'right'] as const) {
       const k = (mean + 2 * CAP) / mean;
       decals.push({ id: `rim-${eye}`, at: [0, 0], w: eyes.w * k, h: eyes.h * k, shape: 'circle', paint: 'rim', eye });
     }
   }
-  if ((o.bridge ?? true) && (o.camera ?? true)) decals.push({ id: 'camera', at: [0, 0], w: CAMERA * mm, h: CAMERA * mm, shape: 'circle', paint: 'camera', eye: 'both' });
-  return { eyes: { ...eyes, sizes: [sizes[0], sizes[1]] }, decals };
+  if ((o.bridge ?? true) && (o.camera ?? false)) decals.push({ id: 'camera', at: [0, 0], w: CAMERA * mm, h: CAMERA * mm, shape: 'circle', paint: 'camera', eye: 'both' });
+  return { eyes: { ...eyes, sizes: [sizes[0], sizes[1]], open: 0 }, decals };
 }
 
 /**
@@ -106,51 +90,67 @@ function stalks(pivot: readonly [number, number, number], hidden: number, shown:
   const len = hidden + shown, coilFrom = hidden + 0.06 * shown, coilTo = hidden + 0.3 * shown;
   return {
     pivot, base: coilTo, whip: len - coilTo,
-    radii: [2.6 * mm, 2 * mm, 1.9 * mm], rest: deg(4), follow: 0.08, paint: 'antenna',
+    radii: [2.6 * mm, 2 * mm, 1.9 * mm], rest: deg(6), follow: 0.08, paint: 'antenna',
     coil: { from: coilFrom / coilTo, to: 1, r: 6 * mm, turns: 4 },
     cap: { len: 9 * mm, r: 2.6 * mm },
   };
 }
 
-/** Where his eyes are on the face, and their average size: lenses() makes them the robot's two sizes. */
-const EYES: Body['eyes'] = { x: 0.4, y: HEAD_Y, w: 0.46, h: 0.46, slideX: 0.06, slideY: 0.05 };
+/**
+ * His eyes, from the robot: the lenses' middles 68 mm apart at the middle of the head's height, and their
+ * average size (lenses() makes them 41 and 32 mm across).
+ */
+const EYES: Body['eyes'] = { x: 34 * MM, y: MID_Y, w: ((LENS_BIG + LENS_SMALL) / 2) * MM, h: ((LENS_BIG + LENS_SMALL) / 2) * MM, slideX: 0.04, slideY: 0.03 };
 
-/** A jacrispy body: his head and body, his face and his antennas. */
+/**
+ * A jacrispy body: his head, his face and his antennas. The antennas stand on the back of the head, near its
+ * outer corners as on the robot, and show above it about 0.7 times the head's width (a little shorter than on
+ * the robot, so the head can be big in the picture).
+ */
 export function jacrispy(opts: FaceOptions = {}): Body {
   const face = lenses(EYES, opts);
-  // The head is 1.62 wide for 150 mm.
-  const mm = (2 * (HW + HR)) / 150, top = HEAD_Y + HH + HR;
-  const body: Body = {
-    id: 'jacrispy',
-    pieces: [HEAD, DOME, MIDDLE, FOOT],
-    eyes: face.eyes,
-    decals: face.decals,
-    paint: { ...JACRISPY_PAINT },
-  };
-  if (opts.antennas ?? true) body.antennas = stalks([0.56, top - 0.3, 0], 0.3, ANTENNA_SHOWN, mm);
+  const top = MID_Y + HH + HR;
+  const body: Body = { id: 'jacrispy', pieces: [HEAD], eyes: face.eyes, decals: face.decals, paint: { ...JACRISPY_PAINT } };
+  if (opts.antennas ?? true) body.antennas = stalks([0.72, top - 0.34, -0.24], 0.34, 1.0, MM);
   return body;
 }
 
-/** How much of each antenna shows above his head: as much as the picture has room for. */
-const ANTENNA_SHOWN = 0.8;
-
 /**
- * His face on another body: its own eyes, made into his lenses, rims, bar and camera, and his antennas on
- * top of it, as far apart as on him (a little more than half again as far out as the eyes) and as long as
- * there is room for in the picture. The body is otherwise as it was.
+ * His face on another body: round lenses as far apart and as big against that body's face as his are on his
+ * head (a little less, since most bodies are rounder than his head and their sides turn away sooner), with
+ * the bar, and his antennas behind its top, as far apart as on him and as long as there is room for in the
+ * picture. The body is otherwise as it was.
  */
 export function jacrispyFace(base: Body, opts: FaceOptions = {}): Body {
-  const face = lenses(base.eyes, opts);
+  // Half the body's width at the height of its eyes, seen from the front.
+  const half = halfWidthAt(base, base.eyes.y) ?? 0.8;
+  // As on his head: the lenses' middles at 34 mm either side of a head 75 mm to the side, 36.5 mm across on average.
+  const size = Math.min(0.5, (36.5 / 75) * half);
+  const eyes: Body['eyes'] = { ...base.eyes, x: Math.min(0.45, (34 / 75) * half), w: size, h: size };
+  const face = lenses(eyes, opts);
   const out: Body = { ...base, id: `${base.id}+jacrispy`, eyes: face.eyes, decals: [...(base.decals ?? []), ...face.decals], paint: { ...JACRISPY_PAINT, ...base.paint } };
   if (opts.antennas ?? true) {
-    const x = Math.min(1.6 * base.eyes.x, 0.62), top = topAt(base, x);
+    const x = Math.min(1.6 * eyes.x, 0.62), top = topAt(base, x);
     if (top !== null) {
       // A millimetre as on him: his eyes 65 mm apart, centre to centre.
-      const mm = (2 * base.eyes.x) / 65, hidden = 0.18;
-      out.antennas = stalks([x, top - hidden, 0], hidden, Math.max(0.3, Math.min(0.6, 1.44 - top)), mm);
+      const mm = (2 * eyes.x) / 65, hidden = 0.36;
+      out.antennas = stalks([x, top - hidden, -0.2], hidden, Math.max(0.3, Math.min(0.62, 1.44 - top)), mm);
     } else delete out.antennas;
   }
   return out;
+}
+
+/** Half a body's width at height y, seen from the front: searched in from the side. */
+function halfWidthAt(b: Body, y: number): number | null {
+  const hit = { z: 0, nx: 0, ny: 0, nz: 0 };
+  for (let x = 1.6; x > 0; x -= 0.01) {
+    if (surfaceAt(b, x, y, hit)) {
+      let lo = x, hi = x + 0.01;
+      for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (surfaceAt(b, mid, y, hit)) lo = mid; else hi = mid; }
+      return lo;
+    }
+  }
+  return null;
 }
 
 /** The top of a body's outline from the front at x (or null if it has none there): searched down from above. */
@@ -197,9 +197,6 @@ export const ANTENNA_POSES: Readonly<Record<string, readonly [number, number]>> 
 const both = (o: Channels, l: number, r: number): void => { o.antL += l; o.antR += r; };
 /** dir -1 plays a move the other way round: the turn and the lean mirrored, the antennas swapped. */
 const sides = (o: Channels, dir: number, l: number, r: number): void => { if (dir < 0) both(o, r, l); else both(o, l, r); };
-/** A millimetre of head travel on the robot, in body units (its head is 150 mm wide, his 1.62). */
-const MM = 1.62 / 150;
-
 /**
  * His moves, for RigOptions.clips. The mood moves are the recordings in Pollen Robotics' Reachy Mini emotions
  * library, measured every quarter or half second (head turn, nod and lean, antennas, and height) and drawn as

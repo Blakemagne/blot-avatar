@@ -164,7 +164,7 @@ A body may also carry (all optional, and a body without them draws exactly as be
 
 Such a body's drawing has `layers`: paths to paint under the body (`front: false`) and over it, under the eyes.
 
-`jacrispy` is the one body that uses them: a Reachy Mini shaped robot. His face is measured from the robot's model: a 35 mm lens and a 26 mm one with dark rims, the bar between them with its camera, and two antennas with a spring near the base. `jacrispy({ rims, bridge, camera, antennas })` builds him with any of those left out, and `jacrispyFace(body)` puts the same face on any other body (`jacrispyFace(BODIES.heart)`), its antennas sized to fit above that body.
+`jacrispy` is the one body that uses them: the head of a Reachy Mini. His face is measured from the robot's model: a 41 mm black lens and a 32 mm one, the bar that holds them, and two antennas that rise from the back of the head, always behind it, with a spring near the base. `jacrispy({ bridge, antennas, rims, camera })` builds him with the bar or antennas left out, or with the lens rims and camera added, and `jacrispyFace(body)` puts the same face on any other body (`jacrispyFace(BODIES.heart)`), its antennas sized to fit above that body. To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`.
 
 `JACRISPY_MOODS` maps the eight moods of the friend app to a face, an antenna pose and a move. Each move's timing and size are measured from Pollen's recording of that emotion (the `recording` field names it). `JACRISPY_CLIPS` holds those moves and a few antenna ones (`perk`, `wiggle`, `twitch`), for `RigOptions.clips`; `ANTENNA_POSES` are named antenna poses:
 

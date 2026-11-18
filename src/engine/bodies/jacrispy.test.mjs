@@ -1,4 +1,4 @@
-// Jacrispy: his body, his face (two sizes of lens, rims, the bar between them, the camera and two antennas),
+// Jacrispy: his head, his face (two sizes of lens, the bar between them and two antennas behind the head),
 // that face on every other body, and his moods. Run with: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,28 +20,33 @@ test('only a body with antennas or decals has layers, so every other body draws 
   }
 });
 
-test('jacrispy draws two antennas, a rim behind each lens, the bar between them and the camera, in painting order', () => {
+test('jacrispy draws two antennas behind his head and the bar between his lenses, and no rims or camera unless asked', () => {
   const d = drawAvatar(BODIES.jacrispy, '#F4F2EC', still(), 120);
   const ids = d.layers.map((l) => l.id);
-  for (const id of ['antenna-left', 'antenna-right', 'rim-left', 'rim-right', 'bridge', 'camera']) assert.ok(ids.includes(id), `has ${id}`);
+  for (const id of ['antenna-left', 'antenna-right', 'bridge']) assert.ok(ids.includes(id), `has ${id}`);
+  for (const id of ['rim-left', 'rim-right', 'camera']) assert.ok(!ids.includes(id), `no ${id}`);
   const firstFront = d.layers.findIndex((l) => l.front);
   assert.ok(d.layers.slice(firstFront).every((l) => l.front), 'the layers behind come first');
-  assert.ok(ids.indexOf('bridge') < ids.indexOf('camera'), 'the camera sits on the bar');
+  const full = drawAvatar(jacrispy({ rims: true, camera: true }), '#F4F2EC', still(), 120).layers.map((l) => l.id);
+  for (const id of ['rim-left', 'rim-right', 'camera']) assert.ok(full.includes(id), `asked for ${id}`);
+  assert.ok(full.indexOf('bridge') < full.indexOf('camera'), 'the camera sits on the bar');
   for (const l of d.layers) assert.match(l.d, /^M/, `${l.id} is a path`);
   assert.equal(d.layers.find((l) => l.id === 'antenna-left').fill, BODIES.jacrispy.paint.antenna);
 });
 
-test('the lenses are two sizes: the viewer\'s left one is the bigger, as on the robot (35 and 26 mm)', () => {
+test('the lenses are two sizes: the viewer\'s left one is the bigger, as on the robot (41 and 32 mm)', () => {
   const d = drawAvatar(BODIES.jacrispy, '#F4F2EC', still(), 200);
   const ratio = width(d.eyes[0]) / width(d.eyes[1]);
   assert.ok(ratio > 1.2 && ratio < 1.5, `${ratio}`);
 });
 
-test('the bar reaches from one lens to the other, at their height', () => {
+test('the bar reaches from inside one lens to inside the other, at their height, and no further', () => {
   const [bridge] = layerShapes(BODIES.jacrispy, still(), 200).filter((l) => l.id === 'bridge');
   const [x0, y0, x1, y1] = bounds(bridge.polys);
   const e = BODIES.jacrispy.eyes;
-  assert.ok(x0 < -e.x + 0.05 && x1 > e.x - 0.05, `from ${x0} to ${x1}`);
+  const [big, small] = e.sizes;
+  assert.ok(x0 > -e.x - 0.02 && x0 < -e.x + (e.w * big) / 2, `starts at ${x0}`);
+  assert.ok(x1 < e.x + 0.02 && x1 > e.x - (e.w * small) / 2, `ends at ${x1}`);
   assert.ok(Math.abs(-(y0 + y1) / 2 - e.y) < 0.05, `at ${-(y0 + y1) / 2}`);
   assert.ok(y1 - y0 < 0.1, 'and it is a thin bar');
 });
@@ -56,8 +61,7 @@ test('his face goes on every other body: antennas on top and in the picture, the
       const d = drawAvatar(b, 'orange', still(yaw), 120);
       assert.doesNotMatch(JSON.stringify(d), /NaN/, `${id} at ${yaw}`);
       const ids = d.layers.map((l) => l.id);
-      // A far eye turned out of sight takes its rim with it.
-      for (const want of yaw ? ['antenna-left', 'antenna-right', 'bridge'] : ['antenna-left', 'antenna-right', 'bridge', 'rim-left', 'rim-right']) assert.ok(ids.includes(want), `${id} at ${yaw} has ${want}`);
+      for (const want of ['antenna-left', 'antenna-right', 'bridge']) assert.ok(ids.includes(want), `${id} at ${yaw} has ${want}`);
     }
     for (const l of layerShapes(b, still(), 200).filter((x) => x.id.startsWith('antenna'))) {
       const [, y0] = bounds(l.polys);
@@ -137,6 +141,14 @@ test('every mood is a face the engine has, an antenna pose, a move that exists a
       assert.ok(rig.play(m.cue));
       settle(rig, 1200);
       assert.doesNotMatch(JSON.stringify(drawAvatar(body, '#fff', rig.state, 96)), /NaN/);
+    }
+  }
+});
+
+test('the antennas stay behind the head from every side', () => {
+  for (const body of [BODIES.jacrispy, jacrispyFace(BODIES.tablet), jacrispyFace(BODIES.blob)]) {
+    for (const yaw of [-90, -60, -30, 0, 30, 60, 90]) {
+      for (const l of drawAvatar(body, '#fff', still(yaw), 120).layers.filter((x) => x.id.startsWith('antenna'))) assert.equal(l.front, false, `${body.id} at ${yaw}: ${l.id}`);
     }
   }
 });

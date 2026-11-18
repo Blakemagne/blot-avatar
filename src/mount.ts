@@ -147,13 +147,13 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       live.want(opts);
       const changed = (...keys: (keyof MountOptions)[]) => keys.some((k) => k in next && next[k] !== before[k]);
       if (changed('follow')) live.follow(opts.follow);
-      if (changed('shape', 'size')) {
+      if (changed('shape', 'body', 'size')) {
         sized(opts.size);
         boxed(opts.size);
         live.shape();
       }
       if (changed('face')) live.face(opts.face);
-      if (changed('activity', 'form', 'rests', 'shape', 'size')) live.doing();
+      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size')) live.doing();
       if (changed('color', 'fill', 'eyeFill')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();

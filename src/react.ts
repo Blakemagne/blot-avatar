@@ -42,7 +42,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint }) {
   }) : undefined), []);
   useEffect(() => live.motion(), [reduced]);
   useEffect(() => live.follow(p.follow), [p.follow]);
-  useEffect(() => live.shape(), [shape, p.size]);
+  useEffect(() => live.shape(), [shape, p.body, p.size]);
   useEffect(() => live.face(p.face), [p.face]);
   useEffect(() => live.doing(), [p.activity, p.form, p.rests, p.shape, p.size]);
 

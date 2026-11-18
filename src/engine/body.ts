@@ -25,6 +25,11 @@ export interface EyeSpec {
    * face built with two eyes of different sizes, as some robots are. A face's own `uneven` still adds to it.
    */
   sizes?: readonly [left: number, right: number];
+  /**
+   * How far the near eye opens as the body turns, as a share of what every other body's does (1 when not
+   * given). A rigid lens opens little.
+   */
+  open?: number;
 }
 
 /**

@@ -109,7 +109,7 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
     // The near eye opens: wider and a little taller about its own middle (so a face's lift and lean stay as
     // they are), and moved outward by what it gained, so its inner edge stays put and all the growth is on the
     // side coming toward the viewer. However wide the face draws its eyes, it never grows into the far one.
-    const near = Math.max(0, -side * turned) ** 2;
+    const near = Math.max(0, -side * turned) ** 2 * (e.open ?? 1);
     let out = 0;
     if (near > 0) {
       const wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
@@ -216,12 +216,15 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
   // The antennas (of the body it is becoming, and of the one it is leaving) and the decals of the body that
   // wears the eyes. None of it on a body that has none, so no other body's frames change.
   const layers: Piece[] = [];
-  const grow = fig ? 1 - fig.k : 1, k = morph ? smooth(morph.k) : 1;
+  const grow = fig ? 1 - fig.k : 1;
   // (No stalk thinner than STALK_PX across, so a small drawing still shows them: half the drawing is size / 2 px.)
   const least = STALK_PX / size;
-  if (body.antennas && k * grow > 0.02) stalks(body, state, d.rim, k * grow, least, layers);
+  // In a morph the old body's antennas draw in over its first half and the new one's grow out over its second,
+  // so neither stands on an outline that is not yet (or no longer) under it.
+  const kIn = morph ? smooth(Math.max(0, 2 * morph.k - 1)) : 1, kOut = morph ? smooth(Math.max(0, 1 - 2 * morph.k)) : 0;
+  if (body.antennas && kIn * grow > 0.02) stalks(body, state, d.rim, kIn * grow, least, layers);
   const from = morph ? leaf(morph.from) : null;
-  if (from && from !== body && from.antennas && (1 - k) * grow > 0.02) stalks(from, state, d.rim, (1 - k) * grow, least, layers);
+  if (from && from !== body && from.antennas && kOut * grow > 0.02) stalks(from, state, d.rim, kOut * grow, least, layers);
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 
   // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, the mirror flip.
@@ -248,19 +251,15 @@ const STALK_PX = 1.4;
 const UNPAINTED = '#1C1C1C';
 
 /**
- * The antennas of `of`, grown to `grow`, into `out`: each in front of the body when its base is nearer the
- * camera than the middle of the body at that height (turned side on, the near one), behind it otherwise.
+ * The antennas of `of`, grown to `grow`, into `out`: always behind the body, so the part of each stalk that is
+ * inside the head never shows and each one comes up out of the top of the outline, however the body turns.
  */
 function stalks(of: Body, state: RigState, rim: number, grow: number, least: number, out: Piece[]): void {
   const a = of.antennas!, swing = state.antennas ?? [0, 0];
   const [left, right] = antennaPieces(a, swing, grow, least);
   const fill = of.paint?.[a.paint] ?? UNPAINTED;
   [left, right].forEach((pieces, i) => {
-    const [p, j] = pieces[0];
-    // Depth toward the camera of the base's middle, against the body's own middle at that height.
-    const mx = (p[0] + j[0]) / 2, my = (p[1] + j[1]) / 2, mz = (p[2] + j[2]) / 2;
-    const front = R[6] * mx + R[7] * my + R[8] * mz - (R[7] * my) > 1e-3;
-    out.push({ id: i ? 'antenna-right' : 'antenna-left', part: a.paint, fill, front, polys: silhouette({ pieces }, R, Math.max(16, Math.round(rim / 2))) });
+    out.push({ id: i ? 'antenna-right' : 'antenna-left', part: a.paint, fill, front: false, polys: silhouette({ pieces }, R, Math.max(16, Math.round(rim / 2))) });
   });
 }
 
@@ -276,14 +275,18 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
     // other's. (Each is placed as an eye's own rim would be, so a span's ends stay under the rims.)
     const l = behindEye(of, { ...dc, eye: 'left', w: of.eyes.w }, state, size), r = behindEye(of, { ...dc, eye: 'right', w: of.eyes.w }, state, size);
     const k = Math.min(l.sy, r.sy);
-    return { cu: (l.cu + r.cu) / 2, cv: (l.cv + r.cv) / 2, sx: k, sy: k, w: dc.span ? r.cu - l.cu + dc.w * k : dc.w * k };
+    if (!dc.span) return { cu: (l.cu + r.cu) / 2, cv: (l.cv + r.cv) / 2, sx: k, sy: k, w: dc.w * k };
+    // A span reaches a little way into each eye from its inner edge, so whatever shape a face gives the eyes,
+    // no end of it shows beyond them.
+    const into = 0.3, inL = l.cu + (of.eyes.w * l.sx * (1 - into)) / 2, inR = r.cu - (of.eyes.w * r.sx * (1 - into)) / 2;
+    return { cu: (inL + inR) / 2, cv: (l.cv + r.cv) / 2, sx: k, sy: k, w: Math.max(0, inR - inL) + dc.w * k };
   }
   const e = of.eyes, boost = detail(size).boost, side = dc.eye === 'left' ? -1 : 1, i = side < 0 ? 0 : 1;
   const own = e.sizes ? e.sizes[i] : 1, f = state.face;
   const k = boost * own * Math.sqrt(Math.max(1, f.width * (1 + side * f.uneven))) * (state.eyeScale ?? 1) * (1 - (state.dot ?? 0));
   const facing = Math.min(1, Math.max(0, (Math.abs(R[8]) - 0.1) / 0.3));
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
-  const near = Math.max(0, -side * turned) ** 2, wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
+  const near = Math.max(0, -side * turned) ** 2 * (e.open ?? 1), wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
   const out = (side * (wide - 1) * dc.w * k) / 2;
   return { cu: state.eye.x * e.slideX + side * e.x * boost + out, cv: e.y + state.eye.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
 }

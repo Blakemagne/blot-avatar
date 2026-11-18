@@ -15,7 +15,7 @@ const { FLAT, flat } = await import('./flat.mjs');
 
 /** The cloud is lopsided, as the flat cloud is. Every other body is its own mirror image left to right. */
 const LOPSIDED = ['cloud'];
-/** Jacrispy is a head on a body, not one blot: its face is up in its head. */
+/** Jacrispy is a head with antennas: it sits low in the picture to leave room for them. */
 const HEADED = ['jacrispy'];
 
 const still = (yaw = 0, pitch = 0, roll = 0, ex = 0, ey = 0) => ({ pose: { yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) }, eye: { x: ex, y: ey }, lid: 1, face: FACES.neutral });
@@ -96,9 +96,8 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     const box = size(polys);
     assert.ok(Math.abs(box.cx) < 1e-6, `${id}: off centre by ${box.cx}`);
     // And upright in the middle of its box, so it turns in place; this holds the bodies that have no flat drawing too.
-    // A body with a head sits low, to leave room in the picture for its antennas, and tilts about its head, as the
-    // robot's own head does: so the middle of the picture is inside its head instead.
-    if (HEADED.includes(id)) assert.ok(box.cy > 0 && box.cy - box.h / 2 < -0.5, `${id}: the middle is not in its head`);
+    // A head with antennas sits low, to leave room in the picture for them.
+    if (HEADED.includes(id)) assert.ok(box.cy > 0.2 && box.cy < 0.6, `${id}: sits at ${box.cy}`);
     else assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
     // Turning left is the mirror image of turning right.
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
@@ -139,9 +138,9 @@ test('at pose zero the eyes are whole, centred, level and upright, exactly where
     }
     // The two eyes are apart, and neither is far from the middle of the body.
     assert.ok(body.eyes.x - body.eyes.w / 2 > 0.06, `${id}: the eyes touch`);
-    // (A body with a head, jacrispy, has its eyes in the middle of the head, which is above the middle of the body.)
+    // (Jacrispy's head sits low, so its eyes do too, and they are as far apart as the robot's.)
     if (!HEADED.includes(id)) assert.ok(Math.abs(body.eyes.y) < 0.2 && body.eyes.x < 0.3, `${id}: the eyes are off in a corner`);
-    else assert.ok(body.eyes.y > 0 && body.eyes.y < 0.5 && body.eyes.x < 0.45, `${id}: the eyes are off the face`);
+    else assert.ok(body.eyes.y < 0 && body.eyes.y > -0.6 && body.eyes.x < 0.5, `${id}: the eyes are off the face`);
   });
 });
 
@@ -257,8 +256,9 @@ test('the far eye thins as the body turns, never jumps, and is gone by side on',
       last = now;
     }
     assert.ok(gone !== null && gone <= 85, `${id}: the far eye is gone at ${gone}`);
-    // And the near eye is still there when the far one has just gone.
-    assert.ok(eyes(body, gone)[0] > first * 0.15, `${id}: at ${gone} the near eye is ${eyes(body, gone)[0]} of ${first}`);
+    // And the near eye is still there when the far one has just gone. (Rigid lenses on a flat face, jacrispy's,
+    // do not open, so both go nearly together, as on the robot.)
+    if (body.eyes.open !== 0) assert.ok(eyes(body, gone)[0] > first * 0.15, `${id}: at ${gone} the near eye is ${eyes(body, gone)[0]} of ${first}`);
   });
 });
 
@@ -557,6 +557,8 @@ test('looking across, the near eye is drawn bigger than it is from the front, an
   each((id, body) => {
     for (const px of [200, 72, 64]) for (const x of [1, -1]) {
       const [nearHalf, farHalf] = heldEyes(body, x * 0.5, 0, px), [near, far] = heldEyes(body, x, 0, px);
+      // Rigid lenses (jacrispy's) do not open: the near one only stays bigger than the far one.
+      if (body.eyes.open === 0) { assert.ok(nearHalf > farHalf && near > far, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`); continue; }
       assert.ok(nearHalf > 1.05 && farHalf < 0.9, `${id} half way ${x} at ${px} px: near ${nearHalf}, far ${farHalf}`);
       assert.ok(near > 1 && far < 0.45, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`);
       assert.ok(near > 2.4 * far, `${id} looking ${x} at ${px} px: near ${near} beside far ${far}`);
