@@ -7,11 +7,3 @@ This package is MIT-licensed (see `LICENSE`). It has no runtime dependency. Its 
 This package was written for blot, which began as a fork of bot-hq by Nick Vasilescu (MIT). That copyright notice is kept in `LICENSE`, as the MIT license requires.
 
 Before this engine, blot drew each avatar as one flat SVG silhouette with two eye holes, from the bot-hq design export. The engine replaced them on 14 November 2026 and none of that artwork is in this package. The bodies were sized to the bounding boxes of those silhouettes, so that each shape kept its proportions: the measured boxes are the numbers in `src/engine/bodies/flat.mjs`, which the tests hold each of those bodies to. The pentagon came later and was drawn here as a regular pentagon: it has no flat original and no entry there. Artwork that originated in third-party apps remains the property of its owners; the MIT license does not grant rights to it. Inclusion does not imply affiliation or endorsement.
-
-## Reachy Mini (Pollen Robotics)
-
-The `jacrispy` body (`src/engine/bodies/jacrispy.ts`) is shaped after the Reachy Mini robot by Pollen Robotics. Its proportions (the head's width, height and depth, the sizes of the two lenses and their rims, the bar between them and its camera, where the antennas sit and the length of their springs, and the colours of those parts) were measured from the Reachy Mini's published model Only the head is drawn. No geometry, mesh, image or other file from that model is in this package; the body is spheres written by hand. Pollen Robotics publishes the Reachy Mini's software under Apache 2.0 and its hardware design files under CC BY-NC-SA 4.0. Reachy and Reachy Mini are names of Pollen Robotics. This package is not affiliated with or endorsed by Pollen Robotics.
-
-The timing and size of jacrispy's mood moves (`JACRISPY_CLIPS`, see `JACRISPY_MOODS`) were measured from recordings in Pollen Robotics' Reachy Mini emotions library (`pollen-robotics/reachy-mini-emotions-library` on Hugging Face, Apache 2.0): how far and how fast the head turns, tilts and bobs and the antennas swing in each. The moves are written by hand as curves; no recording or other file from that library is in this package.
-
-Pollen Robotics' Reachy Mini sticker generator and the jacrispy station's app icon were looked at for the look of the face only. Nothing from either is in this package.

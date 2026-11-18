@@ -57,7 +57,7 @@ export interface Antennas {
   /** The colour key (in Body.paint) the stalks are drawn in. */
   paint: string;
   /**
-   * A spring wound round the base, as on the Reachy Mini: where it starts and ends along the base (0 at the
+   * A spring wound round the base: where it starts and ends along the base (0 at the
    * pivot, 1 at the joint), how far it stands out from the middle of the stalk, and how many turns it has.
    */
   coil?: { from: number; to: number; r: number; turns: number };

@@ -14,7 +14,7 @@ export interface LiveProps {
   shape: string;
   /**
    * A body of your own, drawn in place of `shape`'s (which still names it for a still picture), such as
-   * jacrispyFace(BODIES.heart). Changed on an attached avatar, it morphs as a new shape does. Pass the same
+   * a shape with antennas added. Changed on an attached avatar, it morphs as a new shape does. Pass the same
    * object again to keep it: a new object is a new body.
    */
   body?: Body;

@@ -15,8 +15,6 @@ const { FLAT, flat } = await import('./flat.mjs');
 
 /** The cloud is lopsided, as the flat cloud is. Every other body is its own mirror image left to right. */
 const LOPSIDED = ['cloud'];
-/** Jacrispy is a head with antennas: it sits low in the picture to leave room for them. */
-const HEADED = ['jacrispy'];
 
 const still = (yaw = 0, pitch = 0, roll = 0, ex = 0, ey = 0) => ({ pose: { yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) }, eye: { x: ex, y: ey }, lid: 1, face: FACES.neutral });
 const outline = (body, yaw = 0, pitch = 0, roll = 0) => silhouette(body, rotation({ yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) }), 72);
@@ -24,7 +22,7 @@ const size = (polys) => { const [x0, y0, x1, y1] = bounds(polys); return { w: x1
 const eyeArea = (polys) => polys.reduce((sum, p) => sum + Math.abs(area(p)), 0);
 /** [left, right] eye areas for a pose, drawn large. */
 const eyes = (body, ...pose) => eyeShapes(body, still(...pose), 180).map(eyeArea).map((a, i) => a / own(body)[i] ** 2);
-/** How big a body draws each eye, against its eyes' w and h: 1 and 1 but for a body whose two eyes differ (jacrispy's lenses). */
+/** How big a body draws each eye, against its eyes' w and h: 1 and 1 but for a body whose two eyes differ. */
 const own = (body) => body.eyes.sizes ?? [1, 1];
 const each = (run) => { for (const [id, body] of Object.entries(BODIES)) run(id, body); };
 
@@ -96,9 +94,7 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     const box = size(polys);
     assert.ok(Math.abs(box.cx) < 1e-6, `${id}: off centre by ${box.cx}`);
     // And upright in the middle of its box, so it turns in place; this holds the bodies that have no flat drawing too.
-    // A head with antennas sits low, to leave room in the picture for them.
-    if (HEADED.includes(id)) assert.ok(box.cy > 0.2 && box.cy < 0.6, `${id}: sits at ${box.cy}`);
-    else assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
+    assert.ok(Math.abs(box.cy) < 0.02, `${id}: off centre by ${box.cy} up or down`);
     // Turning left is the mirror image of turning right.
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
     assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.cx + b.cx) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${id}: turned`);
@@ -138,9 +134,7 @@ test('at pose zero the eyes are whole, centred, level and upright, exactly where
     }
     // The two eyes are apart, and neither is far from the middle of the body.
     assert.ok(body.eyes.x - body.eyes.w / 2 > 0.06, `${id}: the eyes touch`);
-    // (Jacrispy's head sits low, so its eyes do too, and they are as far apart as the robot's.)
-    if (!HEADED.includes(id)) assert.ok(Math.abs(body.eyes.y) < 0.2 && body.eyes.x < 0.3, `${id}: the eyes are off in a corner`);
-    else assert.ok(body.eyes.y < 0 && body.eyes.y > -0.6 && body.eyes.x < 0.5, `${id}: the eyes are off the face`);
+    assert.ok(Math.abs(body.eyes.y) < 0.2 && body.eyes.x < 0.3, `${id}: the eyes are off in a corner`);
   });
 });
 
@@ -256,7 +250,7 @@ test('the far eye thins as the body turns, never jumps, and is gone by side on',
       last = now;
     }
     assert.ok(gone !== null && gone <= 85, `${id}: the far eye is gone at ${gone}`);
-    // And the near eye is still there when the far one has just gone. (Rigid lenses on a flat face, jacrispy's,
+    // And the near eye is still there when the far one has just gone. (Rigid lenses on a flat face
     // do not open, so both go nearly together, as on the robot.)
     if (body.eyes.open !== 0) assert.ok(eyes(body, gone)[0] > first * 0.15, `${id}: at ${gone} the near eye is ${eyes(body, gone)[0]} of ${first}`);
   });
@@ -308,7 +302,7 @@ test('from the front the eyes can be read at 16 px', () => {
     assert.ok(left.length === 1 && right.length === 1, `${id}: both eyes are whole at 16 px`);
     // 1 body unit is 8 px.
     const l = size(left), r = size(right);
-    // (A framed lens, jacrispy's, reads by its frame round the glass too, so its glass may be a little smaller.)
+    // (A framed lens reads by its frame round the glass too, so its glass may be a little smaller.)
     const tall = body.eyes.fixed ? 2.5 : 3.5;
     for (const e of [l, r]) assert.ok(e.w * 8 >= 2 && e.h * 8 >= tall, `${id}: an eye is ${e.w * 8} by ${e.h * 8} px`);
     assert.ok((r.cx - r.w / 2 - (l.cx + l.w / 2)) * 8 >= 1.4, `${id}: the eyes are ${(r.cx - r.w / 2 - (l.cx + l.w / 2)) * 8} px apart`);
@@ -559,7 +553,7 @@ test('looking across, the near eye is drawn bigger than it is from the front, an
   each((id, body) => {
     for (const px of [200, 72, 64]) for (const x of [1, -1]) {
       const [nearHalf, farHalf] = heldEyes(body, x * 0.5, 0, px), [near, far] = heldEyes(body, x, 0, px);
-      // Rigid lenses (jacrispy's) do not open: the near one only stays bigger than the far one.
+      // Rigid lenses do not open: the near one only stays bigger than the far one.
       if (body.eyes.open === 0) { assert.ok(nearHalf > farHalf && near > far, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`); continue; }
       assert.ok(nearHalf > 1.05 && farHalf < 0.9, `${id} half way ${x} at ${px} px: near ${nearHalf}, far ${farHalf}`);
       assert.ok(near > 1 && far < 0.45, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`);

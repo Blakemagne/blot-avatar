@@ -9,7 +9,6 @@ import { flower } from './flower';
 import { heart } from './heart';
 import { hex } from './hex';
 import { house } from './house';
-import { jacrispy } from './jacrispy';
 import { pebble } from './pebble';
 import { pentagon } from './pentagon';
 import { sparkle } from './sparkle';
@@ -22,8 +21,6 @@ export const BODIES: Record<string, Body> = {
   blob, cloud, square, sparkle, clover, heart, flower, teardrop,
   tablet: capsule,
   wedge, house, star, hex, pebble, pentagon,
-  // Not one of blot's shapes: the Reachy Mini shaped robot, with its lenses and antennas (see jacrispy.ts).
-  jacrispy: jacrispy(),
 };
 
 /**

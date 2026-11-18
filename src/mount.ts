@@ -14,7 +14,7 @@ export interface MountOptions extends LiveProps {
   fill?: string;
   /** The eyes' colour, any CSS value. Unset, they are dark on a pale '#rrggbb' `color` and white on anything else. */
   eyeFill?: string;
-  /** For a body with antennas or decals (jacrispy): their colours by key, over the body's own, e.g. { antenna: '#111' }. */
+  /** For a body with antennas or decals: their colours by key, over the body's own, e.g. { antenna: '#111' }. */
   paint?: Paint;
   /** A click, a tap, Enter or Space pokes it (not under reduced motion: nothing would happen). */
   pokeable?: boolean;

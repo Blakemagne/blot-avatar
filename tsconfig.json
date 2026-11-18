@@ -10,7 +10,11 @@
     "isolatedModules": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "types": []
+    "types": [],
+    "paths": {
+      "@blot/avatar": ["./src/index.ts"],
+      "@blot/jacrispy": ["./packages/jacrispy/src/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "packages/jacrispy/src"]
 }

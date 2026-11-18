@@ -1,12 +1,14 @@
-// The demo page. Everything on it is the package's public API: mount() for each avatar, and the lists the
+// The demo page. Everything on it is the packages' public API (@blot/avatar, and @blot/jacrispy for his section): mount() for each avatar, and the lists the
 // engine exports (BODIES, FACE_NAMES, ACTIVITIES, FORMS, POKES, CUES) for every set of buttons, so a new body,
 // face or clip in the package shows up here without touching this file. The wave is the one move written here.
 
 import {
-  ACTIVITIES, ANTENNA_POSES, BODIES, CUES, FACE_NAMES, FORMS, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, POKES,
-  colours, deg, jacrispyFace, mount, onMotion, reducedMotion,
-  type Clip, type JacrispyMood, type MountOptions, type Mounted,
-} from '../src/index';
+  ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, POKES, colours, deg, mount, onMotion, reducedMotion,
+  type Clip, type MountOptions, type Mounted,
+} from '@blot/avatar';
+import {
+  ANTENNA_POSES, JACRISPY, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, jacrispyFace, type JacrispyMood,
+} from '@blot/jacrispy';
 import { colorPicker, contrast } from './picker';
 
 /** The move this page adds through the `clips` option: a rock from side to side. The same text is on the page. */
@@ -263,19 +265,19 @@ writeCode();
 
 {
   const jac = mount($('[data-avatar="jacrispy"]'), {
-    shape: 'jacrispy', size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
+    shape: 'jacrispy', body: JACRISPY, size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
   });
   const now = { mood: 'neutral' as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null, doing: 'idle' as string | null };
   const syncs: (() => void)[] = [];
   const hold = ([l, r]: readonly [number, number], ms = 0): void => jac.live.rig.setAntennas(deg(l), deg(r), ms);
   // His own body, or his face (lenses, the bar between them, the camera and the antennas) on any other, in his
   // white. A new body morphs in, as a new shape does in the playground.
-  const others = SHAPES.filter((id) => id !== 'jacrispy');
+  const others = SHAPES;
   const faced = Object.fromEntries(others.map((id) => [id, jacrispyFace(BODIES[id])]));
   syncs.push(chips($('[data-jac="body"]'), ['jacrispy', ...others], () => now.body, (v) => {
     now.body = v;
     const id = v ?? 'jacrispy';
-    jac.update(id === 'jacrispy' ? { shape: 'jacrispy', body: undefined } : { shape: id, body: faced[id] });
+    jac.update(id === 'jacrispy' ? { shape: 'jacrispy', body: JACRISPY } : { shape: id, body: faced[id] });
     syncs.forEach((s) => s());
   }));
   // His lenses are cameras: they never blink or emote. A mood is an antenna pose (sad droops slowly) and a

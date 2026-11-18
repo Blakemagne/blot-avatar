@@ -165,22 +165,7 @@ A body may also carry (all optional, and a body without them draws exactly as be
 
 Such a body's drawing has `layers`: paths to paint under the body (`front: false`) and over it, under the eyes.
 
-`jacrispy` is the one body that uses them: the head of a Reachy Mini. His face is measured from the robot's model: a 41 mm lens and a 32 mm one, smoked glass in a black frame, the bar that holds them with the camera enclosed in its middle, and two antennas that rise from the back of the head, always behind it, with a spring near the base. His lenses are cameras (`eyes.fixed`): no face, blink or look changes them, so his moods are antenna poses and head moves. `jacrispy({ rims, bridge, camera, antennas })` builds him with any of those left out, and `jacrispyFace(body)` puts the same face on any other body (`jacrispyFace(BODIES.heart)`), its antennas sized to fit above that body. To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`.
-
-`JACRISPY_MOODS` maps the eight moods of the friend app to a face, an antenna pose and a move. Each move's timing and size are measured from Pollen's recording of that emotion (the `recording` field names it). `JACRISPY_CLIPS` holds those moves and a few antenna ones (`perk`, `wiggle`, `twitch`), for `RigOptions.clips`; `ANTENNA_POSES` are named antenna poses:
-
-```ts
-import { BODIES, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, deg, jacrispyFace, mount } from '@blot/avatar';
-
-const bot = mount(el, { shape: 'jacrispy', size: 160, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, clips: JACRISPY_CLIPS });
-const mood = JACRISPY_MOODS.curious;
-bot.update({ face: mood.face });
-bot.live.rig.setAntennas(deg(mood.antennas[0]), deg(mood.antennas[1]), mood.ms ?? 260);
-bot.play(mood.cue);
-
-// His face on another body.
-bot.live.rig.setBody(jacrispyFace(BODIES.heart));
-```
+To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`. `packages/jacrispy` (`@blot/jacrispy`) is a library built on these: one character's head and face for any shape, kept apart from this engine.
 
 ## The public API
 

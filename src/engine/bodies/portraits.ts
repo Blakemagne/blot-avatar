@@ -27,7 +27,6 @@ const PORTRAITS: Record<string, Pose> = {
   hex: pose(16, 10, 7),
   pebble: pose(-18, 8, -7),
   pentagon: pose(-22, 7, 6),
-  jacrispy: pose(18, 6, -4),
 };
 
 /** The portrait pose for a shape id. A fresh object each call: the caller may change it. */

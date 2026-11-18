@@ -11,7 +11,3 @@ export { BLINK_HEIGHT, FACES, eyeOutline, type Face, type FaceName } from './fac
 export { BLINK_MS, LOOK_PITCH, LOOK_YAW, Rig, random, type RigOptions, type RigState } from './rig';
 export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, colours, detail, drawAvatar, eyeShapes, layerShapes, type Drawing, type Layer } from './draw';
 export { BODIES, bodyFor } from './bodies/index';
-export {
-  ANTENNA_POSES, JACRISPY_CLIPS, JACRISPY_COLOUR, JACRISPY_EYE, JACRISPY_MOODS, JACRISPY_MOOD_NAMES, JACRISPY_PAINT, jacrispy, jacrispyFace,
-  type FaceOptions, type JacrispyMood,
-} from './bodies/jacrispy';

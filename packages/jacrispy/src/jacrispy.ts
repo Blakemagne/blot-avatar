@@ -7,11 +7,7 @@
 // 94 mm, the lenses are 41 and 32 mm across and 68 mm apart. No geometry from that model is used here; only
 // its proportions. See THIRD_PARTY_NOTICES.
 
-import type { Antennas, Body, Decal, Piece, Sphere } from '../body';
-import type { Channels, Clip } from '../clips';
-import { track } from '../ease';
-import { surfaceAt } from '../field';
-import { deg } from '../math';
+import { deg, surfaceAt, track, type Antennas, type Body, type Channels, type Clip, type Decal, type Piece, type Sphere } from '@blot/avatar';
 
 /** A rounded box: eight spheres of radius r, their centres at +-x, the two heights given, and +-z. */
 function box(x: number, y0: number, y1: number, z: number, r: number): Piece {
@@ -123,6 +119,9 @@ export function jacrispy(opts: FaceOptions = {}): Body {
   if (opts.antennas ?? true) body.antennas = stalks([0.72, top - 0.34, -0.24], 0.34, 1.0, MM);
   return body;
 }
+
+/** Jacrispy as he is: his head, his lenses, the bar and its camera, and his antennas. */
+export const JACRISPY: Body = jacrispy();
 
 /**
  * His face on another body: round lenses as far apart and as big against that body's face as his are on his
