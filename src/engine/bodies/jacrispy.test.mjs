@@ -23,14 +23,18 @@ test('only a body with antennas or decals has layers, so every other body draws 
 test('jacrispy draws two antennas behind his head, a frame round each lens, the bar and its camera, in painting order', () => {
   const d = drawAvatar(BODIES.jacrispy, '#F4F2EC', still(), 120);
   const ids = d.layers.map((l) => l.id);
-  for (const id of ['antenna-left', 'antenna-right', 'bridge', 'rim-left', 'rim-right', 'camera', 'camera-glass']) assert.ok(ids.includes(id), `has ${id}`);
+  for (const id of ['antenna-left', 'antenna-right', 'bridge', 'rim-left', 'rim-right', 'camera']) assert.ok(ids.includes(id), `has ${id}`);
   const firstFront = d.layers.findIndex((l) => l.front);
   assert.ok(d.layers.slice(firstFront).every((l) => l.front), 'the layers behind come first');
-  assert.ok(ids.indexOf('bridge') < ids.indexOf('camera') && ids.indexOf('camera') < ids.indexOf('camera-glass'), 'the camera sits on the bar, its glass in it');
+  assert.ok(ids.indexOf('bridge') < ids.indexOf('camera'), 'the camera sits in the bar');
+  // The bar encloses the camera: the camera is no taller than the bar.
+  const shapes = layerShapes(BODIES.jacrispy, still(), 200), box = (id) => bounds(shapes.find((l) => l.id === id).polys);
+  const [, by0, , by1] = box('bridge'), [, cy0, , cy1] = box('camera');
+  assert.ok(cy0 > by0 && cy1 < by1, `camera ${cy0} to ${cy1} inside the bar ${by0} to ${by1}`);
   // The frames and the glass are told apart by colour.
   const fill = (id) => d.layers.find((l) => l.id === id).fill;
   assert.notEqual(fill('rim-left'), BODIES.jacrispy.paint.glass);
-  assert.notEqual(fill('camera'), fill('camera-glass'));
+  assert.notEqual(fill('camera'), fill('bridge'));
   for (const l of d.layers) assert.match(l.d, /^M/, `${l.id} is a path`);
   assert.equal(d.layers.find((l) => l.id === 'antenna-left').fill, BODIES.jacrispy.paint.antenna);
 });
@@ -49,7 +53,7 @@ test('the bar reaches from inside one lens to inside the other, at their height,
   assert.ok(x0 > -e.x - 0.02 && x0 < -e.x + (e.w * big) / 2, `starts at ${x0}`);
   assert.ok(x1 < e.x + 0.02 && x1 > e.x - (e.w * small) / 2, `ends at ${x1}`);
   assert.ok(Math.abs(-(y0 + y1) / 2 - e.y) < 0.05, `at ${-(y0 + y1) / 2}`);
-  assert.ok(y1 - y0 < 0.1, 'and it is a thin bar');
+  assert.ok(y1 - y0 < 0.15, `and it is a thin bar: ${y1 - y0}`);
 });
 
 test('his face goes on every other body: antennas on top and in the picture, the bar between its eyes', () => {

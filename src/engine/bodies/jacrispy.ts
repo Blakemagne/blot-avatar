@@ -32,10 +32,10 @@ const MM = (2 * (HW + HR)) / 150;
 
 /**
  * Its colours: black antennas, a solid black frame round each lens, the black glasses holder for the bridge
- * with the camera set into it, and smoked glass, a see-through black a shade lighter than the frames, in the
+ * with the camera enclosed in it, and smoked glass, a see-through black a shade lighter than the frames, in the
  * camera as in the lenses (the eyes, JACRISPY_EYE). A renderer may paint any of these over.
  */
-export const JACRISPY_PAINT = { antenna: '#111111', rim: '#111111', bridge: '#111111', camera: '#111111', glass: '#2E3238' } as const;
+export const JACRISPY_PAINT = { antenna: '#111111', rim: '#111111', bridge: '#111111', glass: '#2E3238' } as const;
 /** The colour to draw its body in: the white of its shell. */
 export const JACRISPY_COLOUR = '#F4F2EC';
 /** The colour to draw its eyes in: the smoked glass of his lenses, lighter than their black frames. */
@@ -45,11 +45,11 @@ export const JACRISPY_EYE = '#2E3238';
  * What makes a face his, measured from the Reachy Mini's model (mm, its head 150 wide). The lenses, with their
  * frames: 41 and 32 across, the frame a ring 5 mm wide round the glass (a little wider than on the robot, so
  * it reads at avatar size). The glasses holder shows as a bar between them at their middle height; drawn a
- * sixth as tall as a lens. The camera is set into the middle of it: the holder swells to 10 across round the camera's glass, 6 across.
+ * fifth as tall as a lens once drawn. The camera is enclosed in the middle of it, its glass 0.8 as tall as the holder, so the holder's own edges are its frame.
  * Each antenna: a rod about 4 across, a spring 10 across wound round it from 11 mm to 43 mm above the head,
  * and a cap on its tip.
  */
-const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 10, CAMERA_GLASS = 6, CAP = 5;
+const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.28, CAMERA = 0.8, CAP = 5;
 
 export interface FaceOptions {
   /** A frame round each lens, in the rim colour (default on). */
@@ -71,7 +71,7 @@ export interface FaceOptions {
 function lenses(eyes: Body['eyes'], o: FaceOptions): { eyes: Body['eyes']; decals: Decal[] } {
   const rims = o.rims ?? true, mean = (LENS_BIG + LENS_SMALL) / 2, glass = rims ? mean - 2 * CAP : mean;
   const sizes = [(LENS_BIG - (rims ? 2 * CAP : 0)) / glass, (LENS_SMALL - (rims ? 2 * CAP : 0)) / glass] as const;
-  const mm = eyes.w / mean, k = glass / mean;
+  const k = glass / mean;
   const inner = { ...eyes, w: eyes.w * k, h: eyes.h * k, sizes: [sizes[0], sizes[1]] as const, open: 0, fixed: true, slideX: 0, slideY: 0 };
   const decals: Decal[] = [];
   if (o.bridge ?? true) decals.push({ id: 'bridge', at: [0, 0], w: 0, h: BAR * eyes.w, shape: 'rounded', paint: 'bridge', eye: 'both', span: true });
@@ -83,8 +83,9 @@ function lenses(eyes: Body['eyes'], o: FaceOptions): { eyes: Body['eyes']; decal
     }
   }
   if ((o.bridge ?? true) && (o.camera ?? true)) {
-    decals.push({ id: 'camera', at: [0, 0], w: CAMERA * mm, h: CAMERA * mm, shape: 'circle', paint: 'camera', eye: 'both' });
-    decals.push({ id: 'camera-glass', at: [0, 0], w: CAMERA_GLASS * mm, h: CAMERA_GLASS * mm, shape: 'circle', paint: 'glass', eye: 'both' });
+    // No frame of its own: the bar round it is its frame, cut off flat at its top and bottom.
+    const d = CAMERA * BAR * eyes.w;
+    decals.push({ id: 'camera', at: [0, 0], w: d, h: d, shape: 'circle', paint: 'glass', eye: 'both' });
   }
   return { eyes: inner, decals };
 }
