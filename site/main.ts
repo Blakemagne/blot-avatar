@@ -265,7 +265,7 @@ writeCode();
   const jac = mount($('[data-avatar="jacrispy"]'), {
     shape: 'jacrispy', size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
   });
-  const now = { mood: null as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null };
+  const now = { mood: 'neutral' as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null, doing: 'idle' as string | null };
   const syncs: (() => void)[] = [];
   const hold = ([l, r]: readonly [number, number], ms = 0): void => jac.live.rig.setAntennas(deg(l), deg(r), ms);
   // His own body, or his face (lenses, the bar between them, the camera and the antennas) on any other, in his
@@ -278,13 +278,22 @@ writeCode();
     jac.update(id === 'jacrispy' ? { shape: 'jacrispy', body: undefined } : { shape: id, body: faced[id] });
     syncs.forEach((s) => s());
   }));
-  // A mood is a face, an antenna pose (sad droops slowly) and a move measured from Pollen's recording of it.
-  syncs.push(chips($('[data-jac="mood"]'), JACRISPY_MOOD_NAMES, () => now.mood, (v) => {
+  // His lenses are cameras: they never blink or emote. A mood is an antenna pose (sad droops slowly) and a
+  // head move measured from Pollen's recording of it. Neutral is his antennas at rest and no move.
+  syncs.push(chips($('[data-jac="mood"]'), ['neutral', ...JACRISPY_MOOD_NAMES], () => now.mood, (v) => {
     now.mood = v; now.pose = null;
-    const m = JACRISPY_MOODS[v as JacrispyMood];
-    jac.update({ face: m.face });
-    hold(m.antennas, m.ms ?? 260);
-    jac.play(m.cue);
+    if (!v || v === 'neutral') { now.pose = 'rest'; hold(ANTENNA_POSES.rest, 260); }
+    else {
+      const m = JACRISPY_MOODS[v as JacrispyMood];
+      hold(m.antennas, m.ms ?? 260);
+      jac.play(m.cue);
+    }
+    syncs.forEach((s) => s());
+  }));
+  // What he is doing, as for every blot: idle (breathing, drifting, his antennas swaying), or busy.
+  syncs.push(chips($('[data-jac="doing"]'), ACTIVITIES, () => now.doing, (v) => {
+    now.doing = v ?? 'idle';
+    jac.update({ activity: now.doing as (typeof ACTIVITIES)[number] });
     syncs.forEach((s) => s());
   }));
   syncs.push(chips($('[data-jac="pose"]'), Object.keys(ANTENNA_POSES), () => now.pose, (v) => {
@@ -308,7 +317,6 @@ writeCode();
     let next = i;
     slot.addEventListener('click', () => {
       const m = JACRISPY_MOODS[JACRISPY_MOOD_NAMES[next++ % JACRISPY_MOOD_NAMES.length]];
-      one.update({ face: m.face });
       one.live.rig.setAntennas(deg(m.antennas[0]), deg(m.antennas[1]), m.ms ?? 260);
       one.play(m.cue);
     });

@@ -30,6 +30,11 @@ export interface EyeSpec {
    * given). A rigid lens opens little.
    */
   open?: number;
+  /**
+   * Eyes that are fixed lenses, as a camera's are: they keep their shape whatever the face, never blink and do
+   * not slide to look. A body with them shows its mood with its pose and antennas instead.
+   */
+  fixed?: boolean;
 }
 
 /**

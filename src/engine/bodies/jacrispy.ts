@@ -31,11 +31,11 @@ const HEAD: Piece = box(HW, MID_Y - HH, MID_Y + HH, HZ, HR);
 const MM = (2 * (HW + HR)) / 150;
 
 /**
- * Its colours, from the robot's own model: black antennas, near-black lens caps for rims, the dark grey
- * glasses holder for the bridge and the grey camera between the lenses. The lenses themselves (the eyes) are
- * JACRISPY_EYE. A renderer may paint any of these over.
+ * Its colours: black antennas, a grey frame round each lens so the frame reads apart from the glass, the black
+ * glasses holder for the bridge, and the camera between the lenses, a grey housing round black glass. The
+ * glass of the lenses themselves (the eyes) is JACRISPY_EYE. A renderer may paint any of these over.
  */
-export const JACRISPY_PAINT = { antenna: '#141414', rim: '#141414', bridge: '#141414', camera: '#7F7F7F' } as const;
+export const JACRISPY_PAINT = { antenna: '#141414', rim: '#7A7A7A', bridge: '#141414', camera: '#7A7A7A', glass: '#161616' } as const;
 /** The colour to draw its body in: the white of its shell. */
 export const JACRISPY_COLOUR = '#F4F2EC';
 /** The colour to draw its eyes in: his lenses, black as on the station's icon and the stickers. */
@@ -43,42 +43,50 @@ export const JACRISPY_EYE = '#161616';
 
 /**
  * What makes a face his, measured from the Reachy Mini's model (mm, its head 150 wide). The lenses, with their
- * caps: 41 and 32 across. The glasses holder shows as a bar between them at their middle height; drawn a
- * sixth as tall as a lens, a little more than on the robot, so it reads at avatar size. The camera, 6 across, sits in
- * the middle of it. Each antenna: a rod about 4 across, a spring 10 across wound round it from 11 mm to 43 mm
- * above the head, and a cap on its tip.
+ * frames: 41 and 32 across, the frame a ring 5 mm wide round the glass (a little wider than on the robot, so
+ * it reads at avatar size). The glasses holder shows as a bar between them at their middle height; drawn a
+ * sixth as tall as a lens. The camera sits in the middle of it: a housing 15 across round glass 7 across (a little bigger than on the robot).
+ * Each antenna: a rod about 4 across, a spring 10 across wound round it from 11 mm to 43 mm above the head,
+ * and a cap on its tip.
  */
-const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 6, CAP = 3;
+const LENS_BIG = 41, LENS_SMALL = 32, BAR = 0.17, CAMERA = 15, CAMERA_GLASS = 7, CAP = 5;
 
 export interface FaceOptions {
-  /** A ring round each lens, in the rim colour (default off: on the icon each lens is one black disc). */
+  /** A frame round each lens, in the rim colour (default on). */
   rims?: boolean;
   /** The bar between the lenses (default on). */
   bridge?: boolean;
-  /** The camera in the middle of the bar (default off: too small to read at avatar size). */
+  /** The camera in the middle of the bar (default on). */
   camera?: boolean;
   /** The two antennas (default on). */
   antennas?: boolean;
 }
 
 /**
- * The face: two lenses of the robot's two sizes, the bar between them, and if asked for their rims and the
- * camera, all worked out from a body's own eyes, so it fits any body. The eyes keep their place and their
- * average size. Lenses are rigid: neither opens as the body turns.
+ * The face: two lenses of the robot's two sizes, each glass in its frame, the bar between them and the camera
+ * on it, all worked out from a body's own eyes, so it fits any body: the frames take the eyes' place and
+ * average size, and the glass (the eyes) sits inside them. The lenses are fixed cameras: they never open as
+ * the body turns, blink, slide to look or change shape with a face. His mood is in his head and antennas.
  */
 function lenses(eyes: Body['eyes'], o: FaceOptions): { eyes: Body['eyes']; decals: Decal[] } {
-  const mean = (LENS_BIG + LENS_SMALL) / 2, sizes = [LENS_BIG / mean, LENS_SMALL / mean] as const;
-  const mm = eyes.w / mean;
+  const rims = o.rims ?? true, mean = (LENS_BIG + LENS_SMALL) / 2, glass = rims ? mean - 2 * CAP : mean;
+  const sizes = [(LENS_BIG - (rims ? 2 * CAP : 0)) / glass, (LENS_SMALL - (rims ? 2 * CAP : 0)) / glass] as const;
+  const mm = eyes.w / mean, k = glass / mean;
+  const inner = { ...eyes, w: eyes.w * k, h: eyes.h * k, sizes: [sizes[0], sizes[1]] as const, open: 0, fixed: true, slideX: 0, slideY: 0 };
   const decals: Decal[] = [];
   if (o.bridge ?? true) decals.push({ id: 'bridge', at: [0, 0], w: 0, h: BAR * eyes.w, shape: 'rounded', paint: 'bridge', eye: 'both', span: true });
-  if (o.rims ?? false) {
-    for (const eye of ['left', 'right'] as const) {
-      const k = (mean + 2 * CAP) / mean;
-      decals.push({ id: `rim-${eye}`, at: [0, 0], w: eyes.w * k, h: eyes.h * k, shape: 'circle', paint: 'rim', eye });
+  if (rims) {
+    // Each frame is drawn behind its glass, sized against that glass: its own outer size over its glass's.
+    const big = LENS_BIG / (LENS_BIG - 2 * CAP), small = LENS_SMALL / (LENS_SMALL - 2 * CAP);
+    for (const [eye, f] of [['left', big], ['right', small]] as const) {
+      decals.push({ id: `rim-${eye}`, at: [0, 0], w: inner.w * f, h: inner.h * f, shape: 'circle', paint: 'rim', eye });
     }
   }
-  if ((o.bridge ?? true) && (o.camera ?? false)) decals.push({ id: 'camera', at: [0, 0], w: CAMERA * mm, h: CAMERA * mm, shape: 'circle', paint: 'camera', eye: 'both' });
-  return { eyes: { ...eyes, sizes: [sizes[0], sizes[1]], open: 0 }, decals };
+  if ((o.bridge ?? true) && (o.camera ?? true)) {
+    decals.push({ id: 'camera', at: [0, 0], w: CAMERA * mm, h: CAMERA * mm, shape: 'circle', paint: 'camera', eye: 'both' });
+    decals.push({ id: 'camera-glass', at: [0, 0], w: CAMERA_GLASS * mm, h: CAMERA_GLASS * mm, shape: 'circle', paint: 'glass', eye: 'both' });
+  }
+  return { eyes: inner, decals };
 }
 
 /**
@@ -177,15 +185,15 @@ export type JacrispyMood = 'happy' | 'curious' | 'laughing' | 'loving' | 'though
  * measured below. The held antennas are where each recording leaves them. (Sad hangs them as far down as they
  * can still be seen beside the head; on the robot they go further, behind it.)
  */
-export const JACRISPY_MOODS: Readonly<Record<JacrispyMood, { face: string; antennas: readonly [number, number]; ms?: number; cue: string; recording: string }>> = {
-  happy: { face: 'happy', antennas: [30, 12], cue: 'cheer', recording: 'cheerful1' },
-  curious: { face: 'curious', antennas: [13, -5], cue: 'glance', recording: 'curious1' },
-  laughing: { face: 'laughing', antennas: [18, 15], cue: 'laugh', recording: 'laughing1' },
-  loving: { face: 'happy', antennas: [2, 2], cue: 'bashful', recording: 'loving1' },
-  thoughtful: { face: 'inspecting', antennas: [15, 10], cue: 'ponder', recording: 'thoughtful1' },
-  surprised: { face: 'surprised', antennas: [21, -3], cue: 'startle', recording: 'surprised1' },
-  sad: { face: 'sad', antennas: [115, 128], ms: 2200, cue: 'slump', recording: 'sad1' },
-  calm: { face: 'calm', antennas: [-1, -3], cue: 'breathe', recording: 'serenity1' },
+export const JACRISPY_MOODS: Readonly<Record<JacrispyMood, { antennas: readonly [number, number]; ms?: number; cue: string; recording: string }>> = {
+  happy: { antennas: [30, 12], cue: 'cheer', recording: 'cheerful1' },
+  curious: { antennas: [13, -5], cue: 'glance', recording: 'curious1' },
+  laughing: { antennas: [18, 15], cue: 'laugh', recording: 'laughing1' },
+  loving: { antennas: [2, 2], cue: 'bashful', recording: 'loving1' },
+  thoughtful: { antennas: [15, 10], cue: 'ponder', recording: 'thoughtful1' },
+  surprised: { antennas: [21, -3], cue: 'startle', recording: 'surprised1' },
+  sad: { antennas: [115, 128], ms: 2200, cue: 'slump', recording: 'sad1' },
+  calm: { antennas: [-1, -3], cue: 'breathe', recording: 'serenity1' },
 };
 export const JACRISPY_MOOD_NAMES = Object.keys(JACRISPY_MOODS) as JacrispyMood[];
 

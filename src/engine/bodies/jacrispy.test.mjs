@@ -1,4 +1,4 @@
-// Jacrispy: his head, his face (two sizes of lens, the bar between them and two antennas behind the head),
+// Jacrispy: his head, his face (two sizes of framed lens, the bar and its camera, two antennas behind the head),
 // that face on every other body, and his moods. Run with: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,16 +20,17 @@ test('only a body with antennas or decals has layers, so every other body draws 
   }
 });
 
-test('jacrispy draws two antennas behind his head and the bar between his lenses, and no rims or camera unless asked', () => {
+test('jacrispy draws two antennas behind his head, a frame round each lens, the bar and its camera, in painting order', () => {
   const d = drawAvatar(BODIES.jacrispy, '#F4F2EC', still(), 120);
   const ids = d.layers.map((l) => l.id);
-  for (const id of ['antenna-left', 'antenna-right', 'bridge']) assert.ok(ids.includes(id), `has ${id}`);
-  for (const id of ['rim-left', 'rim-right', 'camera']) assert.ok(!ids.includes(id), `no ${id}`);
+  for (const id of ['antenna-left', 'antenna-right', 'bridge', 'rim-left', 'rim-right', 'camera', 'camera-glass']) assert.ok(ids.includes(id), `has ${id}`);
   const firstFront = d.layers.findIndex((l) => l.front);
   assert.ok(d.layers.slice(firstFront).every((l) => l.front), 'the layers behind come first');
-  const full = drawAvatar(jacrispy({ rims: true, camera: true }), '#F4F2EC', still(), 120).layers.map((l) => l.id);
-  for (const id of ['rim-left', 'rim-right', 'camera']) assert.ok(full.includes(id), `asked for ${id}`);
-  assert.ok(full.indexOf('bridge') < full.indexOf('camera'), 'the camera sits on the bar');
+  assert.ok(ids.indexOf('bridge') < ids.indexOf('camera') && ids.indexOf('camera') < ids.indexOf('camera-glass'), 'the camera sits on the bar, its glass in it');
+  // The frames and the glass are told apart by colour.
+  const fill = (id) => d.layers.find((l) => l.id === id).fill;
+  assert.notEqual(fill('rim-left'), BODIES.jacrispy.paint.glass);
+  assert.notEqual(fill('camera'), fill('camera-glass'));
   for (const l of d.layers) assert.match(l.d, /^M/, `${l.id} is a path`);
   assert.equal(d.layers.find((l) => l.id === 'antenna-left').fill, BODIES.jacrispy.paint.antenna);
 });
@@ -125,10 +126,21 @@ test('his moves are clips the rig takes: each moves him, and each ends where it 
   }
 });
 
-test('every mood is a face the engine has, an antenna pose, a move that exists and the recording it follows', () => {
+test('his lenses are cameras: no face, blink or look changes them', () => {
+  for (const body of [BODIES.jacrispy, jacrispyFace(BODIES.blob)]) {
+    const plain = drawAvatar(body, '#fff', still(20), 120);
+    for (const face of ['happy', 'sad', 'surprised', 'laughing']) {
+      const s = { ...still(20), face: FACES[face], lid: 0.1, eye: { x: 1, y: -1 } };
+      const d = drawAvatar(body, '#fff', s, 120);
+      assert.deepEqual(d.eyes, plain.eyes, `${body.id} ${face}`);
+      assert.deepEqual(d.layers, plain.layers, `${body.id} ${face}: frames and bar`);
+    }
+  }
+});
+
+test('every mood is an antenna pose, a move that exists and the recording it follows', () => {
   assert.deepEqual(JACRISPY_MOOD_NAMES, ['happy', 'curious', 'laughing', 'loving', 'thoughtful', 'surprised', 'sad', 'calm']);
   for (const [name, m] of Object.entries(JACRISPY_MOODS)) {
-    assert.ok(Object.hasOwn(FACES, m.face), `${name}: face ${m.face}`);
     assert.equal(m.antennas.length, 2);
     assert.ok(CUES.includes(m.cue) || Object.hasOwn(JACRISPY_CLIPS, m.cue), `${name}: move ${m.cue}`);
     assert.match(m.recording, /^[a-z]+\d$/, `${name}: recording`);
@@ -137,7 +149,7 @@ test('every mood is a face the engine has, an antenna pose, a move that exists a
   for (const body of [BODIES.jacrispy, jacrispyFace(BODIES.heart)]) {
     const rig = new Rig({ seed: 2, body, clips: JACRISPY_CLIPS });
     for (const m of Object.values(JACRISPY_MOODS)) {
-      rig.setFace(m.face); rig.setAntennas(deg(m.antennas[0]), deg(m.antennas[1]), m.ms ?? 0);
+      rig.setAntennas(deg(m.antennas[0]), deg(m.antennas[1]), m.ms ?? 0);
       assert.ok(rig.play(m.cue));
       settle(rig, 1200);
       assert.doesNotMatch(JSON.stringify(drawAvatar(body, '#fff', rig.state, 96)), /NaN/);

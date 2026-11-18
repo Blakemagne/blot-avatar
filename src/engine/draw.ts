@@ -4,7 +4,7 @@ import type { Body, Decal } from './body';
 import { antennaPieces, decalOutline } from './decals';
 import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
-import { eyeOutline } from './faces';
+import { FACES, eyeOutline, type Face } from './faces';
 import { discAt, figureParts, figureRadius } from './figures';
 import { area, bounds, rotation, type Mat3 } from './math';
 import { isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
@@ -90,13 +90,19 @@ const R: Mat3 = new Float64Array(9);
 const outlines = [new Float64Array(160), new Float64Array(160)];
 const spot = new Float64Array(12);
 
+/** The face, lid and look the eyes of `e` are drawn with: for fixed lenses, always the plain open front ones. */
+function seen(e: Body['eyes'], state: RigState): { face: Face; lid: number; x: number; y: number } {
+  return e.fixed ? { face: FACES.neutral, lid: 1, x: 0, y: 0 } : { face: state.face, lid: state.lid, x: state.eye.x, y: state.eye.y };
+}
+
 /** The two eyes on a body whose outline for this pose is `outline`. */
 function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<number>[]): [Float64Array[], Float64Array[]] {
   const d = detail(size), e = body.eyes;
   const dot = state.dot ?? 0, grow = state.eyeScale ?? 1;
   if (grow <= 0.02) return [[], []];
   rotation(state.pose, R);
-  const cu = state.eye.x * e.slideX, cv = e.y + state.eye.y * e.slideY;
+  const look = seen(e, state);
+  const cu = look.x * e.slideX, cv = e.y + look.y * e.slideY;
   // How far round the body is, as a share of a full look: 1 turned right, -1 turned left, 0 facing (or backing) us.
   // (Seen from behind, the face is on the back and the same turn shows the other way round. And nearly edge
   // on nothing is opened: the eye there is going round the rim, and a wide one would jump from rim to rim.)
@@ -105,7 +111,7 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   const shapes = ([-1, 1] as const).map((side, i) => {
     // 1 body unit is half the drawn size. (A face built with eyes of two sizes draws each at its own.)
     const own = e.sizes ? e.sizes[i] : 1;
-    const eye = eyeOutline(state.face, side, e.w * d.boost * own, e.h * d.boost * own, state.lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
+    const eye = eyeOutline(look.face, side, e.w * d.boost * own, e.h * d.boost * own, look.lid, d.eye, outlines[i], (LINE_PX * 2) / size).subarray(0, d.eye * 2);
     // The near eye opens: wider and a little taller about its own middle (so a face's lift and lean stay as
     // they are), and moved outward by what it gained, so its inner edge stays put and all the growth is on the
     // side coming toward the viewer. However wide the face draws its eyes, it never grows into the far one.
@@ -151,8 +157,8 @@ function eyeSpots(src: Source, state: RigState, size: number, out: Float64Array,
     for (let i = 0; i < 4; i++) out[at + i] = sum[i];
     return true;
   }
-  const e = src.eyes, boost = detail(size).boost;
-  const cu = state.eye.x * e.slideX, cv = e.y + state.eye.y * e.slideY;
+  const e = src.eyes, boost = detail(size).boost, look = seen(e, state);
+  const cu = look.x * e.slideX, cv = e.y + look.y * e.slideY;
   return facePoint(src, R, cu - e.x * boost, cv, out, at) && facePoint(src, R, cu + e.x * boost, cv, out, at + 2);
 }
 
@@ -282,13 +288,13 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
     return { cu: (inL + inR) / 2, cv: (l.cv + r.cv) / 2, sx: k, sy: k, w: Math.max(0, inR - inL) + dc.w * k };
   }
   const e = of.eyes, boost = detail(size).boost, side = dc.eye === 'left' ? -1 : 1, i = side < 0 ? 0 : 1;
-  const own = e.sizes ? e.sizes[i] : 1, f = state.face;
+  const own = e.sizes ? e.sizes[i] : 1, look = seen(e, state), f = look.face;
   const k = boost * own * Math.sqrt(Math.max(1, f.width * (1 + side * f.uneven))) * (state.eyeScale ?? 1) * (1 - (state.dot ?? 0));
   const facing = Math.min(1, Math.max(0, (Math.abs(R[8]) - 0.1) / 0.3));
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
   const near = Math.max(0, -side * turned) ** 2 * (e.open ?? 1), wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
   const out = (side * (wide - 1) * dc.w * k) / 2;
-  return { cu: state.eye.x * e.slideX + side * e.x * boost + out, cv: e.y + state.eye.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
+  return { cu: look.x * e.slideX + side * e.x * boost + out, cv: e.y + look.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
 }
 
 /** The decals of `of` that can be seen, each a layer over the body, into `out`. */
