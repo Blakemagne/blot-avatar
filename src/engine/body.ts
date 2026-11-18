@@ -20,6 +20,83 @@ export interface EyeSpec {
   /** How far a look slides the eyes on the surface, sideways and up or down. */
   slideX: number;
   slideY: number;
+  /**
+   * How big each eye is, the viewer's left and right, as multiples of w and h (1 and 1 when not given). For a
+   * face built with two eyes of different sizes, as some robots are. A face's own `uneven` still adds to it.
+   */
+  sizes?: readonly [left: number, right: number];
+  /**
+   * How far the near eye opens as the body turns, as a share of what every other body's does (1 when not
+   * given). A rigid lens opens little.
+   */
+  open?: number;
+  /**
+   * Eyes that are fixed lenses, as a camera's are: they keep their shape whatever the face, never blink and do
+   * not slide to look. A body with them shows its mood with its pose and antennas instead.
+   */
+  fixed?: boolean;
+}
+
+/**
+ * Two stalks on a body (a robot's antennas): drawn as their own layer, in their own colour, and swung by the
+ * rig. Given for the one on the viewer's right; the left one is its mirror image. Each stalk is two tapered
+ * capsules: a stiff base, and a whip that bends further than the base does, so a swing has a follow-through.
+ */
+export interface Antennas {
+  /** Where the right stalk pivots, in body units (x right, y up, z toward the viewer). Keep z at 0: the body is its own mirror image front to back. */
+  pivot: readonly [x: number, y: number, z: number];
+  /** The base's length and the whip's, in body units. */
+  base: number;
+  whip: number;
+  /** Radii at the pivot, at the joint and at the tip. */
+  radii: readonly [pivot: number, joint: number, tip: number];
+  /** Radians the stalks lean outward at rest (0 is straight up). */
+  rest: number;
+  /** How much further than the base the whip bends, as a share of the swing (0.35: a third again). */
+  follow: number;
+  /** The colour key (in Body.paint) the stalks are drawn in. */
+  paint: string;
+  /**
+   * A spring wound round the base: where it starts and ends along the base (0 at the
+   * pivot, 1 at the joint), how far it stands out from the middle of the stalk, and how many turns it has.
+   */
+  coil?: { from: number; to: number; r: number; turns: number };
+  /** A cap on the tip, a little thicker than the whip: its length and radius. */
+  cap?: { len: number; r: number };
+}
+
+/** The shape of a decal's outline. */
+export type DecalShape = 'circle' | 'rounded' | 'star' | 'heart' | 'bolt' | 'diamond';
+
+/**
+ * A decal: a flat mark stuck on the body's surface, a painted part such as a lens's rim. Like an eye it is a patch of
+ * the surface, so it leans, thins and goes round the edge as the body turns, and it is on whichever side of
+ * the body faces the viewer. Decals are drawn over the body and under the eyes, in the order given.
+ */
+export interface Decal {
+  /** Its name; also the layer's id in a Drawing. */
+  id: string;
+  /** Where its middle is, in face coordinates (as the eyes' x and y). */
+  at: readonly [x: number, y: number];
+  /** Width and height, in body units. */
+  w: number;
+  h: number;
+  shape: DecalShape;
+  /** Radians, counter-clockwise. */
+  turn?: number;
+  /** The colour key (in Body.paint) it is drawn in. */
+  paint: string;
+  /**
+   * Which eye it sits behind, when it belongs to one (a lens's rim): it then slides with that eye, keeps its
+   * size, and shrinks away with it in a spin or a change of shape. 'both' puts it halfway between the eyes
+   * (a camera between two lenses), moving as they do; `at` is then not used.
+   */
+  eye?: 'left' | 'right' | 'both';
+  /**
+   * With eye 'both': reach from one eye's middle to the other's, plus `w` (a bridge between two lenses, its
+   * ends under their rims), however the eyes slide and open.
+   */
+  span?: boolean;
 }
 
 /**
@@ -44,6 +121,12 @@ export interface Body {
    * picture further round, in a spin, when the eyes have gone.
    */
   outline?: Solid;
+  /** Stalks on top, drawn in a layer of their own and swung by the rig (see Antennas). */
+  antennas?: Antennas;
+  /** Marks on the surface: a lens's rim, the bar between lenses (see Decal). */
+  decals?: readonly Decal[];
+  /** The body's own colours for its antennas and decals, by key. A renderer may paint any key over. */
+  paint?: Readonly<Record<string, string>>;
 }
 
 /** Pieces, and nothing else: all that an outline is worked out from. */

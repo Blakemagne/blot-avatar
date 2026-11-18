@@ -21,7 +21,9 @@ const outline = (body, yaw = 0, pitch = 0, roll = 0) => silhouette(body, rotatio
 const size = (polys) => { const [x0, y0, x1, y1] = bounds(polys); return { w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; };
 const eyeArea = (polys) => polys.reduce((sum, p) => sum + Math.abs(area(p)), 0);
 /** [left, right] eye areas for a pose, drawn large. */
-const eyes = (body, ...pose) => eyeShapes(body, still(...pose), 180).map(eyeArea);
+const eyes = (body, ...pose) => eyeShapes(body, still(...pose), 180).map(eyeArea).map((a, i) => a / own(body)[i] ** 2);
+/** How big a body draws each eye, against its eyes' w and h: 1 and 1 but for a body whose two eyes differ. */
+const own = (body) => body.eyes.sizes ?? [1, 1];
 const each = (run) => { for (const [id, body] of Object.entries(BODIES)) run(id, body); };
 
 /** Distance from (x, y) to the edge of a flat polygon. */
@@ -97,7 +99,10 @@ test('at pose zero each body but the cloud is its own mirror image left to right
     const a = size(outline(body, 35, 10)), b = size(outline(body, -35, 10));
     assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.cx + b.cx) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${id}: turned`);
     const [nearL, farR] = eyes(body, 35), [farL, nearR] = eyes(body, -35);
-    assert.ok(Math.abs(nearL - nearR) < 1e-3 * nearL && Math.abs(farL - farR) < 1e-3 * nearL + 1e-9, `${id}: eyes ${[nearL, farR]} against ${[nearR, farL]}`);
+    // (Two eyes of different sizes cover different stretches of the round head, the big one more of its curve,
+    // so turned towards, theirs match only to 10 per cent; turned away, they still match closely.)
+    const tol = body.eyes.sizes ? 0.1 : 1e-3;
+    assert.ok(Math.abs(nearL - nearR) < tol * nearL && Math.abs(farL - farR) < tol * nearL + 1e-9, `${id}: eyes ${[nearL, farR]} against ${[nearR, farL]}`);
   });
   // The cloud is the lopsided one, and still stands in the middle of its box.
   const cloud = outline(BODIES.cloud);
@@ -117,9 +122,9 @@ test('at pose zero the eyes are whole, centred, level and upright, exactly where
     assert.ok(Math.abs(l.cy - r.cy) < 1e-6, `${id}: level`);
     // Screen y points down; the body's eye line is in y-up face coordinates.
     assert.ok(Math.abs(l.cy + body.eyes.y) < 0.004 && Math.abs(r.cx - body.eyes.x) < 0.004, `${id}: where the body says`);
-    for (const e of [l, r]) {
-      assert.ok(Math.abs(e.w - body.eyes.w) < 0.004, `${id}: eye width ${e.w}`);
-      assert.ok(Math.abs(e.h - body.eyes.h) < 0.004, `${id}: eye height ${e.h}`);
+    for (const [e, k] of [[l, own(body)[0]], [r, own(body)[1]]]) {
+      assert.ok(Math.abs(e.w - body.eyes.w * k) < 0.004, `${id}: eye width ${e.w}`);
+      assert.ok(Math.abs(e.h - body.eyes.h * k) < 0.004, `${id}: eye height ${e.h}`);
     }
     // Upright and unsheared: a mirror image of itself left to right and top to bottom.
     for (const [poly, c] of [[left[0], l], [right[0], r]]) {
@@ -245,8 +250,9 @@ test('the far eye thins as the body turns, never jumps, and is gone by side on',
       last = now;
     }
     assert.ok(gone !== null && gone <= 85, `${id}: the far eye is gone at ${gone}`);
-    // And the near eye is still there when the far one has just gone.
-    assert.ok(eyes(body, gone)[0] > first * 0.15, `${id}: at ${gone} the near eye is ${eyes(body, gone)[0]} of ${first}`);
+    // And the near eye is still there when the far one has just gone. (Rigid lenses on a flat face
+    // do not open, so both go nearly together, as on the robot.)
+    if (body.eyes.open !== 0) assert.ok(eyes(body, gone)[0] > first * 0.15, `${id}: at ${gone} the near eye is ${eyes(body, gone)[0]} of ${first}`);
   });
 });
 
@@ -296,7 +302,9 @@ test('from the front the eyes can be read at 16 px', () => {
     assert.ok(left.length === 1 && right.length === 1, `${id}: both eyes are whole at 16 px`);
     // 1 body unit is 8 px.
     const l = size(left), r = size(right);
-    for (const e of [l, r]) assert.ok(e.w * 8 >= 2 && e.h * 8 >= 3.5, `${id}: an eye is ${e.w * 8} by ${e.h * 8} px`);
+    // (A framed lens reads by its frame round the glass too, so its glass may be a little smaller.)
+    const tall = body.eyes.fixed ? 2.5 : 3.5;
+    for (const e of [l, r]) assert.ok(e.w * 8 >= 2 && e.h * 8 >= tall, `${id}: an eye is ${e.w * 8} by ${e.h * 8} px`);
     assert.ok((r.cx - r.w / 2 - (l.cx + l.w / 2)) * 8 >= 1.4, `${id}: the eyes are ${(r.cx - r.w / 2 - (l.cx + l.w / 2)) * 8} px apart`);
   });
 });
@@ -545,6 +553,8 @@ test('looking across, the near eye is drawn bigger than it is from the front, an
   each((id, body) => {
     for (const px of [200, 72, 64]) for (const x of [1, -1]) {
       const [nearHalf, farHalf] = heldEyes(body, x * 0.5, 0, px), [near, far] = heldEyes(body, x, 0, px);
+      // Rigid lenses do not open: the near one only stays bigger than the far one.
+      if (body.eyes.open === 0) { assert.ok(nearHalf > farHalf && near > far, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`); continue; }
       assert.ok(nearHalf > 1.05 && farHalf < 0.9, `${id} half way ${x} at ${px} px: near ${nearHalf}, far ${farHalf}`);
       assert.ok(near > 1 && far < 0.45, `${id} looking ${x} at ${px} px: near ${near}, far ${far}`);
       assert.ok(near > 2.4 * far, `${id} looking ${x} at ${px} px: near ${near} beside far ${far}`);

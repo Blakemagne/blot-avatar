@@ -1,6 +1,7 @@
 // A live avatar without a framework: one rig, drawn from the shared frame loop into whatever `out` writes to.
 // React's useLiveAvatar (react.ts) and mount() (mount.ts) are both this, wired to a page in their own way.
 
+import type { Body } from './engine/body';
 import type { Clip } from './engine/clips';
 import { drawAvatar, type Drawing } from './engine/draw';
 import { FACES } from './engine/faces';
@@ -11,6 +12,12 @@ import { onFrame, onSeen, pointer, reducedMotion, watchPointer } from './ticker'
 export interface LiveProps {
   /** The shape. Changed on an attached avatar, the body morphs into the new one. */
   shape: string;
+  /**
+   * A body of your own, drawn in place of `shape`'s (which still names it for a still picture), such as
+   * a shape with antennas added. Changed on an attached avatar, it morphs as a new shape does. Pass the same
+   * object again to keep it: a new object is a new body.
+   */
+  body?: Body;
   /** Slot size in px. */
   size: number;
   /** Seed for the blink and idle timing, so two avatars side by side do not move in step (default 1). */
@@ -105,7 +112,7 @@ const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: bodyOf(q.shape), size: q.size, follow: q.follow, level: q.level, calm: q.rests ? stillState(q.shape, q.size) : FRONT });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, level: q.level, calm: q.rests ? stillState(q.shape, q.size) : FRONT });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 

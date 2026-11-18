@@ -5,7 +5,7 @@
 // trace each sphere's rim, take the convex hull, and emit one closed subpath. All pieces wind the same way, so
 // one path with the default nonzero fill is their union.
 
-import { prepare, type Body } from './body';
+import { prepare, type Body, type Solid } from './body';
 import { D, type Mat3 } from './math';
 
 const tables = new Map<number, Float64Array>();
@@ -27,8 +27,8 @@ let stack = new Uint32Array(1024);
  * One convex polygon per piece, flat [x0, y0, x1, y1, ...] in screen units (x right, y down, 1 unit = half
  * the drawing box). `k` is how many points trace each sphere's rim.
  */
-export function silhouette(body: Body, R: Mat3, k: number): Float64Array[] {
-  const prep = prepare(body.outline ?? body);
+export function silhouette(body: Body | Solid, R: Mat3, k: number): Float64Array[] {
+  const prep = prepare(('outline' in body && body.outline) || body);
   const ring = circle(k);
   const out: Float64Array[] = [];
   for (const pp of prep.pieces) {

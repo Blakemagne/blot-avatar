@@ -22,6 +22,11 @@ export interface Channels {
   stretch: number; scale: number; open: number;
   /** Set by the figure and the change of shape; a clip may multiply eyeScale. */
   eyeScale: number; dot: number;
+  /**
+   * Radians added to each antenna's swing, the viewer's left and right (start 0). Positive swings the tip
+   * outward, away from the middle. Only a body with antennas shows them.
+   */
+  antL: number; antR: number;
 }
 
 /** What a clip may read: the body's turn from its spring (before any clip), and the room a look has left, 1 - min(1, |eyeX| / most) (none through the middle of a spin). */

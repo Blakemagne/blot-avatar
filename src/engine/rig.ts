@@ -54,6 +54,11 @@ export interface RigState {
   flip?: number;
   /** The loading figure the body has turned into, if any. */
   figure?: Figure | null;
+  /**
+   * How far each antenna is swung from where it rests, the viewer's left and right, in radians (positive is
+   * outward). Set only while the body has antennas.
+   */
+  antennas?: [left: number, right: number];
 }
 
 export { BLINK_MS, HOP_DOWN, HOP_HEIGHT, HOP_UP, NOD, NOD_SQUASH, POKES, POKE_MS, POP, POP_MS, type PokeKind } from './clips';
@@ -141,6 +146,13 @@ export const SPEAK_LIFT = 0.06, SPEAK_STRETCH = 0.075, SPEAK_EYES = 0.2, SPEAK_G
 const HUSH = 0.02;
 /** ... and its head sways a little as it talks. */
 const SPEAK_SWAY = deg(2), SPEAK_SWAY_MS = 2300;
+/**
+ * Antennas (a body that has them). Left alone they sway, slowly and a little, one way and then the other
+ * (ANT_SWAY each way, once every ANT_SWAY_MS). Thinking lifts the one on the side it looks to and drops the
+ * other; working draws both in; waiting swings them with the rock; each syllable flicks them out.
+ */
+export const ANT_SWAY = deg(5), ANT_SWAY_MS = 4000;
+const ANT_THINK = deg(22), ANT_WORK = deg(-9), ANT_WAIT = deg(10), ANT_SPEAK = deg(12);
 /** A figure's own turning, in radians per ms. */
 const SPIN: Record<Form, number> = { ring: TAU / 1000, orbit: TAU / 1400, radar: TAU / 1900, progress: 0 };
 
@@ -194,10 +206,26 @@ class Wobble {
   get still(): boolean { return this.x === 0 && this.v === 0; }
 }
 
+/**
+ * An antenna: it heads for where it is sent and swings past it, back and forth, dying away, as a springy stalk
+ * does. Exact for any dt (a Wobble about the target).
+ */
+class Stalk {
+  to = 0;
+  private w = new Wobble(6.5, 15);
+  get x(): number { return this.to + this.w.x; }
+  /** Send it somewhere new: it starts from where it is, so it swings there. */
+  aim(to: number): void { if (to !== this.to) { this.w.x += this.to - to; this.to = to; } }
+  /** Put it there at once, still. */
+  set(to: number): void { this.to = to; this.w.x = 0; this.w.v = 0; }
+  step(dt: number): void { this.w.step(dt); }
+  get still(): boolean { return this.w.still; }
+}
+
 /** Into 0..1; anything that is not a number is 0. */
 const unit = (v: number): number => (v > 0 ? Math.min(1, v) : 0);
 /** How many numbers `mark` writes. */
-const MARKS = 18 + FACE_KEYS.length;
+const MARKS = 20 + FACE_KEYS.length;
 
 export class Rig {
   readonly state: RigState = {
@@ -252,9 +280,13 @@ export class Rig {
   private popping: Playing | null = null;
   private flipFrom = 1; private flipTo = 1; private flipAt = FLIP_MS;
   private paused = false;
+  /** The antennas: where they are held (setAntennas), and each one's swing. */
+  private held: [number, number] = [0, 0]; private antL = new Stalk(); private antR = new Stalk();
+  /** A slow move to a new hold (setAntennas with a time), while it lasts. */
+  private glide: { from: [number, number]; to: [number, number]; ms: number; at: number } | null = null;
   private before = new Float64Array(MARKS); private after = new Float64Array(MARKS);
   /** One frame's sum of the moves, and what a clip may read. */
-  private o: Channels = { yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0 };
+  private o: Channels = { yaw: 0, pitch: 0, roll: 0, eyeX: 0, eyeY: 0, lift: 0, stretch: 1, scale: 1, open: 1, eyeScale: 1, dot: 0, antL: 0, antR: 0 };
   private view: View;
 
   constructor(opts: RigOptions = {}) {
@@ -493,6 +525,19 @@ export class Rig {
     if (a > 0) this.popping = start(CLIPS.pop, { amount: a, from: this.popping ? (this.state.scale ?? 1) - 1 : 0 });
   }
 
+  /**
+   * Where the antennas are held, the viewer's left and right, in radians from where they rest (positive is
+   * outward, away from the middle): a mood's pose. They swing there (or, given `ms`, move there slowly over
+   * that long) and stay until told otherwise. Only a body with antennas shows it.
+   */
+  setAntennas(left: number, right: number, ms = 0): void {
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return;
+    // Over `ms`, eased in and out (a slow droop), from where they are held now; at once, a spring's swing.
+    if (ms > 0 && Number.isFinite(ms)) this.glide = { from: [this.held[0], this.held[1]], to: [left, right], ms, at: 0 };
+    else this.glide = null;
+    if (!this.glide) this.held = [left, right];
+  }
+
   /** Freeze everything where it is; pause(false) carries on from there. */
   pause(on = true): void { this.paused = on; }
 
@@ -504,6 +549,8 @@ export class Rig {
     out[12] = s.morph ? s.morph.k : -1; out[13] = this.bodies;
     out[14] = g ? g.k : -1; out[15] = g ? g.turn : 0; out[16] = g ? g.progress : 0; out[17] = g ? FORMS.indexOf(g.form) : -1;
     for (let i = 0; i < FACE_KEYS.length; i++) out[18 + i] = f[FACE_KEYS[i]];
+    const a = s.antennas;
+    out[18 + FACE_KEYS.length] = a ? a[0] : 0; out[19 + FACE_KEYS.length] = a ? a[1] : 0;
   }
 
   /** Advance by dt milliseconds. True when the picture changed. Time only runs forward: a dt that is negative or not a finite number is no step. */
@@ -602,7 +649,7 @@ export class Rig {
     this.yaw.step(dt); this.pitch.step(dt); this.roll.step(dt);
 
     // The little moves: each adds to the pose and comes back to nothing (clips.ts).
-    o.yaw = 0; o.pitch = 0; o.roll = 0; o.eyeY = 0; o.eyeX = 0; o.lift = 0; o.stretch = 1; o.scale = 1; o.open = 1;
+    o.yaw = 0; o.pitch = 0; o.roll = 0; o.eyeY = 0; o.eyeX = 0; o.lift = 0; o.stretch = 1; o.scale = 1; o.open = 1; o.antL = 0; o.antR = 0;
 
     if (!this.poking && this.queued.length) this.begin(this.queued.shift()!);
     this.poking = advance(this.poking, dtMs, o, v);
@@ -702,10 +749,42 @@ export class Rig {
     s.eye.x = Math.max(-most, Math.min(most, this.eyeX.x + o.eyeX)) || 0; s.eye.y = (this.eyeY.x + o.eyeY) || 0;
     s.pose.yaw = (this.yaw.x + o.yaw) || 0; s.pose.pitch = (this.pitch.x + o.pitch) || 0; s.pose.roll = (this.roll.x + o.roll) || 0;
     s.dot = o.dot; s.eyeScale = o.eyeScale; s.stretch = o.stretch; s.lift = o.lift; s.scale = o.scale;
+    if (s.body?.antennas) this.antennas(dtMs, voice); else if (s.antennas) s.antennas = undefined;
 
     this.mark(this.after);
     for (let i = 0; i < MARKS; i++) if (this.before[i] !== this.after[i]) return true;
     return false;
+  }
+
+  /**
+   * The antennas for this step: held where they were told, moved by what the Bot is doing, swaying when idle
+   * (with the breath, and as seldom), flicked by each syllable, and swung by any clip. Worked out only for a
+   * body that has them, so no other body's frames change.
+   */
+  private antennas(dtMs: number, voice: number): void {
+    const s = this.state, o = this.o, act = this.activity, dt = dtMs / 1000;
+    const g = this.glide;
+    if (g) {
+      g.at += dtMs;
+      const k = smooth(Math.min(1, g.at / g.ms));
+      this.held = [g.from[0] + (g.to[0] - g.from[0]) * k, g.from[1] + (g.to[1] - g.from[1]) * k];
+      if (g.at >= g.ms) { this.held = [g.to[0], g.to[1]]; this.glide = null; }
+    }
+    let l = this.held[0], r = this.held[1];
+    if (act === 'thinking') { l += this.side < 0 ? ANT_THINK : -ANT_THINK / 3; r += this.side > 0 ? ANT_THINK : -ANT_THINK / 3; }
+    else if (act === 'working') { l += ANT_WORK; r += ANT_WORK; }
+    // (The first frame with antennas puts them where they are sent, still: a body that arrives with them does not swing in.)
+    if (!s.antennas) { this.antL.set(l); this.antR.set(r); } else { this.antL.aim(l); this.antR.aim(r); }
+    this.antL.step(dt); this.antR.step(dt);
+    let sl = this.antL.x + o.antL, sr = this.antR.x + o.antR;
+    if (this.idle) {
+      const sway = ANT_SWAY * this.awake.x * Math.sin((2 * Math.PI * Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP) / ANT_SWAY_MS);
+      sl += sway; sr -= sway;
+    }
+    if (this.wait.x > 0) { const w = this.wait.x * ANT_WAIT * Math.sin((this.waitAt / WAIT_ROCK_MS) * TAU); sl += w; sr -= w; }
+    if (voice !== 0) { sl += ANT_SPEAK * voice; sr += ANT_SPEAK * voice; }
+    const a = s.antennas ?? (s.antennas = [0, 0]);
+    a[0] = sl || 0; a[1] = sr || 0;
   }
 
   /** True when nothing is moving but the breath (a blink or a drift may still be on its way). */
@@ -713,7 +792,7 @@ export class Rig {
     return !this.blinking && this.eyeX.still && this.eyeY.still && this.yaw.still && this.pitch.still && this.roll.still
       && !this.poking && !this.queued.length && !this.change && this.faceAt >= FACE_MS && !this.popping && this.flipAt >= FLIP_MS
       && this.figK === 0 && !this.nodding && this.level.still && this.activity === 'idle' && this.wait.x === 0 && this.talk.x === 0
-      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue();
+      && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue() && this.antL.still && this.antR.still && !this.glide;
   }
 
   /** True once it has come to rest (see `rest`): a still picture that no step will change until it is woken, poked or changed. */
