@@ -223,7 +223,7 @@ A body may also carry (all optional, and a body without them draws exactly as be
 
 Such a body's drawing has `layers`: paths to paint under the body (`front: false`) and over it, under the eyes.
 
-To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`. `packages/jacrispy` (`@blot/jacrispy`) is a library built on these: one character's head and face for any shape, kept apart from this engine.
+To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`.
 
 ## The public API
 

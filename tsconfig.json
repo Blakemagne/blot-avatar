@@ -12,9 +12,8 @@
     "noUnusedParameters": true,
     "types": [],
     "paths": {
-      "@blot/avatar": ["./src/index.ts"],
-      "@blot/jacrispy": ["./packages/jacrispy/src/index.ts"]
+      "@blot/avatar": ["./src/index.ts"]
     }
   },
-  "include": ["src", "packages/jacrispy/src"]
+  "include": ["src"]
 }
