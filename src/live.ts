@@ -24,6 +24,11 @@ export interface LiveProps {
   seed?: number;
   /** Look at the pointer: the eyes go first and the body turns after them. */
   follow?: boolean;
+  /**
+   * With `follow`: follow the pointer only while it is inside this element (a card, a panel), and take its edges
+   * as a full look. Outside it, the avatar looks ahead again as it does when the pointer leaves the page.
+   */
+  followIn?: Element | null;
   /** What it is doing (the engine's ACTIVITIES); none is idle. */
   activity?: string;
   /** A loading figure the body turns into while it thinks or works (the engine's FORMS); none, and it is a body. */
@@ -106,6 +111,22 @@ export function lookFor(size: number, dx: number, dy: number, span: number): { x
   return { x: unit(dx / far) * SMALL_LOOK, y: unit(dy / far) * SMALL_LOOK };
 }
 
+/** How far an avatar is from each edge of the area it follows the pointer in, in px. */
+export interface Reach { left: number; right: number; up: number; down: number }
+
+/**
+ * Where an avatar of `size` px looks for a pointer (dx, dy) px from its middle, dy upward, when it follows the
+ * pointer only inside an area that reaches `reach` px from its middle each way: an edge of the area is a full
+ * look that way (the share a small avatar takes, SMALL_LOOK, for one under LARGE). As in lookFor, the distance is
+ * eased and the direction kept, so its looks lie inside the unit circle.
+ */
+export function lookWithin(size: number, dx: number, dy: number, reach: Reach): { x: number; y: number } {
+  // (An edge on the avatar's own middle, or past it, is 1 px away: a look toward it is a full one at once.)
+  const nx = dx / Math.max(1, dx >= 0 ? reach.right : reach.left), ny = dy / Math.max(1, dy >= 0 ? reach.up : reach.down);
+  const d = Math.hypot(nx, ny), e = eased(d) * (size >= LARGE ? 1 : SMALL_LOOK);
+  return { x: (nx / d) * e || 0, y: (ny / d) * e || 0 };
+}
+
 /** Facing front with the neutral face: what an avatar that does not rest shows when nothing may move. */
 const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 
@@ -131,7 +152,7 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
@@ -165,6 +186,8 @@ export function createLive(p: LiveProps): Live {
         out(drawAvatar(w.body, 'gray', reducedMotion() ? w.calm : rig.state, w.size));
       };
       let last = 0, moves = -1, layout = -1, cx = 0, cy = 0, measured = -Infinity;
+      /** The area it follows the pointer in, when it has one (followIn), as last measured. */
+      let area: DOMRect | null = null, areaOf: Element | null = null;
       let stop: (() => void) | null = null, seen = false;
 
       // Tick only while on screen, with something to do and allowed to move: an avatar at rest is a still picture.
@@ -181,14 +204,20 @@ export function createLive(p: LiveProps): Live {
         last = now;
         if (w.follow && (moves !== pointer.moves || layout !== pointer.layout)) {
           // Where am I? Measured after a scroll or resize, and otherwise at most twice a second.
-          if (layout !== pointer.layout || now - measured > 500) {
+          if (layout !== pointer.layout || now - measured > 500 || areaOf !== w.within) {
             const box = el.getBoundingClientRect();
             cx = box.left + box.width / 2; cy = box.top + box.height / 2;
+            area = w.within ? w.within.getBoundingClientRect() : null; areaOf = w.within;
             measured = now;
           }
           moves = pointer.moves; layout = pointer.layout;
-          if (pointer.on) {
+          const a = area;
+          if (!pointer.on) r.stop();
+          else if (!a) {
             const to = lookFor(w.size, pointer.x - cx, cy - pointer.y, Math.max(window.innerWidth, window.innerHeight));
+            r.look(to.x, to.y);
+          } else if (pointer.x >= a.left && pointer.x <= a.right && pointer.y >= a.top && pointer.y <= a.bottom) {
+            const to = lookWithin(w.size, pointer.x - cx, cy - pointer.y, { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy });
             r.look(to.x, to.y);
           } else r.stop();
         } else if (!w.follow && moves !== -2) { r.stop(); moves = -2; }

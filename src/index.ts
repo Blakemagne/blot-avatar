@@ -14,6 +14,6 @@ export { glowFilter, paintEffects, roleColour, type FxPaint } from './paint';
 export { smooth, track } from './engine/ease';
 export { onFrame, onMotion, onSeen, pointer, reducedMotion, ticking, watchPointer } from './ticker';
 export { OVERDRAW, PORTRAIT_FROM, bodyOf, stillState, svgBox } from './still';
-export { LARGE, SMALL, SMALL_LOOK, createLive, lookFor, type Live, type LiveProps } from './live';
+export { LARGE, SMALL, SMALL_LOOK, createLive, lookFor, lookWithin, type Live, type LiveProps, type Reach } from './live';
 export { mount, type MountOptions, type Mounted } from './mount';
 export { writeLayers, type Paint } from './layers';

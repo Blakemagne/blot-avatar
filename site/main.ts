@@ -127,7 +127,7 @@ const FLOURISH = ['delight', 'wink', 'exclaim', 'burst', 'rings', 'recoil'];
 
 const heroSize = (): number => (matchMedia('(max-width: 720px)').matches ? 150 : 220);
 const hero = mount($('[data-avatar="hero"]'), {
-  shape: 'blob', size: heroSize(), color: DEFAULT_COLOUR, follow: true, pokeable: true, label: 'the avatar', seed: 3, clips,
+  shape: 'blob', size: heroSize(), color: DEFAULT_COLOUR, follow: true, followIn: $('.hero-stage'), pokeable: true, label: 'the avatar', seed: 3, clips,
 });
 matchMedia('(max-width: 720px)').addEventListener('change', () => hero.update({ size: heroSize() }));
 
@@ -141,7 +141,7 @@ const options = (): MountOptions => ({
   shape: pg.shape, size: pg.size, color: pg.color, eyeFill: pg.eyes ?? undefined, face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT,
 });
-const bot = mount($('[data-avatar="play"]'), { ...options(), pokeable: true, label: 'the playground avatar', seed: 7, clips });
+const bot = mount($('[data-avatar="play"]'), { ...options(), followIn: $('[data-stage]'), pokeable: true, label: 'the playground avatar', seed: 7, clips });
 
 /** A row of buttons, one pressed. */
 function chips(box: HTMLElement, values: readonly (string | null)[], now: () => string | null, pick: (v: string | null) => void, name = (v: string | null) => v ?? 'none'): () => void {
@@ -316,14 +316,15 @@ writeCode();
       $('#play').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
     });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: shape }), pick));
-    mount(slot, { shape, size: 72, color: COLOURS[i % 6][0], follow: true, pokeable: true, label: shape, seed: 100 + i });
+    mount(slot, { shape, size: 72, color: COLOURS[i % 6][0], follow: true, followIn: slot.closest('li'), pokeable: true, label: shape, seed: 100 + i });
   });
 
   const sizes = $('[data-sizes]');
   [22, 32, 48, 64, 96, 128].forEach((size, i) => {
     const slot = make('div', { className: 'size-avatar' });
-    sizes.append(make('li', {}, slot, make('span', { textContent: `${size} px` })));
-    mount(slot, { shape: 'star', size, color: DEFAULT_COLOUR, follow: true, pokeable: size >= 64, label: `the ${size} px star`, seed: 200 + i });
+    const cell = make('li', {}, slot, make('span', { textContent: `${size} px` }));
+    sizes.append(cell);
+    mount(slot, { shape: 'star', size, color: DEFAULT_COLOUR, follow: true, followIn: cell, pokeable: size >= 64, label: `the ${size} px star`, seed: 200 + i });
   });
 }
 
@@ -331,7 +332,7 @@ writeCode();
 
 {
   const jac = mount($('[data-avatar="jacrispy"]'), {
-    shape: 'jacrispy', body: JACRISPY, size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, pokeable: true, label: 'jacrispy', seed: 11, clips,
+    shape: 'jacrispy', body: JACRISPY, size: 220, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, followIn: $('[data-avatar="jacrispy"]').closest('.stage'), pokeable: true, label: 'jacrispy', seed: 11, clips,
   });
   const now = { mood: 'neutral' as string | null, pose: 'rest' as string | null, body: 'jacrispy' as string | null, doing: 'idle' as string | null };
   const syncs: (() => void)[] = [];
@@ -381,7 +382,7 @@ writeCode();
   others.forEach((id, i) => {
     const slot = make('div', { className: 'gallery-avatar' });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: id })));
-    const one = mount(slot, { shape: id, body: faced[id], size: 72, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, label: `${id} with jacrispy's face`, seed: 300 + i, clips });
+    const one = mount(slot, { shape: id, body: faced[id], size: 72, color: JACRISPY_COLOUR, eyeFill: JACRISPY_EYE, follow: true, followIn: slot.closest('li'), label: `${id} with jacrispy's face`, seed: 300 + i, clips });
     let next = i;
     slot.addEventListener('click', () => {
       const m = JACRISPY_MOODS[JACRISPY_MOOD_NAMES[next++ % JACRISPY_MOOD_NAMES.length]];

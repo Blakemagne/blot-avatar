@@ -250,3 +250,47 @@ test('under reduced motion a new face, activity or mark redraws the still pictur
     a.detach();
   } finally { prefer(false); }
 });
+
+test('lookWithin: each edge of the area is a full look that way, a small avatar takes its share, and no look is longer than 1', async () => {
+  const { lookWithin, LARGE, SMALL_LOOK } = await import('./live.ts');
+  const reach = { left: 100, right: 300, up: 50, down: 200 };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  // At the edge it is a full look, however far that edge is.
+  assert.ok(near(lookWithin(LARGE, 300, 0, reach).x, 1) && near(lookWithin(LARGE, -100, 0, reach).x, -1));
+  assert.ok(near(lookWithin(LARGE, 0, 50, reach).y, 1) && near(lookWithin(LARGE, 0, -200, reach).y, -1));
+  // Halfway to an edge is further than half a look (eased), and a small one turns only its share.
+  const half = lookWithin(LARGE, 150, 0, reach).x;
+  assert.ok(half > 0.5 && half < 1, `halfway: ${half}`);
+  assert.ok(near(lookWithin(LARGE - 1, 300, 0, reach).x, SMALL_LOOK));
+  // On its middle it looks ahead; in a corner the look keeps its direction and is 1 long at most.
+  assert.deepEqual(lookWithin(LARGE, 0, 0, reach), { x: 0, y: 0 });
+  const corner = lookWithin(LARGE, 300, 50, reach);
+  assert.ok(Math.hypot(corner.x, corner.y) <= 1 + 1e-9 && near(corner.x, corner.y), `corner: ${corner.x}, ${corner.y}`);
+  // An edge on its own middle is not a division by nothing.
+  const flat = lookWithin(LARGE, 5, 0, { left: 0, right: 0, up: 0, down: 0 });
+  assert.ok(Number.isFinite(flat.x) && flat.x > 0);
+});
+
+test('with followIn it follows the pointer only while the pointer is inside that element', async () => {
+  const { pointer } = await import('./ticker.ts');
+  globalThis.window = { addEventListener() {}, innerWidth: 1600, innerHeight: 900 };
+  globalThis.document.documentElement = { addEventListener() {} };
+  // The avatar's box is 0..72 (middle 36, 36); the card round it is 0..200 by 0..150.
+  const card = { getBoundingClientRect: () => ({ left: 0, top: 0, right: 200, bottom: 150, width: 200, height: 150 }) };
+  const { live, el, detach } = mounted({ shape: 'blob', size: 72, follow: true, followIn: card, seed: 1 });
+  see(el, true);
+  const move = (x, y) => { pointer.x = x; pointer.y = y; pointer.on = true; pointer.moves++; };
+  let now = 1000;
+  const run = (ms) => { for (const end = now + ms; now < end; now += 16) pump(now); };
+  // Inside the card, to its right: it looks right.
+  move(190, 36);
+  run(1500);
+  const inside = live.rig.state.eye.x;
+  assert.ok(inside > 0.3, `inside the card it looks toward the pointer: ${inside}`);
+  // Out of the card, far to the right on the page: it looks ahead again, not at the pointer.
+  move(1500, 36);
+  run(2500);
+  const outside = live.rig.state.eye.x;
+  assert.ok(Math.abs(outside) < 0.15, `outside the card it looks ahead: ${outside}`);
+  detach();
+});

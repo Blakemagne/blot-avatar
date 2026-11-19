@@ -233,7 +233,7 @@ From `@blot/avatar`:
 - **The rig.** `new Rig({ seed, body, pose, rest, clips, personality })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `visit(body, stay)`, `setActivity(activity, form)`, `setMark`, `setPersonality`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `MANNERS`, `mannerFor`, `PERSONALITY`, `ACTIVITY_FACES`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
 - **Clips.** `CLIPS`, `POKES`, `CUES`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
-- **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `SMALL`, `LARGE`, `SMALL_LOOK`.
+- **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
 - **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality` and `accent` (the effects' colour).
 
 From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box.
@@ -263,6 +263,8 @@ The package is TypeScript source, so the page needs a bundler that compiles it. 
   // later: bot.update({ activity: 'thinking' }); bot.destroy();
 </script>
 ```
+
+`follow: true` watches the pointer anywhere on the page. To keep it to a card or a panel, also pass `followIn: card`: the avatar then follows the pointer only while it is inside that element, its edges are a full look, and outside it the avatar looks ahead again.
 
 `mount` makes the host a box of `size` px (and `position: relative` if it was static) and puts an svg in it that the drawing overflows. `destroy()` takes it all out again and puts the host's style back, and its own `role`, `tabindex` and `aria-label` if a pokeable avatar covered them. Mount into an element that is already in the document (its position is read from the page's CSS), and one avatar per element: a second `mount` on the same one throws until the first is destroyed.
 
