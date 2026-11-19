@@ -29,6 +29,17 @@ export interface LiveProps {
    * as a full look. Outside it, the avatar looks ahead again as it does when the pointer leaves the page.
    */
   followIn?: Element | null;
+  /**
+   * With `follow`: how many px off the pointer is when the look is full (unset: NEAR for one of LARGE px and up,
+   * half the window for a smaller one). Shorter is keener: it turns sooner. Not used with `followIn`, whose
+   * edges are the reach.
+   */
+  followReach?: number;
+  /**
+   * With `follow`: how far it turns at most, 0..1 of a full look (unset: 1 from LARGE px up, SMALL_LOOK under it,
+   * where a full look is a profile that a small avatar loses its face in).
+   */
+  followMost?: number;
   /** What it is doing (the engine's ACTIVITIES); none is idle. */
   activity?: string;
   /** A loading figure the body turns into while it thinks or works (the engine's FORMS); none, and it is a body. */
@@ -99,17 +110,25 @@ const unit = (v: number): number => Math.max(-1, Math.min(1, v));
  * takes half the window (it watches the pointer cross the page instead of sitting turned away), and it only
  * ever turns part of the way.
  */
-export function lookFor(size: number, dx: number, dy: number, span: number): { x: number; y: number } {
-  if (size >= LARGE) {
+export function lookFor(size: number, dx: number, dy: number, span: number, feel: Feel = {}): { x: number; y: number } {
+  const most = most01(feel.most, size);
+  if (size >= LARGE || feel.reach !== undefined) {
     // The distance is eased and the direction kept: a pointer far off up and to the right is a full look up
     // and to the right, not a look into the corner. (Each axis eased by itself sent every far pointer there.)
     // (`|| 0`: the pointer on its very middle has no direction, and a zero is never a negative one.)
-    const d = Math.hypot(dx, dy), e = eased(d / NEAR);
+    const d = Math.hypot(dx, dy), e = eased(d / Math.max(1, feel.reach ?? NEAR)) * most;
     return { x: (dx / d) * e || 0, y: (dy / d) * e || 0 };
   }
   const far = Math.max(400, span / 2);
-  return { x: unit(dx / far) * SMALL_LOOK, y: unit(dy / far) * SMALL_LOOK };
+  return { x: unit(dx / far) * most, y: unit(dy / far) * most };
 }
+
+/** How a follow feels (LiveProps.followReach and followMost): how far off is a full look, and how far it turns at most. */
+export interface Feel { reach?: number; most?: number }
+
+/** How far an avatar of `size` px turns at most: `most` when it is a number (kept to 0..1), else its size's own. */
+const most01 = (most: number | undefined, size: number): number =>
+  typeof most === 'number' && most === most ? Math.max(0, Math.min(1, most)) : size >= LARGE ? 1 : SMALL_LOOK;
 
 /** How far an avatar is from each edge of the area it follows the pointer in, in px. */
 export interface Reach { left: number; right: number; up: number; down: number }
@@ -120,10 +139,10 @@ export interface Reach { left: number; right: number; up: number; down: number }
  * look that way (the share a small avatar takes, SMALL_LOOK, for one under LARGE). As in lookFor, the distance is
  * eased and the direction kept, so its looks lie inside the unit circle.
  */
-export function lookWithin(size: number, dx: number, dy: number, reach: Reach): { x: number; y: number } {
+export function lookWithin(size: number, dx: number, dy: number, reach: Reach, feel: Feel = {}): { x: number; y: number } {
   // (An edge on the avatar's own middle, or past it, is 1 px away: a look toward it is a full one at once.)
   const nx = dx / Math.max(1, dx >= 0 ? reach.right : reach.left), ny = dy / Math.max(1, dy >= 0 ? reach.up : reach.down);
-  const d = Math.hypot(nx, ny), e = eased(d) * (size >= LARGE ? 1 : SMALL_LOOK);
+  const d = Math.hypot(nx, ny), e = eased(d) * most01(feel.most, size);
   return { x: (nx / d) * e || 0, y: (ny / d) * e || 0 };
 }
 
@@ -152,7 +171,7 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
@@ -214,10 +233,10 @@ export function createLive(p: LiveProps): Live {
           const a = area;
           if (!pointer.on) r.stop();
           else if (!a) {
-            const to = lookFor(w.size, pointer.x - cx, cy - pointer.y, Math.max(window.innerWidth, window.innerHeight));
+            const to = lookFor(w.size, pointer.x - cx, cy - pointer.y, Math.max(window.innerWidth, window.innerHeight), w.feel);
             r.look(to.x, to.y);
           } else if (pointer.x >= a.left && pointer.x <= a.right && pointer.y >= a.top && pointer.y <= a.bottom) {
-            const to = lookWithin(w.size, pointer.x - cx, cy - pointer.y, { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy });
+            const to = lookWithin(w.size, pointer.x - cx, cy - pointer.y, { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy }, w.feel);
             r.look(to.x, to.y);
           } else r.stop();
         } else if (!w.follow && moves !== -2) { r.stop(); moves = -2; }

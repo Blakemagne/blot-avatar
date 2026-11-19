@@ -264,7 +264,7 @@ The package is TypeScript source, so the page needs a bundler that compiles it. 
 </script>
 ```
 
-`follow: true` watches the pointer anywhere on the page. To keep it to a card or a panel, also pass `followIn: card`: the avatar then follows the pointer only while it is inside that element, its edges are a full look, and outside it the avatar looks ahead again.
+`follow: true` watches the pointer anywhere on the page. To keep it to a card or a panel, also pass `followIn: card`: the avatar then follows the pointer only while it is inside that element, its edges are a full look, and outside it the avatar looks ahead again. `followReach` is how many px off the pointer is when the look is full (shorter turns sooner), and `followMost` how far it turns at most, 0..1 of a full look; a small avatar keeps to 0.6 unless told otherwise, because a full look at that size is a profile that loses the face.
 
 `mount` makes the host a box of `size` px (and `position: relative` if it was static) and puts an svg in it that the drawing overflows. `destroy()` takes it all out again and puts the host's style back, and its own `role`, `tabindex` and `aria-label` if a pokeable avatar covered them. Mount into an element that is already in the document (its position is read from the page's CSS), and one avatar per element: a second `mount` on the same one throws until the first is destroyed.
 

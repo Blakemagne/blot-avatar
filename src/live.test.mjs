@@ -294,3 +294,23 @@ test('with followIn it follows the pointer only while the pointer is inside that
   assert.ok(Math.abs(outside) < 0.15, `outside the card it looks ahead: ${outside}`);
   detach();
 });
+
+test('followReach and followMost: a shorter reach turns sooner, most caps the turn, and unset is the old look', async () => {
+  const { lookFor, LARGE, SMALL_LOOK } = await import('./live.ts');
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  // Unset, nothing changes: a small one takes SMALL_LOOK at most, half the window off.
+  assert.deepEqual(lookFor(30, 300, 0, 1600, {}), lookFor(30, 300, 0, 1600));
+  assert.ok(near(lookFor(30, 2000, 0, 1600).x, SMALL_LOOK));
+  // A short reach: 160 px off is all of `most`, and halfway is well past half of it.
+  assert.ok(near(lookFor(30, 160, 0, 1600, { reach: 160, most: 0.9 }).x, 0.9));
+  const half = lookFor(30, 80, 0, 1600, { reach: 160, most: 0.9 }).x;
+  assert.ok(half > 0.45 && half < 0.9, `halfway: ${half}`);
+  assert.ok(half > lookFor(30, 80, 0, 1600).x * 3, 'keener than the plain small look');
+  // Most is kept to 0..1, and a reach of nothing is not a division by zero.
+  assert.ok(near(lookFor(LARGE, 5000, 0, 1600, { most: 7 }).x, 1));
+  assert.ok(near(lookFor(LARGE, 5000, 0, 1600, { most: -1 }).x, 0));
+  assert.ok(Number.isFinite(lookFor(30, 10, 10, 1600, { reach: 0 }).x));
+  // The direction is kept: no look is longer than `most`.
+  const d = lookFor(30, 400, 300, 1600, { reach: 160, most: 0.9 });
+  assert.ok(Math.hypot(d.x, d.y) <= 0.9 + 1e-9);
+});

@@ -109,16 +109,19 @@ function play(bot: Mounted, m: Move, cue?: { dir?: number; amount?: number }): v
   else bot.play(m.name, cue);
 }
 
-// ---- The logo: a live one in the header. It watches the pointer, opens its eyes wide when the pointer comes to
-// it, and each poke is a move and a flourish (it is a button; Enter and Space poke it too).
+// ---- The logo: a live one in the header. It watches the pointer keenly, all over the page (a short reach and a
+// big turn), opens its eyes wide when the pointer comes to it, and each poke is a move and a flourish (it is a
+// button; Enter and Space poke it too).
 
 const LOGO_SIZE = 30;
+/** The logo's look is full this many px off, and turns this far at most. */
+const LOGO_REACH = 160, LOGO_MOST = 0.9;
 /** What each poke adds to the spin, nod or hop, in turn. */
 const FLOURISH = ['delight', 'wink', 'exclaim', 'burst', 'rings', 'recoil'];
 {
   const host = $('[data-avatar="logo"]');
   const logo = mount(host, {
-    shape: 'blob', size: LOGO_SIZE, color: DEFAULT_COLOUR, follow: true, pokeable: true, label: 'the blot avatar logo', seed: 5, accent: ACCENT,
+    shape: 'blob', size: LOGO_SIZE, color: DEFAULT_COLOUR, follow: true, followReach: LOGO_REACH, followMost: LOGO_MOST, pokeable: true, label: 'the blot avatar logo', seed: 5, accent: ACCENT,
   });
   let next = 0;
   const flourish = () => { if (logo.play(FLOURISH[next])) next = (next + 1) % FLOURISH.length; };
