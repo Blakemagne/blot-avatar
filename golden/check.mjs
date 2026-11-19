@@ -1,7 +1,10 @@
 // The golden check: run frames.mjs on this package's engine, hash what it writes, and compare with
 // frames.sha256. Non-zero exit on a mismatch. (First frozen on the engine before it was moved into this package;
 // frozen again on 18 November 2026, on purpose: faces gained their manners, the blink became deeper and quicker to
-// shut, an idle avatar wanders, and the runs for the new moves, sleep, the mark, a visit and personality were added.)
+// shut, an idle avatar wanders, and the runs for the new moves, sleep, the mark, a visit and personality were added.
+// The state hash was frozen again on 19 November 2026, when every move was rewritten in plain words (moves.ts): the
+// drawn paths did not change, and every channel of every move was compared with the hand-written arithmetic before
+// it over 2.19 million frames, the worst difference 4.4e-16, the last bit of a double.)
 //   npm run golden                     (about 75 s; it writes some 210 MB to the temp folder and deletes it)
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

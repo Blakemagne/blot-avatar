@@ -13,6 +13,7 @@
   "files": ["src", "!src/**/*.test.mjs", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
   "exports": {
     ".": "./src/index.ts",
+    "./moves": "./src/moves.ts",
     "./react": "./src/react.ts"
   },
   "types": "./src/index.ts",

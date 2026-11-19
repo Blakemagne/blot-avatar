@@ -12,7 +12,8 @@
     "noUnusedParameters": true,
     "types": [],
     "paths": {
-      "@blot/avatar": ["./src/index.ts"]
+      "@blot/avatar": ["./src/index.ts"],
+      "@blot/avatar/moves": ["./src/moves.ts"]
     }
   },
   "include": ["src"]

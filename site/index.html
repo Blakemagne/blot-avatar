@@ -123,25 +123,22 @@
     <section id="moves" class="band" aria-labelledby="moves-title">
       <div class="section-head">
         <h2 id="moves-title">Moves are data</h2>
-        <p>A move is a clip: a curve over a fixed time that adds to the pose and ends where it began. These cards are built from the package's list of clips, so a new clip shows up here by itself. The last one, the wave, is not in the package at all: this page brings it in through the <code>clips</code> option.</p>
+        <p>A move is written in plain words: a part of the avatar, what it does, how far, and the shape it takes over the move. These cards are built from the package's list of moves, so a new one shows up here by itself. The last one, the waggle, is not in the package at all: this page writes it in three lines and brings it in through the <code>clips</code> option.</p>
       </div>
       <ul class="moves" data-move-cards></ul>
       <div class="code-panel">
-        <div class="code-head"><span>The wave, written on this page</span><button type="button" class="copy" data-copy="wave-code">Copy</button></div>
-        <pre><code id="wave-code">import { mount, type Clip } from '@blot/avatar';
+        <div class="code-head"><span>The waggle, written on this page</span><button type="button" class="copy" data-copy="wave-code">Copy</button></div>
+        <pre><code id="wave-code">import { mount } from '@blot/avatar';
+import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 
-// A cue is played by name, with a direction (+1 or -1) and an amount (0 to 2).
-// It adds to the pose, and it is nothing at its start and at its end.
-const wave: Clip = {
-  lane: 'cue',
-  ms: 900,
-  apply(o, p) {
-    o.roll += p.cue.dir * p.cue.amount * 0.12 * Math.sin(3 * Math.PI * p.u) * (1 - p.u);
-  },
-};
+// A waggle: a swing and a half from side to side, dying away, the eyes going with it.
+const waggle = cue(900, [
+  head.lean(toward, 7).along(wave(1.5).dwindling()),
+  eyes.glance(toward, 0.15).along(wave(1.5).dwindling()),
+]);
 
-const bot = mount(el, { shape: 'heart', size: 96, clips: { wave } });
-bot.play('wave', { dir: -1 });</code></pre>
+const bot = mount(el, { shape: 'heart', size: 96, clips: { waggle } });
+bot.play('waggle', { dir: -1 });</code></pre>
       </div>
     </section>
 

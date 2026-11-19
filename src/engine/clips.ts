@@ -3,13 +3,21 @@
 // of them in `Channels`, plays each clip at a fixed place in its step, and owns everything that is not a
 // curve over a fixed time (the springs, the random timing, the loops of what the Bot is doing).
 //
-// To add a move: an entry in CLIPS (or, from outside this package, in RigOptions.clips). It may read only
-// what `View` gives it and what it was started with; it draws no random numbers.
+// To add a move: an entry in CLIPS (or, from outside this package, in RigOptions.clips), written in plain words
+// with moves.ts (`cue`, `head.lean`, `beats`, ...). It may read only what `View` gives it and what it was started
+// with; it draws no random numbers.
 
 import { smooth, track } from './ease';
 import { BLINK_HEIGHT } from './faces';
+import { PERSONALITY, TAU } from './feel';
 import type { Fx } from './fx';
 import { deg } from './math';
+import {
+  beats, body, byHand, cue, exclamation, eyes, flight, head, hold, hump, move, orbits, peak, poke, pulse, snapBack, sparks,
+  sparksAllRound, speedLines, surge, toward, away, wave, wobble,
+} from './moves';
+
+export { PERSONALITY, TAU, bump, give, high, ring } from './feel';
 
 /** What one frame of moves adds to the springs' pose. The rig resets it every step. */
 export interface Channels {
@@ -46,7 +54,6 @@ export interface Channels {
  * wobbly one rings after it lands; one that flares glows as it moves; one that floats hovers off the ground.
  */
 export interface Personality { weight: number; squash: number; wobble: number; flare: number; float: number }
-export const PERSONALITY: Readonly<Personality> = { weight: 0.5, squash: 0.5, wobble: 0.5, flare: 0, float: 0 };
 
 /**
  * What a clip may read: the body's turn from its spring (before any clip), the room a look has left,
@@ -113,7 +120,6 @@ export const BLINK_MS = 150;
 export const WAIT_NOD = deg(7), WAIT_NOD_MS = 460;
 /** A change of shape: the eyes shrink to dots and come back over this long. */
 export const DOTS_MS = 420;
-export const TAU = 2 * Math.PI;
 /** A shake of the head, "no" or "can't do that": how long, how far it turns and leans, and how far the eyes go. */
 export const SHAKE_MS = 700, SHAKE_YAW = deg(16), SHAKE_ROLL = deg(2), SHAKE_EYES = 0.3;
 /** A bounce, "done!": how long, and how high the first hop goes (body units; the second is a little over half that). */
@@ -121,34 +127,10 @@ export const BOUNCE_MS = 720, BOUNCE_HEIGHT = 0.26;
 /** A tilt of the head, "hm?": how long, start to back, and how far it leans. */
 export const TILT_MS = 1100, TILT_ROLL = deg(10);
 
-/** The engine's own feel, for a clip read without one. */
-const feel = (v: View): Readonly<Personality> => v.feel ?? PERSONALITY;
-/** How much further every squash and stretch goes: 1 at the engine's own feel, 0.4 for a body that hardly gives, 1.6 for one that is all give. */
-export const give = (f: Readonly<Personality>): number => 0.4 + 1.2 * f.squash;
-/** How high it goes: 1 at the engine's own feel, 1.5 for the lightest body, 0.5 for the heaviest. */
-export const high = (f: Readonly<Personality>): number => 1.5 - f.weight;
-/**
- * The ring of a wobbly body after it lands, `ms` after the landing, faded out by `left` (what is left of the
- * clip, 0..1): nothing at the engine's own feel or less, a few quick swings that die away above it.
- */
-export function ring(f: Readonly<Personality>, ms: number, left: number): number {
-  const w = Math.max(0, f.wobble - 0.5) * 2;
-  if (w === 0) return 0;
-  const t = ms / 1000;
-  return 0.07 * w * Math.exp(-(9 - 4 * w) * t) * Math.sin(TAU * (3.2 + 1.5 * (1 - f.weight)) * t) * smooth(left / 0.15);
-}
-/** A soft bump: 0 away from `at`, 1 at it, over `wide` each side. */
-export const bump = (u: number, at: number, wide: number): number => Math.max(0, 1 - ((u - at) / wide) ** 2) ** 2;
 /** A blink is shut this far through it: it shuts quickly and opens again more slowly. */
 export const BLINK_SHUT = 0.42;
 /** How far shut a blink is, 0..1, through it. */
 export const blinkCurve = (u: number): number => (u < BLINK_SHUT ? Math.sin((Math.PI / 2) * (u / BLINK_SHUT)) ** 2 : Math.sin((Math.PI / 2) * ((1 - u) / (1 - BLINK_SHUT))) ** 2);
-/** A damped swing that starts at nothing: `t` seconds in, `hz` swings a second, dying away at `decay` per second. */
-const swing = (t: number, hz: number, decay: number): number => Math.exp(-decay * t) * Math.sin(2 * Math.PI * hz * t);
-/** A thrown ball's arc between u = a and u = b: 0 at both, 1 in the middle. */
-const arc = (u: number, a: number, b: number): number => (u > a && u < b ? 4 * ((u - a) / (b - a)) * (1 - (u - a) / (b - a)) : 0);
-/** Push an effect for this frame. */
-const show = (o: Channels, kind: Fx['kind'], u: number, dir = 1, amount = 1, t = 0): void => { o.fx.push({ kind, u, t, dir, amount }); };
 
 /** The new moves: how long each takes, in ms. */
 export const DELIGHT_MS = 1000, JOLT_MS = 560, WINK_MS = 900, WIDE_MS = 1400, ALERT_MS = 1000, RECOIL_MS = 1000, LEAN_MS = 1600,
@@ -168,6 +150,37 @@ export function spinCurve(u: number): number {
   return e;
 }
 
+// ---- The moves, in plain words (moves.ts). Times are percent of the move; sizes are degrees, percent, body units
+// or shares of a full look. A few are written by hand (`byHand`): the ones whose arithmetic is not a size times a
+// shape, such as the spin's half turn.
+
+// The nod: down quickly, back up a little past level, and settle. The eyes drop first, and the body gives a
+// little as it dips, so that a body whose outline hardly changes with pitch still visibly nods.
+const nodding = beats('1 by 30%, -0.16 by 70%, 0 by 100%');
+// The hop: squash, spring up long, hang, come down long, squash on landing, settle. The flight is a thrown ball's
+// (not eased): that is what makes it a hop and not a slide. A heavy body goes less high, one that gives more
+// stretches further, a wobbly one rings after it lands, one that flares glows.
+const hopping = beats('-0.11 by 17%, 0.11 by 30%, 0.02 by 47%, 0.07 by 66%, -0.12 by 79%, 0.03 by 90%, 0 by 100%');
+// The shake: four half-swings, each smaller than the last (about 14, 10, 6 and 2 degrees), so three of them read
+// as a shake and not a twitch. The eyes lead.
+const shaking = wave(2).dwindling().fadeIn(10);
+// The tilt: a quick lean a touch too far, a settle back, a hold of about a third of a second, and back; the eyes
+// go up and a little that way first, a beat ahead.
+const tilting = beats('1.12 by 20%, 1 by 36%, hold till 70%, 0 by 100%'), tiltEyes = beats('1 by 14%, hold till 64%, 0 by 94%');
+const happy = beats('1 by 12%, hold till 75%, 0 by 100%');
+const winking = hold({ by: 20, till: 60 });
+const wideOpen = beats('0 by 12%, 1 by 30%, hold till 72%, 0 by 100%');
+const startled = beats('1 by 14%, 0.15 by 38%, 0 by 70%');
+const jumpBack = beats('1 by 10%, 0.8 by 50%, 0 by 100%'), staring = hold({ by: 6, till: 60 });
+const leaning = beats('1.1 by 22%, 1 by 34%, hold till 74%, 0 by 100%');
+const tugged = snapBack(7).fadeOut(85);
+const surging = surge(15, { dies: 4 }).fadeOut(85);
+const afloat = hold({ by: 22, till: 78 }), bobbing = afloat.times(wave(2));
+const glancing = beats('1 by 10%, hold till 72%, 0 by 90%'), following = hold({ by: 25, till: 78 });
+const exclaiming = hold({ by: 18, till: 80 });
+const squeezed = beats('1 by 22%, 0 by 27%');
+const shown = hold({ by: 12, till: 82 });
+
 /** Every clip the rig knows, in an order that matters: the pokes play in this order, and cues compose in it. */
 export const CLIPS: {
   readonly spin: Clip; readonly nod: Clip; readonly hop: Clip; readonly pop: Clip; readonly blink: Clip; readonly waitNod: Clip; readonly dots: Clip;
@@ -177,291 +190,213 @@ export const CLIPS: {
   readonly settle: Clip; readonly flare: Clip; readonly float: Clip; readonly look: Clip; readonly exclaim: Clip; readonly burst: Clip;
   readonly comet: Clip; readonly rings: Clip; readonly rock: Clip;
 } = {
-  spin: {
-    lane: 'poke', ms: POKE_MS.spin,
-    apply(o, p, v) {
-      const u = p.u, d = p.cue.dir;
-      // Half a turn. Past edge-on the far side of the body is the same body, so the turn carries on as the
-      // front coming round from the other side: the yaw steps back by half a turn and ends where it began.
-      const e = spinCurve(u);
-      o.yaw = Math.PI * d * (d * (v.yaw + Math.PI * d * e) > Math.PI / 2 ? e - 1 : e);
-      // The eyes shrink away as the face goes round the edge and grow back as it comes round the other
-      // side, so no frame has an eye on each side: gone by about 66 degrees, whole inside 41. (Eased in and
-      // out at the two ends of the poke, for a spin that starts from a body already turned that far.)
+  // Half a turn. Past edge-on the far side of the body is the same body, so the turn carries on as the front
+  // coming round from the other side: the yaw steps back by half a turn and ends where it began. The eyes shrink
+  // away as the face goes round the edge and grow back as it comes round the other side, so no frame has an eye
+  // on each side: gone by about 66 degrees, whole inside 41 (eased in and out at the two ends of the poke, for a
+  // spin that starts from a body already turned that far).
+  spin: poke(POKE_MS.spin, [
+    byHand((o, p, v) => {
+      const u = p.u, d = p.cue.dir, e = spinCurve(u);
+      o.yaw += Math.PI * d * (d * (v.yaw + Math.PI * d * e) > Math.PI / 2 ? e - 1 : e);
       o.eyeScale *= 1 - (1 - smooth((Math.abs(Math.cos(v.yaw + o.yaw)) - 0.4) / 0.35)) * smooth(Math.min(u, 1 - u) / 0.12);
-    },
-  },
-  nod: {
-    lane: 'poke', ms: POKE_MS.nod,
-    apply(o, p, v) {
-      const u = p.u;
-      // Down quickly, back up a little past level, and settle. The eyes drop first, and the body gives a
-      // little as it dips, so that a body whose outline hardly changes with pitch still visibly nods.
-      const dip = track([0, 0, 0.3, 1, 0.7, -0.16, 1, 0], u);
-      o.pitch = -NOD * dip;
-      o.stretch = 1 - NOD_SQUASH * give(feel(v)) * dip;
-      o.eyeY = -0.45 * track([0, 0, 0.16, 1, 0.55, 0, 1, 0], u);
-    },
-  },
-  hop: {
-    lane: 'poke', ms: POKE_MS.hop,
-    apply(o, p, v) {
-      const u = p.u, f = feel(v);
-      // Squash, spring up long, hang, come down long, squash on landing, settle. The flight is a thrown
-      // ball's (not eased): that is what makes it a hop and not a slide. A heavy body goes less high, one
-      // that squashes more stretches further, a wobbly one rings after it lands, one that flares glows.
-      o.stretch = 1 + (track(HOP_STRETCH, u) - 1) * give(f);
-      if (u > HOP_UP && u < HOP_DOWN) { const q = (u - HOP_UP) / (HOP_DOWN - HOP_UP); o.lift = HOP_HEIGHT * high(f) * 4 * q * (1 - q); }
-      o.eyeY = track([0, 0, 0.14, -0.3, 0.36, 0.5, 0.6, 0, 0.8, -0.35, 1, 0], u);
-      if (u > HOP_DOWN) o.stretch *= 1 + ring(f, (u - HOP_DOWN) * p.ms, 1 - u);
-      if (f.flare > 0) o.glow += f.flare * (bump(u, 0.12, 0.12) + bump(u, HOP_DOWN, 0.12));
-    },
-  },
-  pop: {
-    lane: 'pop', ms: POP_MS,
-    apply(o, p) {
-      // Up and back, a little under, and settled; a pop that replaced one still showing starts where that one was.
-      o.scale *= 1 + POP * p.cue.amount * track([0, 0, 0.3, 1, 0.62, -0.18, 1, 0], p.u) + p.cue.from * (1 - smooth(p.at / 90));
-    },
-  },
-  blink: {
-    lane: 'blink', ms: BLINK_MS,
-    apply(o, p) {
-      o.open = (1 - (1 - BLINK_HEIGHT) * blinkCurve(p.u)) * o.open;
-    },
-  },
-  waitNod: {
-    lane: 'wait', ms: WAIT_NOD_MS,
-    apply(o, p) {
-      o.pitch -= WAIT_NOD * track([0, 0, 0.34, 1, 0.74, -0.12, 1, 0], p.u);
-    },
-  },
-  dots: {
-    lane: 'change', ms: DOTS_MS,
-    apply(o, p) {
-      // The eyes are dots through the middle of a change of shape. (From where they were: if the eyes are
-      // already dots from a change that was under way, they stay dots.)
+    }, 'the spin'),
+  ]),
+  nod: poke(POKE_MS.nod, [
+    head.dip(16).along(nodding),
+    body.squash(5).along(nodding),
+    eyes.down(0.45).along(beats('1 by 16%, 0 by 55%')),
+  ]),
+  hop: poke(POKE_MS.hop, [
+    body.stretch(100).along(hopping),
+    body.jump(HOP_HEIGHT).along(flight(19, 74)),
+    eyes.up(1).along(beats('-0.3 by 14%, 0.5 by 36%, 0 by 60%, -0.35 by 80%, 0 by 100%')),
+    body.ringsOutAfter(74),
+    body.flares(1).along(peak(12, 12)).and.flares(1).along(peak(74, 12)),
+  ]),
+  // Up and back, a little under, and settled; a pop that replaced one still showing starts where that one was.
+  pop: move('pop', POP_MS, {}, [
+    byHand((o, p) => { o.scale *= 1 + POP * p.cue.amount * track([0, 0, 0.3, 1, 0.62, -0.18, 1, 0], p.u) + p.cue.from * (1 - smooth(p.at / 90)); }, 'the pop'),
+  ]),
+  blink: move('blink', BLINK_MS, {}, [
+    byHand((o, p) => { o.open = (1 - (1 - BLINK_HEIGHT) * blinkCurve(p.u)) * o.open; }, 'the blink'),
+  ]),
+  waitNod: move('wait', WAIT_NOD_MS, {}, [
+    head.dip(7).along(beats('1 by 34%, -0.12 by 74%, 0 by 100%')),
+  ]),
+  // The eyes are dots through the middle of a change of shape. (From where they were: if the eyes are already dots
+  // from a change that was under way, they stay dots.)
+  dots: move('change', DOTS_MS, {}, [
+    byHand((o, p) => {
       const at = p.at, from = p.cue.from;
       o.dot = Math.max(o.dot, at < 150 ? from + (1 - from) * smooth(at / 150) : at < 250 ? 1 : 1 - smooth((at - 250) / 170));
-    },
-  },
-  // The cues: moves anyone may play. Each only adds to what is there or scales it, starts and ends at
-  // nothing, and turns the body only in the room a look has left (v.room), so a ball held at a full look
-  // keeps its far eye.
-  shake: {
-    lane: 'cue', ms: SHAKE_MS,
-    apply(o, p, v) {
-      const u = p.u, k = p.cue.dir * p.cue.amount * (1 - u) * smooth(u / 0.1), w = Math.sin(4 * Math.PI * u);
-      // Four half-swings, each smaller than the last (about 14, 10, 6 and 2 degrees), so three of them read
-      // as a shake and not a twitch. The eyes lead.
-      o.yaw += k * SHAKE_YAW * v.room * w;
-      o.roll += k * SHAKE_ROLL * w;
-      o.eyeX += k * SHAKE_EYES * Math.sin(4 * Math.PI * u + 0.6);
-    },
-  },
-  bounce: {
-    lane: 'cue', ms: BOUNCE_MS,
-    apply(o, p, v) {
-      const u = p.u, a = p.cue.amount, f = feel(v), h = a * high(f);
-      // A squash, a big hop, a squash, a smaller hop, a settle; the eyes go up with each hop and narrow a little, smiling.
-      o.stretch *= 1 + a * give(f) * track([0, 0, 0.08, -0.08, 0.18, 0.08, 0.4, 0, 0.5, -0.06, 0.58, 0.05, 0.78, 0, 0.86, -0.04, 1, 0], u);
-      if (u > 0.1 && u < 0.46) { const q = (u - 0.1) / 0.36; o.lift += h * BOUNCE_HEIGHT * 4 * q * (1 - q); }
-      else if (u > 0.54 && u < 0.84) { const q = (u - 0.54) / 0.3; o.lift += h * 0.55 * BOUNCE_HEIGHT * 4 * q * (1 - q); }
-      o.eyeY += a * track([0, 0, 0.2, 0.25, 0.45, 0, 0.62, 0.18, 0.85, 0, 1, 0], u);
-      o.open *= 1 - 0.2 * a * Math.sin(Math.PI * u) ** 2;
-    },
-  },
-  tilt: {
-    lane: 'cue', ms: TILT_MS,
-    apply(o, p, v) {
-      const u = p.u, d = p.cue.dir, a = p.cue.amount;
-      // The eyes go up and a little that way first, and the head follows: a quick lean a touch too far, a
-      // settle back, a hold of about a third of a second, and back, the eyes a beat ahead again.
-      const k = a * track([0, 0, 0.2, 1.12, 0.36, 1, 0.7, 1, 1, 0], u), e = a * track([0, 0, 0.14, 1, 0.64, 1, 0.94, 0], u);
-      o.roll += d * TILT_ROLL * k;
-      o.eyeY += 0.18 * e;
-      o.eyeX += d * 0.12 * v.room * e;
-    },
-  },
+    }, 'the dots'),
+  ]),
+  // The cues: moves anyone may play.
+  shake: cue(SHAKE_MS, [
+    head.turn(toward, 16).along(shaking),
+    head.lean(toward, 2).along(shaking),
+    // (The eyes are not held to the room a look has left, as they never were.)
+    eyes.glance(toward, SHAKE_EYES).along(wave(2, { ahead: 0.6 / TAU }).dwindling().fadeIn(10)).ignoringRoom(),
+  ]),
+  // A bounce, "done!": a squash, a big hop, a squash, a smaller hop, a settle; the eyes go up with each hop and
+  // narrow a little, smiling.
+  bounce: cue(BOUNCE_MS, [
+    body.stretch(100).along(beats('-0.08 by 8%, 0.08 by 18%, 0 by 40%, -0.06 by 50%, 0.05 by 58%, 0 by 78%, -0.04 by 86%, 0 by 100%')),
+    body.jump(BOUNCE_HEIGHT).along(flight(10, 46)),
+    body.jump(0.55 * BOUNCE_HEIGHT).along(flight(54, 84)),
+    eyes.up(1).along(beats('0.25 by 20%, 0 by 45%, 0.18 by 62%, 0 by 85%')),
+    eyes.narrow(20).along(hump()),
+  ]),
+  // A tilt of the head, "hm?".
+  tilt: cue(TILT_MS, [
+    head.lean(toward, 10).along(tilting),
+    eyes.up(0.18).along(tiltEyes),
+    eyes.glance(toward, 0.12).along(tiltEyes),
+  ]),
   // Delight: stretched up and off the ground, the eyes turned to happy arches, sparks thrown up.
-  delight: {
-    lane: 'cue', ms: DELIGHT_MS,
-    apply(o, p, v) {
-      const u = p.u, f = feel(v), happy = Math.min(1, p.cue.amount) * track([0, 0, 0.12, 1, 0.75, 1, 1, 0], u);
-      o.stretch *= 1 + 0.1 * give(f) * Math.min(1, p.cue.amount) * track([0, 0, 0.1, -0.4, 0.22, 1, 0.45, -0.3, 0.7, 0.1, 1, 0], u);
-      o.lift += 0.1 * high(f) * Math.min(1, p.cue.amount) * arc(u, 0.12, 0.6);
-      o.arc += 0.9 * happy; o.open *= 1 - 0.5 * happy;
-      o.eyeY += 0.2 * happy;
-      if (u > 0.14 && u < 0.95 && p.cue.amount > 0) show(o, 'spray', (u - 0.14) / 0.81, p.cue.dir, Math.min(1, p.cue.amount));
-      if (f.flare > 0) o.glow += f.flare * bump(u, 0.25, 0.25);
-    },
-  },
-  // The rig's own: the jolt of a face coming on. Up (amount > 0: a pop of surprise), or a flinch down and
-  // back (amount < 0), springing back past where it was and settling.
-  kick: {
-    lane: 'mood', ms: JOLT_MS,
-    apply(o, p) {
-      const a = p.cue.amount * p.cue.dir, t = (p.u * p.ms) / 1000, k = (swing(t, 2.2, 6) / 0.72) * (1 - smooth((p.u - 0.8) / 0.2));
+  delight: cue(DELIGHT_MS, { amountUpTo: 1 }, [
+    body.stretch(10).along(beats('-0.4 by 10%, 1 by 22%, -0.3 by 45%, 0.1 by 70%, 0 by 100%')),
+    body.jump(0.1).along(flight(12, 60)),
+    eyes.smile(0.9).along(happy),
+    eyes.narrow(50).along(happy),
+    eyes.up(0.2).along(happy),
+    sparks().during(14, 95),
+    // (The glow is as big however hard it is played, as it always was.)
+    body.flares(1).along(peak(25, 25)).ignoringAmount(),
+  ]),
+  // The rig's own: the jolt of a face coming on. Up (amount > 0: a pop of surprise), or a flinch down and back
+  // (amount < 0), springing back past where it was and settling.
+  kick: move('mood', JOLT_MS, {}, [
+    byHand((o, p) => {
+      const a = p.cue.amount * p.cue.dir, t = (p.u * p.ms) / 1000;
+      const k = ((Math.exp(-6 * t) * Math.sin(2 * Math.PI * 2.2 * t)) / 0.72) * (1 - smooth((p.u - 0.8) / 0.2));
       o.lift += a * k;
       if (a < 0) { o.scale *= 1 + 0.6 * a * Math.abs(k); o.pitch += deg(60) * -a * k; }
       else o.stretch *= 1 + 1.2 * a * k;
-    },
-  },
-  // The cues that follow are new moves anyone may play, under the same rules as the three above.
-  wink: {
-    lane: 'cue', ms: WINK_MS,
-    apply(o, p, v) {
-      // One eye shuts quickly and holds, and opens; the head leans a little that way and comes up.
-      const u = p.u, d = p.cue.dir, a = Math.min(1, p.cue.amount);
-      const shut = a * track([0, 0, 0.14, 1, 0.55, 1, 0.8, 0, 1, 0], u), k = a * track([0, 0, 0.2, 1, 0.6, 1, 1, 0], u);
-      if (d > 0) o.winkR += shut; else o.winkL += shut;
-      o.roll += d * deg(6) * k; o.lift += 0.02 * k; o.eyeY += 0.08 * k; o.eyeX += d * 0.06 * v.room * k;
-    },
-  },
-  wide: {
-    lane: 'cue', ms: WIDE_MS,
-    apply(o, p, v) {
-      // A squint, then the eyes go wide and round, and it draws itself up.
-      const u = p.u, a = p.cue.amount, f = feel(v);
-      const w = a * track([0, 0, 0.12, 0, 0.3, 1, 0.72, 1, 1, 0], u), sq = a * track([0, 0, 0.07, 1, 0.18, 0, 1, 0], u);
-      o.open *= (1 - 0.35 * sq) * (1 + 0.12 * w); o.eyeScale *= 1 + 0.28 * w;
-      o.stretch *= 1 + 0.035 * give(f) * w; o.lift += 0.03 * w; o.eyeY += 0.1 * w;
-    },
-  },
-  alert: {
-    lane: 'cue', ms: ALERT_MS,
-    apply(o, p, v) {
-      // Up sharply and taller, eyes open, then settled; a pulse of its own outline goes out from it.
-      const u = p.u, a = p.cue.amount, f = feel(v), up = a * track([0, 0, 0.14, 1, 0.38, 0.15, 0.7, 0, 1, 0], u);
-      o.lift += 0.09 * high(f) * up;
-      o.stretch *= 1 + 0.07 * give(f) * up - 0.04 * give(f) * a * bump(u, 0.45, 0.12);
-      o.open *= 1 + 0.2 * a * track([0, 0, 0.1, 1, 0.75, 1, 1, 0], u); o.eyeY += 0.12 * up;
-      if (u > 0.05 && u < 0.8 && a > 0) show(o, 'pulse', (u - 0.05) / 0.75, 1, Math.min(1, a));
-      if (f.flare > 0) o.glow += a * f.flare * bump(u, 0.15, 0.2);
-    },
-  },
-  recoil: {
-    lane: 'cue', ms: RECOIL_MS,
-    apply(o, p, v) {
-      // Something on one side: it jumps back away from it, eyes wide on it, lands, and settles.
-      const u = p.u, d = p.cue.dir, a = p.cue.amount, f = feel(v);
-      const k = a * track([0, 0, 0.1, 1, 0.5, 0.8, 1, 0], u), e = a * track([0, 0, 0.06, 1, 0.6, 1, 1, 0], u);
-      o.roll -= d * deg(7) * k; o.yaw -= d * deg(10) * v.room * k; o.x -= d * 0.08 * k;
-      o.lift += 0.13 * a * high(f) * arc(u, 0.06, 0.42);
-      o.stretch *= 1 + give(f) * a * (0.08 * bump(u, 0.2, 0.1) - 0.08 * bump(u, 0.48, 0.08));
-      o.eyeScale *= 1 + 0.25 * e; o.open *= 1 + 0.15 * e; o.eyeX += d * 0.3 * v.room * e;
-      if (u > 0.42) o.stretch *= 1 + a * ring(f, (u - 0.42) * p.ms, 1 - u);
-      if (f.flare > 0) o.glow += 0.6 * a * f.flare * bump(u, 0.1, 0.15);
-    },
-  },
-  lean: {
-    lane: 'cue', ms: LEAN_MS,
-    apply(o, p, v) {
-      // A lean to one side, a touch too far, held, and back up.
-      const u = p.u, d = p.cue.dir, k = p.cue.amount * track([0, 0, 0.22, 1.1, 0.34, 1, 0.74, 1, 1, 0], u);
-      o.roll += d * deg(9) * k; o.yaw += d * deg(8) * v.room * k; o.x += d * 0.04 * k; o.eyeX += d * 0.18 * v.room * k; o.pitch += deg(2) * k;
-    },
-  },
-  tug: {
-    lane: 'cue', ms: TUG_MS,
-    apply(o, p, v) {
-      // Pulled one way, sharply, then it springs back past where it was and rings out. The eyes lag behind.
-      const u = p.u, d = p.cue.dir, a = p.cue.amount, f = feel(v), t = ((u - 0.07) * p.ms) / 1000;
-      const jerk = u < 0.07 ? smooth(u / 0.07) : Math.cos(TAU * (2.2 + 1.5 * (1 - f.weight)) * t) * Math.exp(-(2 + 6 * (1 - f.wobble)) * t);
-      const k = a * jerk * (1 - smooth((u - 0.85) / 0.15));
-      o.roll += d * deg(12) * k; o.x += d * 0.08 * k; o.stretch *= 1 - 0.04 * give(f) * Math.abs(k);
-      o.eyeX -= d * 0.2 * v.room * a * track([0, 0, 0.06, 1, 0.3, 0, 1, 0], u);
-    },
-  },
-  settle: {
-    lane: 'cue', ms: SETTLE_MS,
-    apply(o, p, v) {
-      // A wobble that dies away, as if set down a little hard.
-      const f = feel(v), t = (p.u * p.ms) / 1000, w = p.cue.amount * (0.5 + f.wobble) * (1 - smooth((p.u - 0.8) / 0.2));
-      o.roll += p.cue.dir * deg(6) * w * swing(t, 3.2, 4);
-      o.stretch *= 1 - 0.07 * give(f) * w * swing(t, 2.6, 4.5);
-    },
-  },
-  flare: {
-    lane: 'cue', ms: FLARE_MS,
-    apply(o, p, v) {
-      // A surge of glow that flickers and dies away; the body swells with it (one that does not glow still swells).
-      const u = p.u, f = feel(v), k = Math.min(1, p.cue.amount) * smooth(u / 0.15) * Math.exp(-4 * Math.max(0, u - 0.15)) * (1 - smooth((u - 0.85) / 0.15));
+    }, 'the kick'),
+  ]),
+  // One eye shuts quickly and holds, and opens; the head leans a little that way and comes up.
+  wink: cue(WINK_MS, { amountUpTo: 1 }, [
+    eyes.wink(toward).along(hold({ by: 14, till: 55, goneBy: 80 })),
+    head.lean(toward, 6).along(winking),
+    body.rise(0.02).along(winking),
+    eyes.up(0.08).along(winking),
+    eyes.glance(toward, 0.06).along(winking),
+  ]),
+  // A squint, then the eyes go wide and round, and it draws itself up.
+  wide: cue(WIDE_MS, [
+    eyes.narrow(35).along(beats('1 by 7%, 0 by 18%')),
+    eyes.widen(12).along(wideOpen),
+    eyes.grow(28).along(wideOpen),
+    body.stretch(3.5).along(wideOpen),
+    body.rise(0.03).along(wideOpen),
+    eyes.up(0.1).along(wideOpen),
+  ]),
+  // Up sharply and taller, eyes open, then settled; a pulse of its own outline goes out from it.
+  alert: cue(ALERT_MS, [
+    body.jump(0.09).along(startled),
+    body.stretch(7).along(startled).and.squash(4).along(peak(45, 12)),
+    eyes.widen(20).along(beats('1 by 10%, hold till 75%, 0 by 100%')),
+    eyes.up(0.12).along(startled),
+    pulse().during(5, 80),
+    body.flares(1).along(peak(15, 20)).notAtRest('a body that flares is already glowing a little on the first frame (known; kept as it was)'),
+  ]),
+  // Something on one side: it jumps back away from it, eyes wide on it, lands, and settles.
+  recoil: cue(RECOIL_MS, [
+    head.lean(away, 7).along(jumpBack),
+    head.turn(away, 10).along(jumpBack),
+    body.slide(away, 0.08).along(jumpBack),
+    body.jump(0.13).along(flight(6, 42)),
+    body.stretch(8).along(peak(20, 10)).and.squash(8).along(peak(48, 8)),
+    eyes.grow(25).along(staring),
+    eyes.widen(15).along(staring),
+    eyes.glance(toward, 0.3).along(staring),
+    body.ringsOutAfter(42),
+    body.flares(0.6).along(peak(10, 15)).notAtRest('a body that flares is already glowing a little on the first frame (known; kept as it was)'),
+  ]),
+  // A lean to one side, a touch too far, held, and back up.
+  lean: cue(LEAN_MS, [
+    head.lean(toward, 9).along(leaning),
+    head.turn(toward, 8).along(leaning),
+    body.slide(toward, 0.04).along(leaning),
+    eyes.glance(toward, 0.18).along(leaning),
+    head.raise(2).along(leaning),
+  ]),
+  // Pulled one way, sharply, then it springs back past where it was and rings out. The eyes lag behind.
+  tug: cue(TUG_MS, [
+    head.lean(toward, 12).along(tugged),
+    body.slide(toward, 0.08).along(tugged),
+    body.squash(4).along(tugged.size()),
+    eyes.glance(away, 0.2).along(beats('1 by 6%, 0 by 30%')),
+  ]),
+  // A wobble that dies away, as if set down a little hard.
+  settle: cue(SETTLE_MS, [
+    head.lean(toward, 6).along(wobble(3.2, { dies: 4 }).fadeOut(80).byWobble()),
+    body.squash(7).along(wobble(2.6, { dies: 4.5 }).fadeOut(80).byWobble()),
+  ]),
+  // A surge of glow that flickers and dies away; the body swells with it (one that does not glow still swells).
+  flare: cue(FLARE_MS, { amountUpTo: 1 }, [
+    byHand((o, p, v) => {
+      const f = v.feel ?? PERSONALITY, u = p.u, k = Math.min(1, p.cue.amount) * smooth(u / 0.15) * Math.exp(-4 * Math.max(0, u - 0.15)) * (1 - smooth((u - 0.85) / 0.15));
+      // At most a full glow, flickering six times a second; a body that does not flare still glows a little.
       o.glow += Math.min(1, k * (f.flare > 0 ? f.flare : 0.6) * (1 + 0.12 * Math.sin((TAU * 6 * u * p.ms) / 1000)));
-      o.scale *= 1 + 0.05 * give(f) * k; o.pitch += deg(4) * k; o.open *= 1 + 0.1 * k;
-    },
-  },
-  float: {
-    lane: 'cue', ms: FLOAT_MS,
-    apply(o, p) {
-      // Up off the ground, two slow bobs, and down again.
-      const u = p.u, env = Math.min(1, p.cue.amount) * track([0, 0, 0.22, 1, 0.78, 1, 1, 0], u), bob = Math.sin(TAU * 2 * u);
-      o.lift += env * (0.12 + 0.03 * bob); o.roll += deg(2) * env * bob; o.stretch *= 1 + 0.01 * env * bob;
-    },
-  },
-  look: {
-    lane: 'cue', ms: LOOK_MS,
-    apply(o, p, v) {
-      // A glance to one side and up, held, and back: the eyes go first, the head after them.
-      const u = p.u, d = p.cue.dir, a = Math.min(1, p.cue.amount);
-      const e = a * track([0, 0, 0.1, 1, 0.72, 1, 0.9, 0, 1, 0], u), b = a * track([0, 0, 0.25, 1, 0.78, 1, 1, 0], u);
-      o.eyeX += d * 0.7 * v.room * e; o.eyeY += 0.3 * e;
-      o.yaw += d * deg(18) * v.room * b; o.pitch += deg(4) * b;
-    },
-  },
-  exclaim: {
-    lane: 'cue', ms: EXCLAIM_MS,
-    apply(o, p, v) {
-      // A "!" gathers above its head out of sparks, holds, and falls apart; it draws itself up, eyes wide.
-      const u = p.u, f = feel(v), k = Math.min(1, p.cue.amount) * track([0, 0, 0.18, 1, 0.8, 1, 1, 0], u);
-      o.stretch *= 1 + 0.12 * give(f) * Math.min(1, p.cue.amount) * track([0, 0, 0.16, 0, 0.26, 1, 0.4, 0.5, 0.8, 0.5, 1, 0], u);
-      o.open *= 1 + 0.25 * k; o.eyeScale *= 1 + 0.12 * k; o.lift += 0.03 * k; o.eyeY += 0.15 * k;
-      if (u > 0 && u < 1 && p.cue.amount > 0) show(o, 'bang', u, 1, Math.min(1, p.cue.amount));
-    },
-  },
-  burst: {
-    lane: 'cue', ms: BURST_MS,
-    apply(o, p, v) {
-      // Draws in, then lets go: a pop out past its size, sparks flying off all round, and a pulse.
-      const u = p.u, f = feel(v), a = Math.min(1, p.cue.amount), squeeze = a * track([0, 0, 0.22, 1, 0.27, 0, 1, 0], u);
-      o.scale *= 1 - 0.15 * squeeze + 0.1 * give(f) * a * bump(u, 0.32, 0.08);
-      o.open *= 1 - 0.5 * squeeze; o.eyeScale *= 1 + 0.15 * a * bump(u, 0.35, 0.15);
-      if (u > 0.25 && u < 1 && a > 0) { show(o, 'burst', (u - 0.25) / 0.75, 1, a); show(o, 'pulse', Math.min(1, (u - 0.25) / 0.45), 1, a); }
-      if (f.flare > 0) o.glow += a * f.flare * bump(u, 0.3, 0.2);
-    },
-  },
-  comet: {
-    lane: 'cue', ms: COMET_MS,
-    apply(o, p, v) {
-      // A wind-up the other way, a dash with speed lines streaming off behind, and back with a lean the other way.
-      const u = p.u, d = p.cue.dir, a = Math.min(1, p.cue.amount), f = feel(v);
-      const out = u < 0.18 ? -0.12 * smooth(u / 0.18) : u < 0.45 ? -0.12 + 0.62 * (1 - (1 - (u - 0.18) / 0.27) ** 5) : u < 0.6 ? 0.5 : 0.5 * (1 - smooth((u - 0.6) / 0.4));
-      o.x += d * a * out;
-      o.roll += d * a * deg(8) * track([0, 0, 0.15, -0.6, 0.25, 1, 0.5, 0.2, 0.75, -0.5, 1, 0], u);
-      o.stretch *= 1 - 0.1 * a * give(f) * bump(u, 0.3, 0.12) + 0.04 * a * give(f) * bump(u, 0.12, 0.08);
-      o.eyeX += d * a * 0.25 * v.room * track([0, 0, 0.18, 1, 0.6, 1, 0.8, -0.4, 1, 0], u); o.eyeScale *= 1 + 0.1 * a * bump(u, 0.35, 0.2);
-      if (u > 0.18 && u < 0.72 && a > 0) show(o, 'streaks', (u - 0.18) / 0.54, d, a);
-    },
-  },
-  rings: {
-    lane: 'cue', ms: RINGS_MS,
-    apply(o, p) {
-      // Rings come round it one by one, passing behind it and in front, with a light going round each; it
-      // rises a little and its eyes follow the first light.
-      const u = p.u, a = Math.min(1, p.cue.amount), env = a * track([0, 0, 0.12, 1, 0.82, 1, 1, 0], u), ph = (p.at / 1300) * TAU;
-      o.lift += 0.04 * env; o.eyeX += 0.35 * env * Math.cos(ph); o.eyeY -= 0.2 * env * Math.sin(ph);
-      if (u > 0 && u < 1 && a > 0) show(o, 'rings', u, 1, a, p.at);
-    },
-  },
-  rock: {
-    lane: 'cue', ms: ROCK_MS,
-    apply(o, p) {
-      // A rock from side to side about a point below it, like a toy that will not fall over, dying away.
-      const t = (p.u * p.ms) / 1000, a = Math.min(1, p.cue.amount) * p.cue.dir * deg(9) * Math.exp(-1.6 * t) * Math.sin(TAU * 1.5 * t) * (1 - smooth((p.u - 0.85) / 0.15));
-      // About a point ROCK_BELOW under the middle: the roll turns it, and moving it the other way keeps that point still.
-      o.roll += a; o.x += ROCK_BELOW * Math.sin(a);
-    },
-  },
+    }, 'the flare glow'),
+    body.swell(5).along(surging),
+    head.raise(4).along(surging),
+    eyes.widen(10).along(surging),
+  ]),
+  // Up off the ground, two slow bobs, and down again.
+  float: cue(FLOAT_MS, { amountUpTo: 1 }, [
+    body.rise(0.12).along(afloat).and.rise(0.03).along(bobbing),
+    head.sway(2).along(bobbing),
+    body.stretch(1).along(bobbing).ignoringFeel(),
+  ]),
+  // A glance to one side and up, held, and back: the eyes go first, the head after them.
+  look: cue(LOOK_MS, { amountUpTo: 1 }, [
+    eyes.glance(toward, 0.7).along(glancing),
+    eyes.up(0.3).along(glancing),
+    head.turn(toward, 18).along(following),
+    head.raise(4).along(following),
+  ]),
+  // A "!" gathers above its head out of sparks, holds, and falls apart; it draws itself up, eyes wide.
+  exclaim: cue(EXCLAIM_MS, { amountUpTo: 1 }, [
+    body.stretch(12).along(beats('0 by 16%, 1 by 26%, 0.5 by 40%, hold till 80%, 0 by 100%')),
+    eyes.widen(25).along(exclaiming),
+    eyes.grow(12).along(exclaiming),
+    body.rise(0.03).along(exclaiming),
+    eyes.up(0.15).along(exclaiming),
+    exclamation(),
+  ]),
+  // Draws in, then lets go: a pop out past its size, sparks flying off all round, and a pulse.
+  burst: cue(BURST_MS, { amountUpTo: 1 }, [
+    body.shrink(15).along(squeezed).ignoringFeel().and.swell(10).along(peak(32, 8)),
+    eyes.narrow(50).along(squeezed),
+    eyes.grow(15).along(peak(35, 15)),
+    sparksAllRound().during(25, 100),
+    pulse().during(25, 100).doneBy(70),
+    body.flares(1).along(peak(30, 20)),
+  ]),
+  // A wind-up the other way, a dash with speed lines streaming off behind, and back with a lean the other way.
+  comet: cue(COMET_MS, { amountUpTo: 1 }, [
+    body.slide(toward, 0.5).along(beats('-0.24 by 18%, 1 by 45% fast, hold till 60%, 0 by 100%')),
+    head.lean(toward, 8).along(beats('-0.6 by 15%, 1 by 25%, 0.2 by 50%, -0.5 by 75%, 0 by 100%')),
+    body.squash(10).along(peak(30, 12)).and.stretch(4).along(peak(12, 8)),
+    eyes.glance(toward, 0.25).along(beats('1 by 18%, hold till 60%, -0.4 by 80%, 0 by 100%')),
+    eyes.grow(10).along(peak(35, 20)),
+    speedLines().during(18, 72),
+  ]),
+  // Rings come round it one by one, passing behind it and in front, with a light going round each; it rises a
+  // little and its eyes follow the first light.
+  rings: cue(RINGS_MS, { amountUpTo: 1 }, [
+    body.rise(0.04).along(shown),
+    eyes.circle(0.35, 0.2, { everyMs: 1300 }).along(shown),
+    orbits(),
+  ]),
+  // A rock from side to side about a point below it, like a toy that will not fall over, dying away.
+  rock: cue(ROCK_MS, { amountUpTo: 1 }, [
+    body.rock(toward, 9, { below: ROCK_BELOW }).along(wobble(1.5, { dies: 1.6 }).fadeOut(85)),
+  ]),
 };
 
 const named = (lane: Lane): string[] => Object.keys(CLIPS).filter((k) => (CLIPS as Readonly<Record<string, Clip>>)[k].lane === lane);

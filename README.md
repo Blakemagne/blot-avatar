@@ -12,6 +12,7 @@ npm install github:Blakemagne/blot-avatar
 
 ```
 src/engine/       the engine: bodies, eyes, faces and their manners, the rig, the clips, the effects (no DOM)
+src/engine/moves.ts  writing a move in plain words (@blot/avatar/moves); the moves themselves are in clips.ts
 src/engine/bodies one file per body, and the list of them
 src/ticker.ts     the one frame loop every live avatar shares
 src/live.ts       createLive: one live avatar, no framework
@@ -42,7 +43,135 @@ Tests and the eye judge different things. A test says a move starts and ends at 
 
 ## Add an animation
 
-A move is a **clip**: a curve over a fixed time that adds to the pose (or scales it) and ends where it began. The rig adds up the playing clips into one set of `Channels` each frame.
+A move is written in plain words, with `@blot/avatar/moves`: a list of lines, each a part of the avatar, a verb, how far in units people think in, and the shape it takes over the move. No radians, no formulas, no channels.
+
+```ts
+import { cue, head, eyes, body, toward, beats, hold } from '@blot/avatar/moves';
+
+// A wink: one eye shuts quickly and holds, and opens; the head leans a little that way and comes up.
+const leaning = hold({ by: 20, till: 60 });
+
+export const wink = cue(900, { amountUpTo: 1 }, [
+  eyes.wink(toward).along(hold({ by: 14, till: 55, goneBy: 80 })),
+  head.lean(toward, 6).along(leaning),
+  body.rise(0.02).along(leaning),
+  eyes.up(0.08).along(leaning),
+  eyes.glance(toward, 0.06).along(leaning),
+]);
+```
+
+`cue(ms, lines)` is a move anyone plays by name (`play('wink', { dir, amount })`); `poke(ms, lines)` is one a click plays. Every move in the package (`src/engine/clips.ts`) is written this way, and comes out the same as the hand-written arithmetic it replaced, to within rounding.
+
+**Times** inside a move are percent of the way through it. **Sizes** are degrees for the head, body units for the body (1 is about the body's radius), percent for stretching and for the eyes' size and opening, and shares of a full look for where the eyes look.
+
+### The words
+
+The parts and what they do:
+
+| line | what it does |
+|---|---|
+| `head.turn(side, degrees)` | turns its face toward a side (never further than the room a look has left) |
+| `head.lean(side, degrees)` · `head.sway(degrees)` | leans toward a side · leans to its right whichever way it was played |
+| `head.dip(degrees)` · `head.raise(degrees)` | nods down · tips its face up |
+| `body.rise(units)` · `body.jump(units)` | up off the ground · the same as a jump: a heavy body goes less high |
+| `body.slide(side, units)` | moves toward a side |
+| `body.stretch(%)` · `body.squash(%)` | taller · shorter (a body that gives more goes further) |
+| `body.swell(%)` · `body.shrink(%)` | bigger · smaller all over |
+| `body.glow(n)` · `body.flares(n)` | glows · glows only if the body is one that flares |
+| `body.ringsOutAfter(%)` | a wobbly body rings on after it lands |
+| `body.rock(side, degrees, { below })` | rocks about a point below its middle, like a toy that will not fall over |
+| `eyes.glance(side, look)` · `eyes.up(look)` · `eyes.down(look)` | where the eyes look |
+| `eyes.widen(%)` · `eyes.narrow(%)` · `eyes.grow(%)` | taller · a squint (100 is shut) · bigger |
+| `eyes.smile(n)` · `eyes.wink(side)` | happy arches · the eye on that side shuts |
+| `eyes.circle(across, up, { everyMs })` | the eyes go round |
+| `antennas.spread(degrees)` | antennas out (in, below 0), on a body that has them |
+
+`side` is `toward` (the side it was played toward) or `away`. Never a sign.
+
+The shapes. Each starts at 0; the ones that only die away (`wobble`, `surge`, `snapBack`) need a `.fadeOut(%)` to end at 0, and a move that does not is refused:
+
+| shape | what it is |
+|---|---|
+| `beats('1 by 14%, hold till 55%, 0 by 80%')` | where it is, by when. Eased in and out at each beat, or `fast` (off at once and slowing into it) or `steady`. It starts at 0 and must end at 0. |
+| `hold({ by, till, goneBy })` | up by `by`%, held till `till`%, gone by `goneBy`% (the end, if not given) |
+| `peak(at, wide)` | a soft peak at `at`%, `wide`% either side |
+| `flight(from, to)` | in the air from `from`% to `to`%, like a thrown ball |
+| `hump()` | up and back down once over the move |
+| `wave(times, { ahead })` | swings back and forth, `times` whole swings over the move |
+| `wobble(perSecond, { dies })` | a swing that dies away, in real time (end it with `.fadeOut`) |
+| `surge(by, { dies })` · `snapBack(by)` | up and dying away · pulled sharply and springing back (end each with `.fadeOut`) |
+
+A shape can be changed: `.fadeIn(%)`, `.fadeOut(%)`, `.dwindling()`, `.times(another)`, `.byWobble()` (bigger the wobblier the body) and `.size()` (how big, whichever way).
+
+A line can be changed too:
+- `.and.squash(4).along(...)` adds a second part on the same channel, summed into one factor. Each part keeps its own verb's feel (a `.and.rise` after a jump is the same on every body).
+- `.ignoringFeel()` makes it the same on every body.
+- `.ignoringRoom()` takes it off the room a look has left (for a move that goes round, not to a side).
+- `.ignoringAmount()` keeps it as big however hard the move is played.
+
+Effects: `sparks()`, `sparksAllRound()`, `exclamation()`, `pulse()`, `orbits()`, `speedLines()`. Each shows only while the move plays and is as big as it is played. `.during(from, to)` shows it for part of the move and `.doneBy(%)` makes it finish early and hold.
+
+`{ amountUpTo: 1 }` makes a move played harder than 1 move as if played at 1.
+
+### What it keeps for you
+
+Every rule a move must keep is built into the words:
+- it only adds to the pose or scales it, never sets it, so moves overlap;
+- the plain lines on one channel make one write a frame (factors multiplied, terms added, first), so a move on top of another comes out exactly as the two put together;
+- a turn follows the side the move was played to, and is held to the room a look has left, so a ball held at a full look keeps its far eye;
+- a squash goes as far as the body gives (`give`), and a jump as high as the body is light (`high`);
+- effects show only while the move plays, and only if it is played at all;
+- nothing is random.
+
+When a move is defined, every line is tried at the start and the end of the move, at both sides, amounts 1 and 2, and very different feels. A line that is not at rest at both ends is refused with its name and how far off it is. A line that is known to be off says why with `.notAtRest('why')`; two built-in moves do, for a first-frame glow they always had.
+
+Each move is worked out once when it is defined. A frame then works out each shape once and writes each channel once, with nothing made but the effects shown.
+
+### Worked example: a new cue in the package
+
+1. **Write it** at the end of `CLIPS` in `src/engine/clips.ts`, and add its name at the end of the type written on `CLIPS` (`readonly bow: Clip;`). Never in the middle, and never move a key: the pokes play in key order and the golden frames depend on it.
+
+   ```ts
+   // A bow: it bends forward slowly, eyes down and smiling, holds, and comes back up a touch past level.
+   bow: cue(1800, { amountUpTo: 1 }, [
+     head.dip(24).along(beats('1 by 35%, hold till 65%, -0.1 by 85%, 0 by 100%')),
+     body.squash(4).along(beats('1 by 35%, hold till 65%, 0 by 100%')),
+     eyes.down(0.35).along(hold({ by: 25, till: 70 })),
+     eyes.smile(0.8).along(hold({ by: 40, till: 65 })),
+   ]),
+   ```
+
+2. **It is listed by itself.** `CUES` is every clip in lane 'cue', in key order, so `play('bow')` works and the demo page gets a button and a card for it.
+
+3. **Test it** in `src/engine/clips.test.mjs`: add the name to the pinned order and to `CUES`. The tests that loop over `CUES` check the rules. Add a test of what the move must read as.
+
+4. **Judge it by eye.** Run `npm run site:dev` and play it at 240, 36 and 22 px, on a few bodies. Give it a line in `SAYS` in `site/main.ts`.
+
+5. **Run** `npm test` and `npm run golden`. A new cue at the end does not change the golden frames.
+
+### Add one from outside the package
+
+A page that uses the package brings its own moves without editing it. Every entry point takes `clips`:
+
+```ts
+import { Rig, mount } from '@blot/avatar';
+import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
+
+// A waggle: a swing and a half from side to side, dying away, the eyes going with it.
+const waggle = cue(900, [
+  head.lean(toward, 7).along(wave(1.5).dwindling()),
+  eyes.glance(toward, 0.15).along(wave(1.5).dwindling()),
+]);
+
+new Rig({ clips: { waggle } }).play('waggle');
+mount(el, { shape: 'blob', size: 72, clips: { waggle } }).play('waggle', { dir: -1 });
+```
+
+The rig checks extra clips with `checkClips` when it is built. It throws for a name the rig already has, a lane other than 'poke' or 'cue', a time that is not a finite number over 0, or a clip with no `apply`. An extra poke joins the turn of pokes after the rig's own.
+
+### Under the words
+
+A move is a **clip**: `{ lane, ms, apply(o, p, v) }`, called each frame with the frame's `Channels`, the playing move `p` (`p.u` runs from 0 to just under 1; `p.cue` holds `dir`, +1 or -1, and `amount`, 0 to 2) and a `View` (the body's turn, the room a look has left, and its feel). There are two lanes anyone may use. A **poke** is what a click on the avatar plays: one at a time, in turn. A **cue** is a move played by name. Each cue has a slot of its own, so cues overlap, and a cue that is playing plays on when it is played again.
 
 ```ts
 interface Channels {
@@ -55,79 +184,12 @@ interface Channels {
   arc: number;                                // added to the eyes' bend: happy arches (start 0)
   winkL: number; winkR: number;               // how far one eye is shut on top of the blink, 0..1 (start 0)
   glow: number;                               // a glow, for a renderer that draws one (start 0)
-  fx: Fx[];                                   // the effects showing this frame (start empty): push yours
+  antL: number; antR: number;                 // radians added to each antenna's swing, outward (start 0)
+  fx: Fx[];                                   // the effects showing this frame (start empty)
 }
-interface View { readonly yaw: number; readonly room: number; readonly feel?: Personality }   // the body's turn, the room a look has left, what it is like to move
-interface Playing { clip: Clip; at: number; u: number; ms: number; cue: { dir: number; amount: number; from: number } }
-interface Clip { lane: 'poke' | 'cue' | ...; ms: number; apply(o: Channels, p: Playing, v: View): void }
 ```
 
-There are two lanes anyone may use. A **poke** is what a click on the avatar plays: one at a time, in turn. A **cue** is a move played by name with `play(name)`. Each cue has a slot of its own, so cues overlap. A cue that is playing plays on when it is played again: started over, it would jump back to its start.
-
-### Worked example: the tilt
-
-The tilt is a cue: the head leans over ("hm?"), holds, and comes back.
-
-1. **Add its numbers** to `src/engine/clips.ts`, next to the others:
-
-   ```ts
-   /** A tilt of the head, "hm?": how long, start to back, and how far it leans. */
-   export const TILT_MS = 1100, TILT_ROLL = deg(10);
-   ```
-
-2. **Add the clip** at the end of `CLIPS`, and its name at the end of the type written on `CLIPS` (`readonly tilt: Clip;`). Never in the middle, and never move a key: the pokes play in key order and the golden frames depend on it.
-
-   ```ts
-   tilt: {
-     lane: 'cue', ms: TILT_MS,
-     apply(o, p, v) {
-       const u = p.u, d = p.cue.dir, a = p.cue.amount;
-       const k = a * track([0, 0, 0.2, 1.12, 0.36, 1, 0.7, 1, 1, 0], u);   // the body: lean, settle, hold, back
-       const e = a * track([0, 0, 0.14, 1, 0.64, 1, 0.94, 0], u);           // the eyes: a beat ahead both ways
-       o.roll += d * TILT_ROLL * k;
-       o.eyeY += 0.18 * e;
-       o.eyeX += d * 0.12 * v.room * e;
-     },
-   },
-   ```
-
-   `u` runs from 0 to just under 1. `track([u0, v0, u1, v1, ...], u)` eases between the points. `p.cue.dir` is +1 or -1 and `p.cue.amount` is 0 to 2 (1 by default).
-
-3. **Keep the rules.** The tests check each of them for every cue:
-   - Write only with `+=` and `*=`. Another move may already be in that channel.
-   - Start and end at nothing: identity at u = 0 and as u comes to 1.
-   - No randomness. A clip reads only `p` and `v`.
-   - Scale any yaw by `v.room`. A ball held at a full look has no turn left, and more would lose its far eye.
-   - Move smoothly from frame to frame.
-   - Push an effect only while it plays (0 < u < 1) and only at an amount over 0.
-   - Read what the avatar is like to move through `v.feel` (`give(f)` for a stretch, `high(f)` for a height): at 0.5 everything is exactly as before.
-
-4. **It is listed by itself.** `CUES` is every clip in lane 'cue', in key order, so the new cue is in `CUES`, `play('tilt')` works, and the demo page gets a button and a card for it.
-
-5. **Test it** in `src/engine/clips.test.mjs`. Add the name to the pinned order and to `CUES`. The tests that loop over `CUES` then check the rules above. Add a test of what the move must read as (the tilt holds near 10 degrees for a third of a second, one way only).
-
-6. **Judge it by eye.** Run `npm run site:dev` and play it in the playground at 240, 36 and 22 px, on a few bodies. Give it a line in `SAYS` in `site/main.ts` so its card says what it reads as.
-
-7. **Run** `npm test` and `npm run golden`. Golden must still pass.
-
-### Add one from outside the package
-
-A page that uses the package can bring its own clips without editing it. Every entry point takes `clips`:
-
-```ts
-import { Rig, createLive, mount, type Clip } from '@blot/avatar';
-
-const wave: Clip = {
-  lane: 'cue', ms: 900,
-  apply(o, p) { o.roll += p.cue.dir * p.cue.amount * 0.12 * Math.sin(3 * Math.PI * p.u) * (1 - p.u); },
-};
-
-new Rig({ clips: { wave } }).play('wave');
-createLive({ shape: 'blob', size: 72, clips: { wave } }).play('wave');
-mount(el, { shape: 'blob', size: 72, clips: { wave } }).play('wave', { dir: -1 });
-```
-
-The rig checks extra clips with `checkClips` when it is built. It throws for a name the rig already has, a lane other than 'poke' or 'cue', a time that is not a finite number over 0, or a clip with no `apply`. An extra poke joins the turn of pokes after the rig's own.
+A move whose arithmetic is not a size times a shape writes one line by hand with `byHand((o, p, v) => { ... })`, which is still checked for rest. In the package the spin's half turn, the eyes going to dots, the pop, the blink, the kick and the flare's flickering glow are written that way. A line written by hand keeps the rules itself: only `+=` and `*=`, any yaw times `v.room`, nothing random.
 
 ## How a face is worn
 
@@ -235,6 +297,8 @@ From `@blot/avatar`:
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
 - **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality` and `accent` (the effects' colour).
+
+From `@blot/avatar/moves`: everything for writing a move in plain words (see "Add an animation"): `cue`, `poke`, `head`, `body`, `eyes`, `antennas`, `toward`, `away`, the shapes (`beats`, `hold`, `peak`, `flight`, `hump`, `wave`, `wobble`, `surge`, `snapBack`), the effects (`sparks`, `sparksAllRound`, `exclamation`, `pulse`, `orbits`, `speedLines`), `byHand`, and the types `Shape`, `Line`, `Side`, `MoveOptions`.
 
 From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box.
 

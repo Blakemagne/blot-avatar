@@ -1,28 +1,26 @@
 // The demo page. Everything on it is the package's public API (@blot/avatar): mount() for each avatar, and the lists the
 // engine exports (BODIES, FACE_NAMES, ACTIVITIES, FORMS, POKES, CUES) for every set of buttons, so a new body,
-// face or clip in the package shows up here without touching this file. The wave is the one move written here.
+// face or clip in the package shows up here without touching this file. The waggle is the one move written here.
 
 import {
   ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, PERSONALITY, POKES, colours, mount, onMotion, reducedMotion,
-  type Clip, type MountOptions, type Mounted, type Personality,
+  type MountOptions, type Mounted, type Personality,
 } from '@blot/avatar';
+import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 import { colorPicker, contrast } from './picker';
 
-/** The move this page adds through the `clips` option: a rock from side to side. The same text is on the page. */
-const wave: Clip = {
-  lane: 'cue',
-  ms: 900,
-  apply(o, p) {
-    o.roll += p.cue.dir * p.cue.amount * 0.12 * Math.sin(3 * Math.PI * p.u) * (1 - p.u);
-  },
-};
-const clips = { wave };
+/** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
+const waggle = cue(900, [
+  head.lean(toward, 7).along(wave(1.5).dwindling()),
+  eyes.glance(toward, 0.15).along(wave(1.5).dwindling()),
+]);
+const clips = { waggle };
 
 interface Move { name: string; lane: 'poke' | 'cue'; here?: boolean }
 const MOVES: Move[] = [
   ...POKES.map((name): Move => ({ name, lane: 'poke' })),
   ...CUES.map((name): Move => ({ name, lane: 'cue' })),
-  { name: 'wave', lane: 'cue', here: true },
+  { name: 'waggle', lane: 'cue', here: true },
 ];
 
 /** What each move reads as. A clip added to the package later gets its name and lane only. */
@@ -49,12 +47,12 @@ const SAYS: Record<string, string> = {
   comet: 'A wind-up, a dash with speed lines behind it, and back.',
   rings: 'Rings come round it, passing behind and in front.',
   rock: 'A rock from side to side about a point below it.',
-  wave: 'A rock from side to side. Written on this page, not in the package.',
+  waggle: 'A swing and a half from side to side, the eyes going with it. Written on this page, in three lines.',
 };
 
 /** Who does each move on its card, so every card shows another body. */
 const CARD_SHAPE: Record<string, string> = {
-  spin: 'star', nod: 'blob', hop: 'cloud', shake: 'wedge', bounce: 'heart', tilt: 'tablet', wave: 'flower',
+  spin: 'star', nod: 'blob', hop: 'cloud', shake: 'wedge', bounce: 'heart', tilt: 'tablet', waggle: 'flower',
   delight: 'blob', wink: 'pebble', exclaim: 'heart', rings: 'blob', comet: 'teardrop', rock: 'teardrop', flare: 'star',
 };
 /** The effects' colour (a mark, sparks, rings, Zs, a glow) on every avatar here. */
@@ -250,8 +248,8 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
   follow.addEventListener('change', () => { pg.follow = follow.checked; changed(); });
 }
 
-/** The wave's definition as the page shows it under "Moves are data", for code that plays the wave. */
-const waveSource = ((t) => t.slice(t.indexOf('const wave'), t.indexOf('\n};', t.indexOf('const wave')) + 3))($('#wave-code').textContent ?? '');
+/** The waggle's definition as the page shows it under "Moves are data", for code that plays the waggle. */
+const waggleSource = ((t) => t.slice(t.indexOf('// A waggle'), t.indexOf('\n]);', t.indexOf('const waggle')) + 4))($('#wave-code').textContent ?? '');
 
 /** The code for the playground's avatar as it is now. */
 function writeCode(): void {
@@ -267,10 +265,12 @@ function writeCode(): void {
   if (feel.length) o.push(`personality: { ${feel.join(', ')} }`);
   o.push(`accent: '${ACCENT}'`);
   o.push('pokeable: true');
-  if (pg.last?.here) o.push('clips: { wave }');
+  if (pg.last?.here) o.push('clips: { waggle }');
   const lines: string[] = [];
   for (let i = 0; i < o.length; i += 3) lines.push(`  ${o.slice(i, i + 3).join(', ')},`);
-  let text = pg.last?.here ? `import { mount, type Clip } from '@blot/avatar';\n\n${waveSource}\n` : `import { mount } from '@blot/avatar';\n`;
+  let text = pg.last?.here
+    ? `import { mount } from '@blot/avatar';\nimport { cue, eyes, head, toward, wave } from '@blot/avatar/moves';\n\n${waggleSource}\n`
+    : `import { mount } from '@blot/avatar';\n`;
   text += `\nconst bot = mount(document.getElementById('bot'), {\n${lines.join('\n')}\n});\n`;
   const m = pg.last;
   if (m) {

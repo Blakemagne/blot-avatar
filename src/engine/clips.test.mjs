@@ -18,6 +18,14 @@ const same = (a, b, note) => {
   for (const k of numeric(a)) assert.ok(Object.is(a[k], b[k]), `${note}: ${k} ${a[k]} against ${b[k]}`);
   assert.equal(JSON.stringify(a.fx ?? []), JSON.stringify(b.fx ?? []), `${note}: the effects`);
 };
+/**
+ * The same numbers to within rounding (1e-12; 0 and -0 alike). The moves are written in plain words now (moves.ts),
+ * which works some of them out in another order than the formulas below: the last bit may differ, nothing more.
+ */
+const close = (a, b, note) => {
+  for (const k of numeric(a)) assert.ok(Math.abs(a[k] - b[k]) <= 1e-12, `${note}: ${k} ${a[k]} against ${b[k]}`);
+  assert.equal(JSON.stringify(a.fx ?? []), JSON.stringify(b.fx ?? []), `${note}: the effects`);
+};
 /** A clip that is playing, `at` ms in. */
 const at = (clip, ms, cue) => { const p = start(clip, cue); p.at = ms; p.u = ms / clip.ms; return p; };
 /** Every time a clip of `ms` is sampled: steps of dt from 0 up to the end. */
@@ -105,34 +113,34 @@ const OLD = {
   dots(at, from, dot) { return Math.max(dot, at < 150 ? from + (1 - from) * smooth(at / 150) : at < 250 ? 1 : 1 - smooth((at - 250) / 170)); },
 };
 
-test('each clip, run alone, gives exactly what the rig used to work out for it', () => {
+test('each clip, run alone, gives what the rig used to work out for it, to within rounding', () => {
   for (const dir of [1, -1]) {
     for (const yaw of [0, 0.3, -0.84, 1.2, -1.5]) {
       for (const t of times(POKE_MS.spin, 5)) {
         const o = { ...reset(), eyeScale: 0.7 };
         CLIPS.spin.apply(o, at(CLIPS.spin, t, { dir }), { yaw, room: 0.4 });
-        same(o, { ...reset(), ...OLD.spin(t / POKE_MS.spin, dir, yaw, 0.7) }, `spin ${dir} from ${yaw} at ${t}`);
+        close(o, { ...reset(), ...OLD.spin(t / POKE_MS.spin, dir, yaw, 0.7) }, `spin ${dir} from ${yaw} at ${t}`);
       }
     }
   }
-  for (const t of times(POKE_MS.nod, 3)) { const o = reset(); CLIPS.nod.apply(o, at(CLIPS.nod, t), { yaw: 0.5, room: 1 }); same(o, { ...reset(), ...OLD.nod(t / POKE_MS.nod) }, `nod at ${t}`); }
-  for (const t of times(POKE_MS.hop, 3)) { const o = reset(); CLIPS.hop.apply(o, at(CLIPS.hop, t), { yaw: 0, room: 1 }); same(o, { ...reset(), ...OLD.hop(t / POKE_MS.hop) }, `hop at ${t}`); }
+  for (const t of times(POKE_MS.nod, 3)) { const o = reset(); CLIPS.nod.apply(o, at(CLIPS.nod, t), { yaw: 0.5, room: 1 }); close(o, { ...reset(), ...OLD.nod(t / POKE_MS.nod) }, `nod at ${t}`); }
+  for (const t of times(POKE_MS.hop, 3)) { const o = reset(); CLIPS.hop.apply(o, at(CLIPS.hop, t), { yaw: 0, room: 1 }); close(o, { ...reset(), ...OLD.hop(t / POKE_MS.hop) }, `hop at ${t}`); }
   for (const amount of [0.5, 1, 2]) {
     for (const from of [0, 0.12, -0.03]) {
       for (const t of times(POP_MS, 3)) {
         const o = { ...reset(), scale: 0.9431 };
         CLIPS.pop.apply(o, at(CLIPS.pop, t, { amount, from }), { yaw: 0, room: 1 });
-        same(o, { ...reset(), scale: OLD.pop(t, amount, from, 0.9431) }, `pop ${amount} from ${from} at ${t}`);
+        close(o, { ...reset(), scale: OLD.pop(t, amount, from, 0.9431) }, `pop ${amount} from ${from} at ${t}`);
       }
     }
   }
   for (const open of [1, 1.137]) {
-    for (const t of times(BLINK_MS, 1)) { const o = { ...reset(), open }; CLIPS.blink.apply(o, at(CLIPS.blink, t), { yaw: 0, room: 1 }); same(o, { ...reset(), open: OLD.blink(t, open) }, `blink at ${t}`); }
+    for (const t of times(BLINK_MS, 1)) { const o = { ...reset(), open }; CLIPS.blink.apply(o, at(CLIPS.blink, t), { yaw: 0, room: 1 }); close(o, { ...reset(), open: OLD.blink(t, open) }, `blink at ${t}`); }
   }
-  for (const t of times(WAIT_NOD_MS, 3)) { const o = { ...reset(), pitch: -0.02 }; CLIPS.waitNod.apply(o, at(CLIPS.waitNod, t), { yaw: 0, room: 1 }); same(o, { ...reset(), pitch: OLD.waitNod(t, -0.02) }, `wait nod at ${t}`); }
+  for (const t of times(WAIT_NOD_MS, 3)) { const o = { ...reset(), pitch: -0.02 }; CLIPS.waitNod.apply(o, at(CLIPS.waitNod, t), { yaw: 0, room: 1 }); close(o, { ...reset(), pitch: OLD.waitNod(t, -0.02) }, `wait nod at ${t}`); }
   for (const from of [0, 0.4, 1]) {
     for (const dot of [0, 0.6]) {
-      for (const t of times(DOTS_MS, 3)) { const o = { ...reset(), dot }; CLIPS.dots.apply(o, at(CLIPS.dots, t, { from }), { yaw: 0, room: 1 }); same(o, { ...reset(), dot: OLD.dots(t, from, dot) }, `dots from ${from} at ${t}`); }
+      for (const t of times(DOTS_MS, 3)) { const o = { ...reset(), dot }; CLIPS.dots.apply(o, at(CLIPS.dots, t, { from }), { yaw: 0, room: 1 }); close(o, { ...reset(), dot: OLD.dots(t, from, dot) }, `dots from ${from} at ${t}`); }
     }
   }
 });
