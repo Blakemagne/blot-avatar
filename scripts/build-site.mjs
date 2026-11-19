@@ -18,10 +18,24 @@ const out = path.join(root, '_site');
 const serve = process.argv.includes('--serve');
 const PORT = 5300;
 
-/** The favicon: the blob in its portrait pose, drawn by the engine, as a plain SVG file. */
+/** How much room the favicon leaves round the body, as a share of its width. */
+const ICON_MARGIN = 0.02;
+
+/**
+ * The favicon: the blob in its portrait pose, drawn by the engine, as a plain SVG file. Its view is cut to the
+ * body (a live avatar's box leaves room for moves and effects; a tab's icon needs none), so the blob fills it.
+ */
 function icon() {
   const d = drawAvatar(BODIES.blob, '#FD690F', stillState('blob', 64), 64), c = colours('#FD690F');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}"><path d="${d.body}" fill="${c.fill}"/><path d="${d.eyes[0]}" fill="${c.eyeFill}"/><path d="${d.eyes[1]}" fill="${c.eyeFill}"/></svg>\n`;
+  const xy = (d.body.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i + 1 < xy.length; i += 2) {
+    x0 = Math.min(x0, xy[i]); x1 = Math.max(x1, xy[i]); y0 = Math.min(y0, xy[i + 1]); y1 = Math.max(y1, xy[i + 1]);
+  }
+  // A square round the body's middle, as wide as its longer side and a little more.
+  const side = Math.max(x1 - x0, y1 - y0) * (1 + 2 * ICON_MARGIN), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const box = xy.length ? [cx - side / 2, cy - side / 2, side, side].map((v) => Math.round(v * 100) / 100).join(' ') : VIEW_BOX;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}"><path d="${d.body}" fill="${c.fill}"/><path d="${d.eyes[0]}" fill="${c.eyeFill}"/><path d="${d.eyes[1]}" fill="${c.eyeFill}"/></svg>\n`;
 }
 
 const options = {

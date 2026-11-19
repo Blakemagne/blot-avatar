@@ -82,8 +82,9 @@ p code, li code { background: var(--sunk); border-radius: 5px; padding: 0.08em 0
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
-.mark { display: flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: -0.01em; }
-.mark-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+.mark { display: flex; align-items: center; gap: 10px; }
+.mark a { color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: -0.01em; }
+.mark-bot { flex: none; cursor: pointer; border-radius: 50%; }
 .top nav { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .top nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 8px; font-size: 15px; }
 .top nav a:hover { color: var(--ink); background: var(--sunk); }
