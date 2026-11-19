@@ -17,8 +17,8 @@ import { onMotion, reducedMotion } from './ticker';
  * paths in place, with no render per frame. `reduced` is the person's reduced-motion setting, read live.
  * For a body with antennas or decals, put `layers[0]` on an empty <g> before the body path and
  * `layers[1]` on one after it (before the eyes); the frame loop fills them, in `paint`'s colours where given.
- * For the effects (a mark, sparks, rings, Zs), put `fx[0]` on an empty <g> before the body path and `fx[1]` on
- * one after the eyes, and pass `fxPaint`; leave them off and the effects are not drawn.
+ * For the effects (a mark, sparks, rings, Zs), put `fx[0]` on an empty <g> before everything (`layers[0]` too)
+ * and `fx[1]` on one after the eyes, and pass `fxPaint`; leave them off and the effects are not drawn.
  */
 export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint }) {
   const host = useRef<HTMLSpanElement>(null);
@@ -74,6 +74,11 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     const svg = body.current?.ownerSVGElement;
     if (svg) svg.style.filter = glowFilter(d, size.current, c);
   }, [p.fxPaint?.fill, p.fxPaint?.eyeFill, p.fxPaint?.accent]);
+  // ... and the antennas' and decals' (as mount() does).
+  useEffect(() => {
+    const d = last.current;
+    if (d) writeLayers(under.current, over.current, d, paint.current);
+  }, [JSON.stringify(p.paint ?? null)]);
 
   return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, first: live.first, reduced, live };
 }

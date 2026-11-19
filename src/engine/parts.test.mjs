@@ -63,3 +63,21 @@ test('setAntennas holds them where told, and a body without antennas ignores it'
   plain.step(16);
   assert.equal(plain.state.antennas, undefined);
 });
+
+test('a rig whose body loses its antennas mid-swing or mid-glide still comes to rest', () => {
+  const P = { yaw: 0, pitch: 0, roll: 0 };
+  // Swung, then changed to a body without antennas two frames in.
+  const swung = new Rig({ body: TEST, seed: 3, idle: false, blinks: false });
+  swung.setAntennas(deg(35), deg(35));
+  swung.step(16); swung.step(16);
+  swung.setBody(blob);
+  swung.rest(P);
+  for (let t = 0; t < 20000; t += 16) swung.step(16);
+  assert.ok(swung.resting, 'rests after losing its antennas mid-swing');
+  // A slow move told to a body that never had antennas.
+  const plain = new Rig({ body: blob, seed: 3, idle: false, blinks: false });
+  plain.setAntennas(deg(30), deg(30), 300);
+  plain.rest(P);
+  for (let t = 0; t < 20000; t += 16) plain.step(16);
+  assert.ok(plain.resting, 'rests after a glide told to a body without antennas');
+});

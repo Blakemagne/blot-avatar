@@ -1000,7 +1000,14 @@ export class Rig {
     s.eye.x = Math.max(-most, Math.min(most, this.eyeX.x + o.eyeX)) || 0; s.eye.y = (this.eyeY.x + o.eyeY) || 0;
     s.pose.yaw = (this.yaw.x + o.yaw) || 0; s.pose.pitch = (this.pitch.x + o.pitch) || 0; s.pose.roll = (this.roll.x + o.roll) || 0;
     s.dot = o.dot; s.eyeScale = o.eyeScale; s.stretch = o.stretch; s.lift = o.lift; s.scale = o.scale;
-    if (s.body?.antennas) this.antennas(dtMs, voice); else if (s.antennas) s.antennas = undefined;
+    if (s.body?.antennas) this.antennas(dtMs, voice);
+    else {
+      if (s.antennas) s.antennas = undefined;
+      // A body with none has nothing left to swing: a glide or a swing that was on its way ends where it was going,
+      // so the rig can still come to rest (the stalks are only ever stepped on a body that has them).
+      if (this.glide) { this.held = [this.glide.to[0], this.glide.to[1]]; this.glide = null; }
+      if (!this.antL.still || !this.antR.still) { this.antL.set(this.held[0]); this.antR.set(this.held[1]); }
+    }
 
     this.mark(this.after);
     // (An effect is always on its way somewhere: a frame with one is a new picture.)
