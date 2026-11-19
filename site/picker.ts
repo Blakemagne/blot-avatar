@@ -9,7 +9,8 @@ export interface PickerOptions {
   label: string;
   /** '#RRGGBB', or null for the automatic choice when `auto` is given. */
   value: string | null;
-  presets: readonly (readonly [hex: string, name: string])[];
+  /** The swatches: a colour, its name, and (if it is drawn some other way, such as in the theme's ink) how its swatch is painted. */
+  presets: readonly (readonly [hex: string, name: string, show?: string])[];
   /** The automatic choice's chip text, e.g. 'Auto'. Without it there is always a colour. */
   auto?: string;
   /** What any colour starts from when the value is the automatic one. */
@@ -95,12 +96,12 @@ export function colorPicker(box: HTMLElement, o: PickerOptions): Picker {
     autoChip.addEventListener('click', () => choose(null));
     row.append(autoChip);
   }
-  const swatches = o.presets.map(([hex, name]) => {
+  const swatches = o.presets.map(([hex, name, show]) => {
     const b = el('button', 'swatch');
     b.type = 'button';
     b.title = name;
     b.setAttribute('aria-label', name);
-    b.style.setProperty('--swatch', hex);
+    b.style.setProperty('--swatch', show ?? hex);
     b.addEventListener('click', () => choose(hex));
     row.append(b);
     return b;

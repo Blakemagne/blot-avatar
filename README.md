@@ -272,6 +272,7 @@ Colours:
 - `color` is `#rrggbb` or any CSS colour; the default is `#FD690F`. For a hex colour the eyes are dark on a light body and white on a dark one. For any other CSS colour they are white.
 - `eyeFill` is the eyes' colour, any CSS colour, such as `'#FFD23F'`. Unset, the eyes are the white or dark one above. Mind the contrast: eyes close to the body's colour disappear.
 - `fill` overrides the body's colour with any CSS value, such as `var(--ink)`.
+- `BOT_COLOURS` is blot's own palette, `[hex, name]` in the order its Create New Bot picker shows them: black, brown, red, orange, yellow, green, cyan, blue, violet, magenta and gray. blot paints a black Bot in the theme's ink; on a page, pass `fill: 'var(--ink)'` and an `eyeFill` the other way round to do the same.
 
 In React, use `useLiveAvatar` from `@blot/avatar/react`. The demo page has the whole component (put `host` on a span, `paths` on the three paths, and `first` as their first `d`).
 

@@ -3,7 +3,7 @@
 // face or clip in the package shows up here without touching this file. The wave is the one move written here.
 
 import {
-  ACTIVITIES, BODIES, CUES, FACE_NAMES, FORMS, PERSONALITY, POKES, colours, deg, mount, onMotion, reducedMotion,
+  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, PERSONALITY, POKES, colours, deg, mount, onMotion, reducedMotion,
   type Clip, type MountOptions, type Mounted, type Personality,
 } from '@blot/avatar';
 import {
@@ -66,11 +66,15 @@ const ACCENT = '#7C5CFF';
 /** The shapes a visit goes to. */
 const VISITS = ['teardrop', 'hex', 'wedge', 'star'];
 
-const COLOURS: [string, string][] = [
-  ['#FD690F', 'Orange'], ['#2F6BFF', 'Blue'], ['#14A05A', 'Green'], ['#8B5CF6', 'Violet'],
-  ['#F2B61C', 'Yellow'], ['#E2416B', 'Pink'], ['#24242A', 'Ink'], ['#F1EEE8', 'Paper'],
-];
+/** blot's Bot colours. Black is drawn as blot draws it: in the page's ink, light on the dark theme. */
+const BLACK = '#000000';
+const COLOURS = BOT_COLOURS.map(([hex, name]) => [hex, name, hex === BLACK ? 'var(--ink)' : undefined] as const);
 const DEFAULT_COLOUR = '#FD690F';
+/** The colours the galleries go through: blot's, from orange on, and no black. */
+const CYCLE = [...BOT_COLOURS.slice(3), ...BOT_COLOURS.slice(1, 3)].map(([hex]) => hex);
+/** The body's colours for a colour picked: black in the page's ink, its eyes the other way round (unless picked). */
+const inked = (color: string, eyes?: string): Pick<MountOptions, 'color' | 'fill' | 'eyeFill'> =>
+  color === BLACK ? { color, fill: 'var(--ink)', eyeFill: eyes ?? 'var(--bg)' } : { color, fill: undefined, eyeFill: eyes };
 /** Eye colours to start from. With none picked the eyes are automatic: white, or dark on a pale body. */
 const EYES: [string, string][] = [
   ['#FFFFFF', 'White'], ['#1C1C1C', 'Ink'], ['#FFD23F', 'Gold'], ['#7FE3FF', 'Ice'], ['#FF5C8A', 'Pink'], ['#3DDC84', 'Mint'],
@@ -138,7 +142,7 @@ const pg = {
   size: 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
 };
 const options = (): MountOptions => ({
-  shape: pg.shape, size: pg.size, color: pg.color, eyeFill: pg.eyes ?? undefined, face: pg.face, activity: pg.activity,
+  shape: pg.shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT,
 });
 const bot = mount($('[data-avatar="play"]'), { ...options(), followIn: $('[data-stage]'), pokeable: true, label: 'the playground avatar', seed: 7, clips });
@@ -203,9 +207,11 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
   const previews: Mounted[] = [];
   const faint = $('[data-eye-note]');
   const paint = (): void => {
-    for (const p of previews) p.update({ color: pg.color, eyeFill: pg.eyes ?? undefined });
+    for (const p of previews) p.update(inked(pg.color, pg.eyes ?? undefined));
     // The eyes as drawn: the picked colour, or the automatic one.
-    faint.hidden = contrast(pg.color, pg.eyes ?? colours(pg.color).eyeFill) >= FAINT;
+    // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
+    const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
+    faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
     changed();
   };
   const body = colorPicker($('[data-picker="body"]'), {
@@ -217,7 +223,7 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
     onInput: (v) => { pg.eyes = v; paint(); },
   });
   for (const [i, p] of [body, eyes].entries()) {
-    previews.push(mount(p.preview, { shape: 'blob', size: 40, color: pg.color, seed: 300 + i }));
+    previews.push(mount(p.preview, { shape: 'blob', size: 40, ...inked(pg.color, pg.eyes ?? undefined), seed: 300 + i }));
   }
 }
 
@@ -295,7 +301,7 @@ writeCode();
       button);
     list.append(card);
     const shape = CARD_SHAPE[m.name] ?? SHAPES[i % SHAPES.length];
-    const one = mount(slot, { shape, size: 88, color: COLOURS[i % 6][0], seed: 20 + i, clips, accent: ACCENT });
+    const one = mount(slot, { shape, size: 88, color: CYCLE[i % CYCLE.length], seed: 20 + i, clips, accent: ACCENT });
     button.addEventListener('click', () => play(one, m));
     moveButtons.push(button);
   });
@@ -316,7 +322,7 @@ writeCode();
       $('#play').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
     });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: shape }), pick));
-    mount(slot, { shape, size: 72, color: COLOURS[i % 6][0], follow: true, followIn: slot.closest('li'), pokeable: true, label: shape, seed: 100 + i });
+    mount(slot, { shape, size: 72, color: CYCLE[i % CYCLE.length], follow: true, followIn: slot.closest('li'), pokeable: true, label: shape, seed: 100 + i });
   });
 
   const sizes = $('[data-sizes]');

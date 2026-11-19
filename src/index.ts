@@ -16,4 +16,5 @@ export { onFrame, onMotion, onSeen, pointer, reducedMotion, ticking, watchPointe
 export { OVERDRAW, PORTRAIT_FROM, bodyOf, stillState, svgBox } from './still';
 export { LARGE, SMALL, SMALL_LOOK, createLive, lookFor, lookWithin, type Live, type LiveProps, type Reach } from './live';
 export { mount, type MountOptions, type Mounted } from './mount';
+export { BOT_COLOURS } from './palette';
 export { writeLayers, type Paint } from './layers';
