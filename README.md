@@ -1,6 +1,6 @@
 # @blot/avatar
 
-The avatar of blot's Bots, as a package anyone can use. The demo page in `site/` is a studio (pick one, colour it, set it to work, or have a model design one), every move and every body: `npm run site:dev`, or [blakemagne.github.io/blot-avatar](https://blakemagne.github.io/blot-avatar/) once GitHub Pages is on.
+The avatar of blot's Bots, as a package anyone can use. The demo page in `site/` is three views, one at a time: a studio (pick one, colour it, set it to work, or have a model design one), every move on one stage, and how to use it: `npm run site:dev`, or [blakemagne.github.io/blot-avatar](https://blakemagne.github.io/blot-avatar/) once GitHub Pages is on.
 
 A body is a real 3D shape made of a few rounded solids. The eyes are patches of its surface, so they lean, thin and go round the edge with it. The package turns a body, a pose and a face into three SVG path strings: the body and two eyes. Beside them it draws effects (a mark, a "!", sleep's Zs, sparks, rings that pass behind the body, a hop's shadow) as more paths, behind the body or in front.
 
@@ -143,7 +143,7 @@ Each move is worked out once when it is defined. A frame then works out each sha
    ]),
    ```
 
-2. **It is listed by itself.** `CUES` is every clip in lane 'cue', in key order, so `play('bow')` works and the demo page gets a button and a card for it.
+2. **It is listed by itself.** `CUES` is every clip in lane 'cue', in key order, so `play('bow')` works and the demo page lists it under Moves and in the studio.
 
 3. **Test it** in `src/engine/clips.test.mjs`: add the name to the pinned order and to `CUES`. The tests that loop over `CUES` check the rules. Add a test of what the move must read as.
 
@@ -272,7 +272,7 @@ A body off the ground also gets a `shadow` part under it. Effects never touch th
 
 4. **Run the tests.** `src/engine/bodies/bodies.test.mjs` runs every body: mirror image front to back, eyes whole and on the surface, never a hairline, readable at 16 px, the far eye thinning without a jump.
 
-5. **Look at it.** `npm run site:dev`: it is in the gallery and the playground's shapes by itself. Turn it with the pointer all the way round, poke it, and watch the far eye.
+5. **Look at it.** `npm run site:dev`: it is under Studio, Bot, Bodies by itself; pick it to see it live. Turn it with the pointer all the way round, poke it, and watch the far eye.
 
 ### Antennas, two-size eyes and decals
 
@@ -302,7 +302,7 @@ Pass it anywhere a shape goes: `mount(el, { shape: definition })`, `useLiveAvata
 - **Check one you did not write** with `validateAvatar(input)`: `{ ok: true, value }` (the path rewritten from its numbers) or `{ ok: false, errors }`, each error a sentence a person or a model can act on. The rules are the format's: the path within 8..92, at least 40 by 14 units and 600 units² of fill, eyes on solid fill with room, a slug for an id.
 - **The body** is `outlineBody(definition)`, kept for the same definition (by its id, path and eyes), the last 64. Making one takes about 40 to 270 ms, so a page that shows many should draw them when they are needed, or draw the stills once ahead of time (the demo page draws its gallery's at the build).
 - **Ready-made ones**: `GALLERY` is 23 of them, each with the name of its colour among `BOT_COLOURS`; `galleryAvatar(id)` finds one and `galleryColour(g)` gives its hex.
-- **Design one with a model.** `site/prompt.md` is a prompt that tells any model the format and how this engine makes a body, and asks for one line of JSON. The demo page's Generate tab adds your description to it and copies it, or opens it in Claude Code, Codex, Cursor or T3 Code; its Import tab checks what comes back, says what to change, and copies a repair prompt when it is refused. Yours are kept in that browser, and a link carries one whole (`?def=`).
+- **Design one with a model.** `site/prompt.md` is a prompt that tells any model the format and how this engine makes a body, and asks for one line of JSON. The demo page's New tab adds your description to it and copies it, or opens it in Claude Code, Codex, Cursor or T3 Code; then it checks what comes back, says what to change, and copies a repair prompt when it is refused. Yours are kept in that browser, and a link carries one whole (`?def=`).
 
 The format is open-bot-avatar's, so a definition made for it works here too, and the other way round. Its volume is not: there each part is a slab or turned like a vase; here every part is round.
 

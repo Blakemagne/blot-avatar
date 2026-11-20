@@ -2,9 +2,10 @@
 // engine exports (BODIES, GALLERY, FACE_NAMES, ACTIVITIES, FORMS, POKES, CUES) for every set of buttons, so a new body,
 // avatar, face or clip in the package shows up here without touching this file. The waggle is the one move written here.
 //
-// The studio at the top is laid out after open-bot-avatar's (Dominik Scholz and its contributors, MIT; see
-// THIRD_PARTY_NOTICES.md): a stage with what it is doing under it, Export and Copy, and a card of tabs to pick one,
-// play with it, have a model design one, and bring that back.
+// The page is three views, one at a time (#studio, #moves, #use), and each pages what it holds behind tabs, so
+// every option is a click or two away and only one set of them is on screen. The studio is laid out after
+// open-bot-avatar's (Dominik Scholz and its contributors, MIT; see THIRD_PARTY_NOTICES.md): a stage with what it is
+// doing under it, Export and Copy, and a card of tabs to pick one, play with it, or have a model make a new one.
 
 import {
   ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, colours, drawAvatar, galleryColour,
@@ -59,11 +60,6 @@ const SAYS: Record<string, string> = {
   waggle: 'A swing and a half from side to side, the eyes going with it. Written on this page, in three lines.',
 };
 
-/** Who does each move on its card, so every card shows another body. */
-const CARD_SHAPE: Record<string, string> = {
-  spin: 'star', nod: 'blob', hop: 'cloud', shake: 'wedge', bounce: 'heart', tilt: 'tablet', waggle: 'flower',
-  delight: 'blob', wink: 'pebble', exclaim: 'heart', rings: 'blob', comet: 'teardrop', rock: 'teardrop', flare: 'star',
-};
 /** The effects' colour (a mark, sparks, rings, Zs, a glow) on every avatar here. */
 const ACCENT = '#7C5CFF';
 /** The shapes a visit goes to. */
@@ -285,28 +281,43 @@ chips($('[data-choice="face"]'), FACE_NAMES, () => pg.face, (v) => { pg.face = v
 
 // ---- Tabs and menus.
 
-const TABS = ['bot', 'play', 'generate', 'import'] as const;
-type Tab = (typeof TABS)[number];
-function showTab(tab: Tab, focus = false): void {
-  for (const t of TABS) {
-    const b = $<HTMLButtonElement>(`#tab-${t}`), on = t === tab;
-    b.setAttribute('aria-selected', String(on));
-    b.tabIndex = on ? 0 : -1;
-    $(`#panel-${t}`).hidden = !on;
-    if (on && focus) b.focus();
-  }
-  if (tab === 'bot') marked();
-}
-TABS.forEach((t, i) => {
-  const b = $<HTMLButtonElement>(`#tab-${t}`);
-  b.addEventListener('click', () => showTab(t));
-  b.addEventListener('keydown', (e) => {
-    const to = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
-    if (to === null) return;
-    e.preventDefault();
-    showTab(TABS[(to + TABS.length) % TABS.length], true);
+/**
+ * A row of tabs (`[data-tabs=name]`): each tab's aria-controls names its panel, and one panel shows at a time. The
+ * first tab shows to start with. Returns a function that shows a tab by its id; `shown` runs after each one the
+ * person (or the page) shows, not for the first.
+ */
+function tabs(name: string, shown?: (id: string) => void): (id: string, focus?: boolean) => void {
+  const buttons = [...$(`[data-tabs="${name}"]`).querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+  const set = (id: string, focus: boolean): void => {
+    for (const b of buttons) {
+      const on = b.id === id;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+      $(`#${b.getAttribute('aria-controls')}`).hidden = !on;
+      if (on && focus) b.focus();
+    }
+  };
+  const show = (id: string, focus = false): void => { set(id, focus); shown?.(id); };
+  buttons.forEach((b, i) => {
+    b.addEventListener('click', () => show(b.id));
+    b.addEventListener('keydown', (e) => {
+      const to = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : null;
+      if (to === null) return;
+      e.preventDefault();
+      show(buttons[(to + buttons.length) % buttons.length].id, true);
+    });
   });
-});
+  set(buttons[0].id, false);
+  return show;
+}
+const showCard = tabs('card', (id) => { if (id === 'tab-bot') marked(); });
+/** Which of the Bot tab's three lists holds each kind. */
+const LIST: Record<Entry['kind'], string> = { body: 'seg-bodies', gallery: 'seg-outlines', yours: 'seg-yours' };
+const showList = tabs('bots', () => marked());
+tabs('play');
+const showStep = tabs('new');
+tabs('lanes');
+tabs('use');
 
 // A button that opens a list under it. A click outside, Escape, or a choice from it closes it.
 for (const menu of document.querySelectorAll<HTMLElement>('[data-menu]')) {
@@ -358,7 +369,7 @@ const paintThumb = (cell: HTMLElement, colour: string): void => {
 };
 
 const cells = new Map<string, HTMLButtonElement>();
-const botsBox = $('[data-bots]');
+const botsBox = $('[data-bots]'), pickNote = $('[data-pick-note]');
 function cellFor(e: Entry): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'bot-cell', title: e.name });
   b.setAttribute('aria-label', e.name);
@@ -373,32 +384,39 @@ function cellFor(e: Entry): HTMLLIElement {
   cells.set(e.key, b);
   return make('li', {}, b);
 }
-function group(title: string, list: Entry[], extra?: HTMLElement): HTMLElement {
+function grid(label: string, list: Entry[], extra?: HTMLElement): HTMLUListElement {
   const ul = make('ul', { className: 'bots' }, ...list.map(cellFor));
   if (extra) ul.append(make('li', {}, extra));
-  ul.setAttribute('aria-label', title);
-  return make('div', { className: 'bots-group' }, make('h3', { className: 'bots-head', textContent: title }), ul);
+  ul.setAttribute('aria-label', label);
+  return ul;
 }
 const newTile = make('button', { type: 'button', className: 'bot-cell bot-new', title: 'Make a new one' }, make('span', { className: 'bot-plus', textContent: '+' }));
 newTile.setAttribute('aria-label', 'Make a new one');
-newTile.addEventListener('click', () => { showTab('generate'); $('[data-describe]').focus(); });
-const yoursGroup = (): HTMLElement => group('Yours', yours.map(yoursEntry), newTile);
-let yoursBox = yoursGroup();
-botsBox.append(group('blot\'s bodies', BODY_ENTRIES), group('From outlines', GALLERY_ENTRIES), yoursBox);
+newTile.addEventListener('click', () => { showCard('tab-new'); showStep('seg-describe'); describe.focus(); });
+$('#bots-bodies').append(grid('blot\'s bodies', BODY_ENTRIES));
+$('#bots-outlines').append(grid('From outlines', GALLERY_ENTRIES));
+const yoursList = $('#bots-yours'), yoursCount = $('[data-yours-count]');
+function drawYours(): void {
+  const none = yours.length ? [] : [make('p', { className: 'sub-label', textContent: 'None yet. + has a model draw one from a few words.' })];
+  yoursList.replaceChildren(grid('Yours', yours.map(yoursEntry), newTile), ...none);
+  yoursCount.textContent = yours.length ? String(yours.length) : '';
+}
+drawYours();
 function redrawYours(): void {
   // Focus on one of yours (or on +) stays on it through the redraw.
   const had = document.activeElement, focused = [...cells].find(([, b]) => b === had)?.[0];
   for (const k of [...cells.keys()]) if (k.startsWith('yours:')) cells.delete(k);
-  const next = yoursGroup();
-  yoursBox.replaceWith(next);
-  yoursBox = next;
+  drawYours();
   marked();
   if (had === newTile) newTile.focus({ preventScroll: true });
   else if (focused?.startsWith('yours:')) cells.get(focused)?.focus({ preventScroll: true });
 }
+const KIND_SAYS: Record<Entry['kind'], string> = { body: 'one of blot\'s bodies', gallery: 'drawn from an outline', yours: 'yours, kept in this browser' };
 /** The pressed cell is the one on the stage, scrolled into the list's view (the list only, never the page). */
 function marked(): void {
   for (const [k, b] of cells) b.setAttribute('aria-pressed', String(k === pg.key));
+  const e = entry(pg.key);
+  pickNote.textContent = `On the stage: ${e.name}, ${KIND_SAYS[e.kind]}.`;
   const cell = cells.get(pg.key);
   if (!cell || botsBox.hidden || !botsBox.offsetParent) return;
   const box = botsBox.getBoundingClientRect(), c = cell.getBoundingClientRect();
@@ -452,10 +470,14 @@ function select(key: string): void {
   pg.key = key;
   pg.color = picked.get(key) ?? entry(key).own;
   bodyPicker.set(pg.color);
+  // The list that holds it (Bodies, Outlines or Yours) shows, if another one was showing.
+  if (cells.get(key)?.closest<HTMLElement>('[data-bots] > [role="tabpanel"]')?.hidden !== false) showList(LIST[entry(key).kind]);
   marked();
   coloured();
   actions();
   paint();
+  // Another tab can change yours while Moves is open: its avatar is the studio's, so it changes too.
+  if (view === 'moves') moversTurn();
 }
 
 // ---- Export, Copy and Remove.
@@ -479,7 +501,18 @@ async function copy(text: string, failed: string): Promise<void> {
 }
 doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color)); });
 doButton('json-file').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) download(`${e.id}.json`, 'application/json', json(e.definition)); });
-doButton('code').addEventListener('click', () => void copy($('[data-code]').textContent ?? '', 'No clipboard here: the code is under the studio.'));
+const codeToggle = $<HTMLButtonElement>('[data-show-code]'), codeBox = $('#code-box');
+const showCode = (on: boolean): void => {
+  codeBox.hidden = !on;
+  codeToggle.setAttribute('aria-expanded', String(on));
+  codeToggle.textContent = on ? 'Hide code' : 'Show code';
+};
+codeToggle.addEventListener('click', () => showCode(codeBox.hidden !== false));
+doButton('code').addEventListener('click', async () => {
+  if (await copyText($('[data-code]').textContent ?? '')) { said('Copied'); return; }
+  showCode(true);
+  said('No clipboard here: the code is open under the actions, to copy by hand.', true);
+});
 doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'No clipboard here: use Export instead.'); });
 doButton('link').addEventListener('click', () => {
   const e = entry(pg.key);
@@ -520,7 +553,7 @@ const described = (): string | null => {
 /** Sent: on to Import, for what comes back. */
 const sent = (note: string): void => {
   generateSaid.textContent = '';
-  showTab('import');
+  showStep('seg-import');
   importOut.replaceChildren(make('p', { className: 'sub-label', textContent: note }));
   importText.focus();
 };
@@ -567,7 +600,7 @@ function add(text: string): void {
   redrawYours();
   select(`yours:${r.values[r.values.length - 1].id}`);
   const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name);
-  const lines = [`Added ${r.values.map((d) => d.name).join(', ')}: on the stage now, and kept under Yours in Bot, in this browser.`, ...r.notes];
+  const lines = [`Added ${r.values.map((d) => d.name).join(', ')}: on the stage now, and kept under Bot, Yours, in this browser.`, ...r.notes];
   if (replaced.length) lines.push(`It took the place of the one you had with the same id: ${replaced.join(', ')}.`);
   importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: t })));
   importText.value = '';
@@ -581,7 +614,7 @@ const readFile = async (file: File | undefined) => {
 };
 fileInput.addEventListener('change', () => { void readFile(fileInput.files?.[0]); fileInput.value = ''; });
 $('[data-open-file]').addEventListener('click', () => fileInput.click());
-const importPanel = $('#panel-import');
+const importPanel = $('#new-import');
 importPanel.addEventListener('dragover', (e) => { e.preventDefault(); importPanel.classList.add('dropping'); });
 importPanel.addEventListener('dragleave', (e) => { if (!importPanel.contains(e.relatedTarget as Node | null)) importPanel.classList.remove('dropping'); });
 importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.classList.remove('dropping'); void readFile(e.dataTransfer?.files[0]); });
@@ -669,54 +702,94 @@ function writeCode(): void {
   $('[data-code]').textContent = text;
 }
 
-// ---- One card per move.
+// ---- Moves: one avatar, the studio's, and every move a row; the cues a page at a time.
 
-{
-  const list = $('[data-move-cards]');
-  MOVES.forEach((m, i) => {
-    const slot = make('div', { className: 'card-avatar' });
-    const button = make('button', { type: 'button', className: 'button small', textContent: 'Play' });
-    button.setAttribute('aria-label', `Play ${m.name}`);
-    const tag = make('span', { className: m.here ? 'tag here' : 'tag', textContent: m.here ? 'this page' : m.lane });
-    const card = make('li', { className: m.here ? 'card here' : 'card' },
-      slot,
-      make('div', { className: 'card-text' }, make('h3', {}, make('code', { textContent: m.name }), tag), make('p', { textContent: SAYS[m.name] ?? `A ${m.lane}.` })),
-      button);
-    list.append(card);
-    const shape = CARD_SHAPE[m.name] ?? SHAPES[i % SHAPES.length];
-    const one = mount(slot, { shape, size: 88, color: CYCLE[i % CYCLE.length], seed: 20 + i, clips, accent: ACCENT });
-    button.addEventListener('click', () => play(one, m));
-    moveButtons.push(button);
+const moveStage = $('[data-move-stage]'), moveSaid = $('[data-move-said]');
+const mover = mount($('[data-avatar="moves"]'), {
+  shape: entry(pg.key).shape, size: narrow.matches ? 120 : 150, ...inked(pg.color, pg.eyes ?? undefined), follow: true, followIn: moveStage,
+  pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT,
+});
+/** The moves are shown on the avatar in the studio, as it is now. */
+const moversTurn = (): void => mover.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel });
+function moveRow(m: Move): HTMLLIElement {
+  const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.name }), make('span', { textContent: SAYS[m.name] ?? `A ${m.lane}.` }));
+  b.addEventListener('click', () => {
+    play(mover, m);
+    moveSaid.textContent = m.lane === 'poke' ? `bot.poke('${m.name}')` : `bot.play('${m.name}')`;
   });
+  moveButtons.push(b);
+  return make('li', {}, b);
+}
+$('[data-lane="poke"]').append(...MOVES.filter((m) => m.lane === 'poke').map(moveRow));
+$('[data-lane="own"]').append(...MOVES.filter((m) => m.here).map(moveRow));
+{
+  const PER_PAGE = 8;
+  const list = $('[data-lane="cue"]'), pager = $('[data-cue-pager]');
+  const rows = MOVES.filter((m) => m.lane === 'cue' && !m.here).map(moveRow);
+  const count = Math.ceil(rows.length / PER_PAGE);
+  pager.setAttribute('role', 'group');
+  pager.setAttribute('aria-label', 'Pages of cues');
+  const pages = Array.from({ length: count }, (_, i) => {
+    const b = make('button', { type: 'button', className: 'chip', textContent: String(i + 1) });
+    b.setAttribute('aria-label', `Page ${i + 1} of ${count}`);
+    b.addEventListener('click', () => page(i));
+    return b;
+  });
+  const page = (n: number): void => {
+    list.replaceChildren(...rows.slice(n * PER_PAGE, (n + 1) * PER_PAGE));
+    pages.forEach((b, i) => b.setAttribute('aria-pressed', String(i === n)));
+  };
+  pager.append(...pages);
+  pager.hidden = count < 2;
+  page(0);
 }
 
-// ---- Every body, and one at every size.
+// ---- One avatar at the size picked, and what that size does.
 
 {
-  const list = $('[data-gallery]');
-  SHAPES.forEach((shape, i) => {
-    const slot = make('div', { className: 'gallery-avatar' });
-    const pick = make('button', { type: 'button', className: 'link', textContent: 'Try it' });
-    pick.setAttribute('aria-label', `Try ${shape} in the studio`);
-    pick.addEventListener('click', () => {
-      select(`body:${shape}`);
-      showTab('bot');
-      // Focus goes to the cell that now shows the choice, so a keyboard or a screen reader follows the scroll.
-      cells.get(`body:${shape}`)?.focus({ preventScroll: true });
-      $('#studio').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
-    });
-    list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: shape }), pick));
-    mount(slot, { shape, size: 72, color: CYCLE[i % CYCLE.length], follow: true, followIn: slot.closest('li'), pokeable: true, label: shape, seed: 100 + i });
+  const SIZES = [22, 32, 48, 64, 96, 128];
+  const note = $('[data-size-note]');
+  let size = 64;
+  const one = mount($('[data-avatar="size"]'), {
+    shape: 'star', size, color: DEFAULT_COLOUR, follow: true, followIn: $('[data-size-stage]'), pokeable: true, label: 'the star at the size picked', seed: 200, accent: ACCENT,
   });
-
-  const sizes = $('[data-sizes]');
-  [22, 32, 48, 64, 96, 128].forEach((size, i) => {
-    const slot = make('div', { className: 'size-avatar' });
-    const cell = make('li', {}, slot, make('span', { textContent: `${size} px` }));
-    sizes.append(cell);
-    mount(slot, { shape: 'star', size, color: DEFAULT_COLOUR, follow: true, followIn: cell, pokeable: size >= 64, label: `the ${size} px star`, seed: 200 + i });
-  });
+  const says = (s: number): string => s < 48
+    ? `${s} px: drawn at most 30 times a second, and it turns only part of the way.`
+    : s < 64 ? `${s} px: drawn every frame; it still turns only part of the way.` : `${s} px: drawn every frame, it turns all the way, and this page lets a click poke it.`;
+  const sync = chips($('[data-sizes]'), SIZES.map(String), () => String(size), (v) => {
+    size = Number(v);
+    one.update({ size, pokeable: size >= 64 });
+    note.textContent = says(size);
+  }, (v) => `${v} px`);
+  note.textContent = says(size);
+  sync();
 }
+
+// ---- The views: one at a time, by the address's #. An old link's # (#play, #shapes, #top) opens the studio; one
+// that names no view (#main, from the skip link) leaves the view as it is.
+
+const VIEWS = new Map([['', 'studio'], ['studio', 'studio'], ['moves', 'moves'], ['use', 'use'], ['play', 'studio'], ['shapes', 'studio'], ['top', 'studio']]);
+let view = '';
+function route(): void {
+  const next = VIEWS.get(location.hash.slice(1)) ?? (view || 'studio');
+  if (next === view) return;
+  const first = !view;
+  view = next;
+  for (const s of document.querySelectorAll<HTMLElement>('[data-view]')) s.hidden = s.dataset.view !== view;
+  for (const a of document.querySelectorAll<HTMLElement>('[data-view-link]')) {
+    if (a.dataset.viewLink === view) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+  if (view === 'moves') moversTurn();
+  if (view === 'studio') marked();
+  if (first) return;
+  scrollTo({ top: 0 });
+  // Focus goes to the view's heading, so a screen reader says where it is, and focus in the view now hidden is not lost.
+  $<HTMLElement>(`#${view}-title`).focus({ preventScroll: true });
+}
+addEventListener('hashchange', route);
+// The skip link goes to the page without changing the address, which names the view.
+$('[data-skip]').addEventListener('click', (e) => { e.preventDefault(); $<HTMLElement>('#main').focus(); });
 
 // ---- Copy buttons on the code.
 
@@ -742,7 +815,8 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
   });
 }
 
-marked();
+showList(LIST[entry(pg.key).kind]);
+route();
 coloured();
 actions();
 faces();
