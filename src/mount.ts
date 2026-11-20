@@ -5,7 +5,7 @@ import { VIEW_BOX, colours } from './engine/draw';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
-import { svgBox } from './still';
+import { svgBox, type Shape } from './still';
 import { onMotion, reducedMotion } from './ticker';
 
 export interface MountOptions extends LiveProps {
@@ -32,7 +32,7 @@ export interface Mounted {
   poke(kind?: string): void;
   play(name: string, cue?: { dir?: number; amount?: number }): boolean;
   /** Go to another shape for a moment and come back. */
-  visit(shape: string, stay?: number): void;
+  visit(shape: Shape, stay?: number): void;
   /** Stop, and leave the host as it was found. */
   destroy(): void;
 }

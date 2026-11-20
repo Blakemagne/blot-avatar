@@ -113,7 +113,7 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   if (grow <= 0.02) return [[], []];
   rotation(state.pose, R);
   const look = seen(e, state);
-  const cu = look.x * e.slideX, cv = e.y + look.y * e.slideY;
+  const cu = (e.cx ?? 0) + look.x * e.slideX, cv = e.y + look.y * e.slideY;
   // How far round the body is, as a share of a full look: 1 turned right, -1 turned left, 0 facing (or backing) us.
   // (Seen from behind, the face is on the back and the same turn shows the other way round. And nearly edge
   // on nothing is opened: the eye there is going round the rim, and a wide one would jump from rim to rim.)
@@ -173,7 +173,7 @@ function eyeSpots(src: Source, state: RigState, size: number, out: Float64Array,
     return true;
   }
   const e = src.eyes, boost = detail(size).boost, look = seen(e, state);
-  const cu = look.x * e.slideX, cv = e.y + look.y * e.slideY;
+  const cu = (e.cx ?? 0) + look.x * e.slideX, cv = e.y + look.y * e.slideY;
   return facePoint(src, R, cu - e.x * boost, cv, out, at) && facePoint(src, R, cu + e.x * boost, cv, out, at + 2);
 }
 
@@ -354,7 +354,7 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
   const near = Math.max(0, -side * turned) ** 2 * (e.open ?? 1), wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
   const out = (side * (wide - 1) * dc.w * k) / 2;
-  return { cu: look.x * e.slideX + side * e.x * boost + out, cv: e.y + look.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
+  return { cu: (e.cx ?? 0) + look.x * e.slideX + side * e.x * boost + out, cv: e.y + look.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
 }
 
 /** The decals of `of` that can be seen, each a layer over the body, into `out`. */

@@ -4,19 +4,30 @@
 import { BODIES, bodyFor } from './engine/bodies/index';
 import { portraitFor } from './engine/bodies/portraits';
 import type { Body } from './engine/body';
+import type { AvatarDefinition } from './engine/outline/definition';
+import { outlineBody } from './engine/outline/inflate';
 import { VIEW, VIEW_BOX } from './engine/draw';
 import { FACES } from './engine/faces';
 import type { RigState } from './engine/rig';
 
-/** The engine's body for a shape. A shape id the engine does not know is drawn as the blob. */
-export const bodyOf = (shape: string): Body => bodyFor(shape) ?? BODIES.blob;
+/**
+ * A shape: the id of one the engine has built in ('blob', 'heart', ...), or an avatar definition (an outline and
+ * its eyes, such as one from GALLERY or one a model wrote), which outlineBody makes into a body.
+ */
+export type Shape = string | AvatarDefinition;
+
+/**
+ * The engine's body for a shape. A shape id the engine does not know is drawn as the blob. A definition is not
+ * checked here: check one you did not write with validateAvatar first (an outline that cannot be read throws).
+ */
+export const bodyOf = (shape: Shape): Body => (typeof shape === 'string' ? bodyFor(shape) ?? BODIES.blob : outlineBody(shape));
 
 /** Below this size a still faces front: a turned face is a smear that small. */
 export const PORTRAIT_FROM = 28;
 
 /** The pose a still avatar holds: front-facing when tiny, the shape's portrait pose above that. */
-export function stillState(shape: string, size: number): RigState {
-  const pose = size < PORTRAIT_FROM ? { yaw: 0, pitch: 0, roll: 0 } : portraitFor(shape);
+export function stillState(shape: Shape, size: number): RigState {
+  const pose = size < PORTRAIT_FROM ? { yaw: 0, pitch: 0, roll: 0 } : portraitFor(typeof shape === 'string' ? shape : '');
   return { pose, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 }
 

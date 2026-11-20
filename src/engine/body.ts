@@ -12,6 +12,11 @@ export type Piece = readonly Sphere[];
 export interface EyeSpec {
   /** Half the distance between the two eye centres. */
   x: number;
+  /**
+   * Where the middle of the pair is across the face (0, the body's middle line, when not given). For a body whose
+   * face is to one side of its outline, such as a mug's cup beside its handle.
+   */
+  cx?: number;
   /** Height of the eye line. */
   y: number;
   /** Width and height of one eye at the neutral face. */

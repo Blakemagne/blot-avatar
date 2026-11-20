@@ -65,7 +65,8 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   useEffect(() => live.follow(p.follow), [p.follow]);
   useEffect(() => live.shape(), [shape, p.body, p.size]);
   useEffect(() => live.face(p.face), [p.face]);
-  useEffect(() => live.doing(), [p.activity, p.form, p.rests, p.shape, p.body, p.size, p.mark, JSON.stringify(p.personality ?? null)]);
+  // (The body stands for the shape: a definition written inline is a new object every render, its body is not.)
+  useEffect(() => live.doing(), [p.activity, p.form, p.rests, shape, p.body, p.size, p.mark, JSON.stringify(p.personality ?? null)]);
   // New colours repaint the effects already drawn (a still avatar may not draw again for a long time).
   useEffect(() => {
     const d = last.current, c = fxPaint.current;

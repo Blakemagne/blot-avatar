@@ -11,3 +11,6 @@ export { BLINK_HEIGHT, FACES, eyeOutline, type Face, type FaceName } from './fac
 export { BLINK_MS, LOOK_PITCH, LOOK_YAW, Rig, random, type RigOptions, type RigState } from './rig';
 export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, colours, detail, drawAvatar, effectShapes, eyeShapes, layerShapes, type Drawing, type DrawnFx, type Layer } from './draw';
 export { BODIES, bodyFor } from './bodies/index';
+export { EYE_H, EYE_W, eyesOff, validateAvatar, type AvatarDefinition, type AvatarEyes, type ValidationResult } from './outline/definition';
+export { BOX_SCALE, outlineBody } from './outline/inflate';
+export { PathError, flattenPath, parsePath, serializePath } from './outline/path';

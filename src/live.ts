@@ -6,12 +6,15 @@ import { PERSONALITY, type Clip, type Personality } from './engine/clips';
 import { drawAvatar, type Drawing } from './engine/draw';
 import { ACTIVITY_FACES, FACES, faceFor } from './engine/faces';
 import { Rig, type RigState } from './engine/rig';
-import { bodyOf, stillState } from './still';
+import { bodyOf, stillState, type Shape } from './still';
 import { onFrame, onSeen, pointer, reducedMotion, watchPointer } from './ticker';
 
 export interface LiveProps {
-  /** The shape. Changed on an attached avatar, the body morphs into the new one. */
-  shape: string;
+  /**
+   * The shape: a built-in one's id, or an avatar definition (see Shape). Changed on an attached avatar, the body
+   * morphs into the new one. A definition is told apart by its contents, so a copy of the same one is no change.
+   */
+  shape: Shape;
   /**
    * A body of your own, drawn in place of `shape`'s (which still names it for a still picture), such as
    * a shape with antennas added. Changed on an attached avatar, it morphs as a new shape does. Pass the same
@@ -82,7 +85,7 @@ export interface Live {
   /** Play a clip by name (see Rig.play). False under reduced motion. */
   play(name: string, cue?: { dir?: number; amount?: number }): boolean;
   /** Go to another shape for a moment and come back (Rig.visit). Nothing under reduced motion. */
-  visit(shape: string, stay?: number): void;
+  visit(shape: Shape, stay?: number): void;
 }
 
 /** Below this size an avatar is drawn at most 30 times a second. */
