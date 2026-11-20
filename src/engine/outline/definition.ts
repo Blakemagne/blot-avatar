@@ -73,7 +73,8 @@ export function validateAvatar(input: unknown): ValidationResult {
   const id = input.id;
   if (typeof id !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(id)) errors.push('id must be a lowercase slug of 1-40 chars [a-z0-9-]');
   const name = typeof input.name === 'string' ? input.name.trim() : '';
-  if (!name || name.length > 40 || /[\u0000-\u001f<>]/.test(name)) errors.push('name must be 1-40 printable characters without < or >');
+  // (U+2028 and U+2029 end a line in JavaScript, so a name in a comment of the code a page shows could become code.)
+  if (!name || name.length > 40 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/.test(name)) errors.push('name must be 1-40 printable characters without < or >');
 
   let path: string | null = null;
   if (!isRecord(input.body)) errors.push('body must be an object { "path": "..." }');

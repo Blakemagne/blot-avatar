@@ -1,13 +1,22 @@
 // The demo page. Everything on it is the package's public API (@blot/avatar): mount() for each avatar, and the lists the
-// engine exports (BODIES, FACE_NAMES, ACTIVITIES, FORMS, POKES, CUES) for every set of buttons, so a new body,
-// face or clip in the package shows up here without touching this file. The waggle is the one move written here.
+// engine exports (BODIES, GALLERY, FACE_NAMES, ACTIVITIES, FORMS, POKES, CUES) for every set of buttons, so a new body,
+// avatar, face or clip in the package shows up here without touching this file. The waggle is the one move written here.
+//
+// The studio at the top is laid out after open-bot-avatar's (Dominik Scholz and its contributors, MIT; see
+// THIRD_PARTY_NOTICES.md): a stage with what it is doing under it, Export and Copy, and a card of tabs to pick one,
+// play with it, have a model design one, and bring that back.
 
 import {
-  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, PERSONALITY, POKES, colours, mount, onMotion, reducedMotion,
-  type MountOptions, type Mounted, type Personality,
+  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, colours, drawAvatar, galleryColour,
+  mount, onMotion, reducedMotion, stillState, svgBox,
+  type AvatarDefinition, type MountOptions, type Mounted, type Personality, type Shape,
 } from '@blot/avatar';
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 import { colorPicker, contrast } from './picker';
+import PROMPT from './prompt.md';
+import {
+  AGENTS, designBrief, freeId, isAgent, parseImport, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
+} from './studio';
 
 /** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
 const waggle = cue(900, [
@@ -78,6 +87,10 @@ const FAINT = 1.6;
 const SHAPES = Object.keys(BODIES);
 /** Forms are what the body turns into while it thinks or works; they mean nothing otherwise. */
 const BUSY = new Set(['thinking', 'working']);
+/** Where the page lives, for a prompt's link when it is opened from disk. */
+const PAGES = 'https://blakemagne.github.io/blot-avatar/';
+/** The longest link to an agent app this page opens: browsers and the system may not hand a longer one on. */
+const LINK_MOST = 2000;
 
 const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document): T => {
   const el = root.querySelector<T>(sel);
@@ -88,6 +101,11 @@ const make = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTML
   const el = Object.assign(document.createElement(tag), props);
   el.append(...kids);
   return el;
+};
+/** localStorage, which a private window or a blocked site may refuse: then nothing is kept, and the page works the same. */
+const stored = {
+  get(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* kept for this visit only */ } },
 };
 
 /** Every move button on the page, turned off together under reduced motion (a move would do nothing). */
@@ -101,6 +119,19 @@ const still = (): void => {
 function play(bot: Mounted, m: Move, cue?: { dir?: number; amount?: number }): void {
   if (m.lane === 'poke') bot.poke(m.name);
   else bot.play(m.name, cue);
+}
+
+/** Put text on the clipboard; false where there is none (a plain-http page, or a browser that says no). */
+async function copyText(text: string): Promise<boolean> {
+  try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}
+function download(name: string, type: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = make('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---- The logo: a live one in the header. It watches the pointer keenly, all over the page (a short reach and a
@@ -124,25 +155,78 @@ const FLOURISH = ['delight', 'wink', 'exclaim', 'burst', 'rings', 'recoil'];
   host.addEventListener('pointerenter', () => { logo.play('wide'); });
 }
 
-// ---- The hero.
+// ---- What the studio can show: blot's bodies, the gallery's avatars, and yours (kept in this browser).
 
-const heroSize = (): number => (matchMedia('(max-width: 720px)').matches ? 150 : 220);
-const hero = mount($('[data-avatar="hero"]'), {
-  shape: 'blob', size: heroSize(), color: DEFAULT_COLOUR, follow: true, followIn: $('.hero-stage'), pokeable: true, label: 'the avatar', seed: 3, clips,
+interface Entry {
+  /** 'body:heart', 'gallery:cat', 'yours:teapot'. */
+  key: string;
+  id: string;
+  name: string;
+  kind: 'body' | 'gallery' | 'yours';
+  shape: Shape;
+  /** Its own colour, which it shows until another is picked for it. */
+  own: string;
+  definition?: AvatarDefinition;
+}
+
+const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
+/** The gallery by its colours in blot's order, then by name. */
+const GALLERY_ENTRIES: Entry[] = GALLERY.map((g): Entry => ({
+  key: `gallery:${g.definition.id}`, id: g.definition.id, name: g.definition.name, kind: 'gallery', shape: g.definition, own: galleryColour(g), definition: g.definition,
+})).sort((a, b) => BOT_COLOURS.findIndex(([h]) => h === a.own) - BOT_COLOURS.findIndex(([h]) => h === b.own) || a.name.localeCompare(b.name));
+const yoursEntry = (d: AvatarDefinition): Entry => ({ key: `yours:${d.id}`, id: d.id, name: d.name, kind: 'yours', shape: d, own: DEFAULT_COLOUR, definition: d });
+
+const YOURS_KEY = 'blot-avatar:yours';
+let yours: AvatarDefinition[] = (() => { try { return reviveYours(JSON.parse(stored.get(YOURS_KEY) ?? '[]')); } catch { return []; } })();
+const keepYours = (): void => stored.set(YOURS_KEY, JSON.stringify(yours));
+// Another tab of this page changed yours: take its list, so a change here does not write over it.
+addEventListener('storage', (e) => {
+  if (e.key !== YOURS_KEY) return;
+  try { yours = reviveYours(JSON.parse(e.newValue ?? '[]')); } catch { yours = []; }
+  redrawYours();
+  if (pg.key.startsWith('yours:') && !yours.some((d) => `yours:${d.id}` === pg.key)) select('body:blob');
+  else if (pg.key.startsWith('yours:')) select(pg.key);
 });
-matchMedia('(max-width: 720px)').addEventListener('change', () => hero.update({ size: heroSize() }));
+const entries = (): Entry[] => [...BODY_ENTRIES, ...GALLERY_ENTRIES, ...yours.map(yoursEntry)];
+const entry = (key: string): Entry => entries().find((e) => e.key === key) ?? BODY_ENTRIES[0];
 
-// ---- The playground.
+// ---- The studio's avatar.
 
+const narrow = matchMedia('(max-width: 720px)');
 const pg = {
-  shape: 'heart', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
-  size: 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
+  key: 'body:blob', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
+  size: narrow.matches ? 150 : 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
 };
+/** The colour picked for each avatar this visit; one with none shows its own. */
+const picked = new Map<string, string>();
 const options = (): MountOptions => ({
-  shape: pg.shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
+  shape: entry(pg.key).shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT,
 });
-const bot = mount($('[data-avatar="play"]'), { ...options(), followIn: $('[data-stage]'), pokeable: true, label: 'the playground avatar', seed: 7, clips });
+
+// A link's query picks the avatar, its colour and what it is doing, once, as the page opens; then it is cleared,
+// so a reload starts afresh. A definition in it is checked like an import and added to yours (under another id
+// when one of yours already has its id, so a link never takes the place of one of yours).
+const shared = readShare(location.search, ACTIVITIES);
+{
+  if (shared.definition) {
+    const d = freeId(yours, shared.definition);
+    if (!yours.some((y) => y.id === d.id)) { yours = [...yours, d]; keepYours(); }
+    pg.key = `yours:${d.id}`;
+  } else if (shared.gallery) {
+    if (GALLERY_ENTRIES.some((e) => e.id === shared.gallery)) pg.key = `gallery:${shared.gallery}`;
+  } else if (shared.avatar) {
+    // A body first, then one of yours, then (for a link written by hand) the gallery.
+    const found = [...BODY_ENTRIES, ...yours.map(yoursEntry), ...GALLERY_ENTRIES].find((e) => e.id === shared.avatar);
+    if (found) pg.key = found.key;
+  }
+  if (shared.colour) picked.set(pg.key, shared.colour);
+  if (shared.doing) pg.activity = shared.doing;
+  pg.color = picked.get(pg.key) ?? entry(pg.key).own;
+  if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
+}
+
+const bot = mount($('[data-avatar="play"]'), { ...options(), followIn: $('[data-stage]'), pokeable: true, label: 'the studio\'s avatar', seed: 7, clips });
 
 /** A row of buttons, one pressed. */
 function chips(box: HTMLElement, values: readonly (string | null)[], now: () => string | null, pick: (v: string | null) => void, name = (v: string | null) => v ?? 'none'): () => void {
@@ -159,8 +243,18 @@ function chips(box: HTMLElement, values: readonly (string | null)[], now: () => 
 
 const changed = (): void => { bot.update(options()); writeCode(); };
 
-const syncShape = chips($('[data-choice="shape"]'), SHAPES, () => pg.shape, (v) => { pg.shape = v ?? 'blob'; changed(); });
-chips($('[data-choice="face"]'), FACE_NAMES, () => pg.face, (v) => { pg.face = v ?? 'neutral'; changed(); });
+// ---- What the studio says, for a moment, beside the actions (and to a screen reader).
+
+const saidBox = $('[data-said]');
+let saidTimer = 0;
+/** `hold`: it stays until the next thing is said, for a line to copy by hand. */
+function said(text: string, hold = false): void {
+  saidBox.textContent = text;
+  clearTimeout(saidTimer);
+  if (!hold) saidTimer = window.setTimeout(() => { saidBox.textContent = ''; }, 5000);
+}
+
+// What it is doing, under the stage; keys 1 to 6 there pick it too.
 const formRow = $('[data-form-row]');
 // A face is worn when idle: busy, the activity has its own. So the face chips wait until it is idle again,
 // and the avatar never shows a face the code beside it would not give.
@@ -169,22 +263,338 @@ const faces = (): void => {
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-choice="face"] .chip')) b.disabled = busy;
   $('[data-face-note]').hidden = !busy;
 };
-chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => {
-  pg.activity = v ?? 'idle';
+const doing = (v: string): void => {
+  pg.activity = v;
   formRow.hidden = !BUSY.has(pg.activity);
   faces();
   changed();
+};
+const syncDoing = chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => doing(v ?? 'idle'));
+formRow.hidden = !BUSY.has(pg.activity);
+$('.stage-col').addEventListener('keydown', (e) => {
+  const n = Number(e.key);
+  if (e.ctrlKey || e.metaKey || e.altKey || !Number.isInteger(n) || n < 1 || n > ACTIVITIES.length) return;
+  if ((e.target as HTMLElement).closest('input, textarea, select')) return;
+  e.preventDefault();
+  doing(ACTIVITIES[n - 1]);
+  syncDoing();
+  said(ACTIVITIES[n - 1]);
 });
 chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; changed(); });
+chips($('[data-choice="face"]'), FACE_NAMES, () => pg.face, (v) => { pg.face = v ?? 'neutral'; changed(); });
 
-// The mark, a visit, and what it is like to move.
+// ---- Tabs and menus.
+
+const TABS = ['bot', 'play', 'generate', 'import'] as const;
+type Tab = (typeof TABS)[number];
+function showTab(tab: Tab, focus = false): void {
+  for (const t of TABS) {
+    const b = $<HTMLButtonElement>(`#tab-${t}`), on = t === tab;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+    $(`#panel-${t}`).hidden = !on;
+    if (on && focus) b.focus();
+  }
+  if (tab === 'bot') marked();
+}
+TABS.forEach((t, i) => {
+  const b = $<HTMLButtonElement>(`#tab-${t}`);
+  b.addEventListener('click', () => showTab(t));
+  b.addEventListener('keydown', (e) => {
+    const to = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    showTab(TABS[(to + TABS.length) % TABS.length], true);
+  });
+});
+
+// A button that opens a list under it. A click outside, Escape, or a choice from it closes it.
+for (const menu of document.querySelectorAll<HTMLElement>('[data-menu]')) {
+  const trigger = $<HTMLButtonElement>(':scope > button', menu), list = $(':scope > .menu-list', menu);
+  const open = (on: boolean) => {
+    list.hidden = !on;
+    trigger.setAttribute('aria-expanded', String(on));
+  };
+  trigger.addEventListener('click', () => {
+    const on = list.hidden !== false;
+    open(on);
+    if (on) list.querySelector<HTMLElement>('button:not(:disabled), input')?.focus();
+  });
+  document.addEventListener('pointerdown', (e) => { if (!menu.contains(e.target as Node)) open(false); });
+  menu.addEventListener('focusout', (e) => { if (!menu.contains(e.relatedTarget as Node | null)) open(false); });
+  menu.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !list.hidden) { open(false); trigger.focus(); } });
+  // The settings stay open while they are changed; a menu's choice closes it.
+  // (Focus goes back to its button, not to the top of the page with the choice that is now hidden.)
+  if (!menu.classList.contains('settings')) list.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button')) { open(false); trigger.focus(); } });
+}
+
+// ---- The Bot tab: every avatar as a still, and the colour.
+
+/** A still of an avatar, facing front, as a thumbnail: the gallery's were drawn at the build, the rest here. */
+function thumb(e: Entry): SVGSVGElement {
+  const NS = 'http://www.w3.org/2000/svg', box = svgBox(__THUMB__);
+  const drawn = (): string[] => {
+    const d = drawAvatar(bodyOf(e.shape), BLACK, stillState(e.shape, __THUMB__), __THUMB__);
+    return [d.body, d.eyes[0], d.eyes[1]];
+  };
+  const paths = (e.kind === 'gallery' && __THUMBS__[e.id]) || drawn();
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', box.viewBox);
+  svg.setAttribute('width', String(box.width));
+  svg.setAttribute('height', String(box.height));
+  svg.setAttribute('aria-hidden', 'true');
+  Object.assign(svg.style, { position: 'absolute', left: `${box.left}px`, top: `${box.top}px`, overflow: 'visible' });
+  paths.forEach((d, i) => {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d);
+    p.dataset.part = i ? 'eye' : 'body';
+    svg.append(p);
+  });
+  return svg;
+}
+const paintThumb = (cell: HTMLElement, colour: string): void => {
+  const c = colours(colour), black = colour === BLACK;
+  for (const p of cell.querySelectorAll<SVGPathElement>('path')) p.style.fill = p.dataset.part === 'body' ? (black ? 'var(--ink)' : c.fill) : (black ? 'var(--bg)' : c.eyeFill);
+};
+
+const cells = new Map<string, HTMLButtonElement>();
+const botsBox = $('[data-bots]');
+function cellFor(e: Entry): HTMLLIElement {
+  const b = make('button', { type: 'button', className: 'bot-cell', title: e.name });
+  b.setAttribute('aria-label', e.name);
+  const slot = make('span', { className: 'bot-thumb' });
+  slot.style.width = slot.style.height = `${__THUMB__}px`;
+  slot.append(thumb(e));
+  b.append(slot);
+  paintThumb(b, picked.get(e.key) ?? e.own);
+  b.addEventListener('click', () => select(e.key));
+  // A body made from an outline takes a moment to build: start on it as the pointer comes, not on the click.
+  if (e.kind !== 'body') b.addEventListener('pointerenter', () => setTimeout(() => bodyOf(e.shape)), { once: true });
+  cells.set(e.key, b);
+  return make('li', {}, b);
+}
+function group(title: string, list: Entry[], extra?: HTMLElement): HTMLElement {
+  const ul = make('ul', { className: 'bots' }, ...list.map(cellFor));
+  if (extra) ul.append(make('li', {}, extra));
+  ul.setAttribute('aria-label', title);
+  return make('div', { className: 'bots-group' }, make('h3', { className: 'bots-head', textContent: title }), ul);
+}
+const newTile = make('button', { type: 'button', className: 'bot-cell bot-new', title: 'Make a new one' }, make('span', { className: 'bot-plus', textContent: '+' }));
+newTile.setAttribute('aria-label', 'Make a new one');
+newTile.addEventListener('click', () => { showTab('generate'); $('[data-describe]').focus(); });
+const yoursGroup = (): HTMLElement => group('Yours', yours.map(yoursEntry), newTile);
+let yoursBox = yoursGroup();
+botsBox.append(group('blot\'s bodies', BODY_ENTRIES), group('From outlines', GALLERY_ENTRIES), yoursBox);
+function redrawYours(): void {
+  // Focus on one of yours (or on +) stays on it through the redraw.
+  const had = document.activeElement, focused = [...cells].find(([, b]) => b === had)?.[0];
+  for (const k of [...cells.keys()]) if (k.startsWith('yours:')) cells.delete(k);
+  const next = yoursGroup();
+  yoursBox.replaceWith(next);
+  yoursBox = next;
+  marked();
+  if (had === newTile) newTile.focus({ preventScroll: true });
+  else if (focused?.startsWith('yours:')) cells.get(focused)?.focus({ preventScroll: true });
+}
+/** The pressed cell is the one on the stage, scrolled into the list's view (the list only, never the page). */
+function marked(): void {
+  for (const [k, b] of cells) b.setAttribute('aria-pressed', String(k === pg.key));
+  const cell = cells.get(pg.key);
+  if (!cell || botsBox.hidden || !botsBox.offsetParent) return;
+  const box = botsBox.getBoundingClientRect(), c = cell.getBoundingClientRect();
+  if (c.top < box.top || c.bottom > box.bottom) botsBox.scrollTop += c.top - box.top - (box.height - c.height) / 2;
+}
+
+const resetColour = $<HTMLButtonElement>('[data-reset-colour]');
+/** The colour now shown, on its thumbnail and the reset button. */
+function coloured(): void {
+  const e = entry(pg.key), cell = cells.get(pg.key);
+  if (cell) paintThumb(cell, pg.color);
+  resetColour.hidden = pg.color.toUpperCase() === e.own.toUpperCase();
+  const name = BOT_COLOURS.find(([h]) => h === e.own)?.[1] ?? e.own;
+  resetColour.textContent = `Back to its own colour, ${name.toLowerCase()}`;
+}
+
+// Colours: the body's and the eyes', each a row of swatches and a panel for any colour at all. Each panel has a
+// little avatar in the colours so far, for a phone where the stage is off screen.
+const previews: Mounted[] = [];
+const faint = $('[data-eye-note]');
+function paint(): void {
+  for (const p of previews) p.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined) });
+  // The eyes as drawn: the picked colour, or the automatic one.
+  // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
+  const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
+  faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
+  changed();
+}
+const bodyPicker = colorPicker($('[data-picker="body"]'), {
+  label: 'Body colour', value: pg.color, presets: COLOURS,
+  onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
+});
+{
+  const eyePicker = colorPicker($('[data-picker="eyes"]'), {
+    label: 'Eye colour', value: pg.eyes, presets: EYES, auto: 'Auto', start: '#FFFFFF',
+    onInput: (v) => { pg.eyes = v; paint(); },
+  });
+  for (const [i, p] of [bodyPicker, eyePicker].entries()) {
+    previews.push(mount(p.preview, { shape: entry(pg.key).shape, size: 40, ...inked(pg.color, pg.eyes ?? undefined), seed: 300 + i }));
+  }
+  resetColour.addEventListener('click', () => {
+    picked.delete(pg.key);
+    select(pg.key);
+    // The button is hidden now: focus goes to the colour it went back to.
+    $('[data-picker="body"]').querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  });
+}
+
+/** Put an avatar on the stage, in the colour picked for it, or its own. */
+function select(key: string): void {
+  pg.key = key;
+  pg.color = picked.get(key) ?? entry(key).own;
+  bodyPicker.set(pg.color);
+  marked();
+  coloured();
+  actions();
+  paint();
+}
+
+// ---- Export, Copy and Remove.
+
+const doButton = (what: string) => $<HTMLButtonElement>(`[data-do="${what}"]`);
+/** What the actions can do for the avatar on the stage: a body of blot's has no definition to give. */
+function actions(): void {
+  const e = entry(pg.key);
+  for (const what of ['json', 'json-file']) {
+    const b = doButton(what);
+    b.disabled = !e.definition;
+    b.title = e.definition ? '' : 'blot\'s own bodies are not drawn from an outline, so there is no definition to give';
+  }
+  doButton('remove').hidden = e.kind !== 'yours';
+  doButton('remove').setAttribute('aria-label', `Remove ${e.name} from yours`);
+}
+const json = (d: AvatarDefinition) => `${JSON.stringify(d, null, 2)}\n`;
+async function copy(text: string, failed: string): Promise<void> {
+  if (await copyText(text)) said('Copied');
+  else said(failed, true);
+}
+doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color)); });
+doButton('json-file').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) download(`${e.id}.json`, 'application/json', json(e.definition)); });
+doButton('code').addEventListener('click', () => void copy($('[data-code]').textContent ?? '', 'No clipboard here: the code is under the studio.'));
+doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'No clipboard here: use Export instead.'); });
+doButton('link').addEventListener('click', () => {
+  const e = entry(pg.key);
+  const link = shareLink(`${location.origin}${location.pathname}`, { id: e.id, kind: e.kind, definition: e.definition }, pg.color, e.own, pg.activity);
+  void copy(link, `No clipboard here. The link: ${link}`);
+});
+doButton('remove').addEventListener('click', () => {
+  const e = entry(pg.key);
+  if (e.kind !== 'yours') return;
+  yours = yours.filter((d) => d.id !== e.id);
+  keepYours();
+  picked.delete(e.key);
+  redrawYours();
+  select('body:blob');
+  // The Remove button is hidden now: focus goes to the Export button beside where it was.
+  $<HTMLButtonElement>('[data-menu="export"] > button').focus();
+  said(`Removed ${e.name}`);
+});
+
+// ---- Generate: a prompt for any model, or an agent app.
+
+const AGENT_KEY = 'blot-avatar:agent';
+let agent: Agent = ((v) => (isAgent(v) ? v : 'claude'))(stored.get(AGENT_KEY));
+const agentSelect = $<HTMLSelectElement>('[data-agent]'), openAgent = $<HTMLButtonElement>('[data-open-agent]');
+for (const [id, a] of Object.entries(AGENTS)) agentSelect.append(make('option', { value: id, textContent: a.label }));
+const syncAgent = () => { agentSelect.value = agent; openAgent.textContent = `Open in ${AGENTS[agent].label}`; };
+agentSelect.addEventListener('change', () => { if (isAgent(agentSelect.value)) { agent = agentSelect.value; stored.set(AGENT_KEY, agent); syncAgent(); } });
+syncAgent();
+/** Where this page serves the design prompt, for the short form of a prompt. Opened from disk, it is the published page's. */
+const promptUrl = (): string => new URL('prompt.md', /^https?:$/.test(location.protocol) ? location.href : PAGES).href;
+const describe = $<HTMLTextAreaElement>('[data-describe]'), generateSaid = $('[data-generate-said]');
+const importText = $<HTMLTextAreaElement>('[data-import-text]'), importOut = $('[data-import-out]');
+const described = (): string | null => {
+  const text = describe.value.trim();
+  if (!text) { generateSaid.textContent = 'Describe it first: a few words is enough.'; describe.focus(); return null; }
+  return text;
+};
+/** Sent: on to Import, for what comes back. */
+const sent = (note: string): void => {
+  generateSaid.textContent = '';
+  showTab('import');
+  importOut.replaceChildren(make('p', { className: 'sub-label', textContent: note }));
+  importText.focus();
+};
+$('[data-copy-prompt]').addEventListener('click', async () => {
+  const text = described();
+  if (!text) return;
+  if (await copyText(designBrief(PROMPT, promptUrl(), text).full)) sent('Copied the prompt. Paste it into any chat model, then paste its reply here.');
+  else generateSaid.textContent = 'No clipboard here. Open it in an app instead, or read the prompt and write to a model yourself.';
+});
+openAgent.addEventListener('click', () => {
+  const text = described();
+  if (!text) return;
+  // An app's link has a length limit and the whole prompt is long: the link carries the short form, which points at
+  // the prompt here. A long description still makes a link a browser may not open, so past LINK_MOST it is not tried.
+  const link = AGENTS[agent].link(designBrief(PROMPT, promptUrl(), text).linked);
+  if (link.length > LINK_MOST) { generateSaid.textContent = `That description is too long for a link to ${AGENTS[agent].label}. Copy the prompt instead, or say it in fewer words.`; return; }
+  location.href = link;
+  sent(`Opening ${AGENTS[agent].label}. Read the prompt there and send it, then paste its reply here.`);
+});
+
+// ---- Import: what a model sends back.
+
+function add(text: string): void {
+  const r = parseImport(text);
+  if (!r.ok) {
+    const out: Node[] = [make('p', { className: 'import-bad', textContent: 'Not added.' }), make('ul', { className: 'import-errors' }, ...r.errors.map((e) => make('li', { textContent: e })))];
+    for (const n of [...r.notes, ...r.hints]) out.push(make('p', { className: 'sub-label', textContent: n }));
+    if (r.source) {
+      const repair = make('button', { type: 'button', className: 'button small', textContent: 'Copy repair prompt' });
+      repair.addEventListener('click', async () => {
+        repair.textContent = await copyText(repairBrief(PROMPT, promptUrl(), r.source, r.errors).full) ? 'Copied' : 'No clipboard here';
+        setTimeout(() => { repair.textContent = 'Copy repair prompt'; }, 1600);
+      });
+      out.push(repair);
+    }
+    importOut.replaceChildren(...out);
+    return;
+  }
+  const had = new Set(yours.map((d) => d.id));
+  const incoming = new Map(r.values.map((d) => [d.id, d]));
+  yours = [...yours.map((d) => incoming.get(d.id) ?? d), ...r.values.filter((d) => !had.has(d.id))];
+  keepYours();
+  for (const d of r.values) picked.delete(`yours:${d.id}`);
+  redrawYours();
+  select(`yours:${r.values[r.values.length - 1].id}`);
+  const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name);
+  const lines = [`Added ${r.values.map((d) => d.name).join(', ')}: on the stage now, and kept under Yours in Bot, in this browser.`, ...r.notes];
+  if (replaced.length) lines.push(`It took the place of the one you had with the same id: ${replaced.join(', ')}.`);
+  importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: t })));
+  importText.value = '';
+}
+$('[data-import]').addEventListener('click', () => add(importText.value));
+const fileInput = $<HTMLInputElement>('[data-import-file]');
+const readFile = async (file: File | undefined) => {
+  if (!file) return;
+  importText.value = await file.text();
+  add(importText.value);
+};
+fileInput.addEventListener('change', () => { void readFile(fileInput.files?.[0]); fileInput.value = ''; });
+$('[data-open-file]').addEventListener('click', () => fileInput.click());
+const importPanel = $('#panel-import');
+importPanel.addEventListener('dragover', (e) => { e.preventDefault(); importPanel.classList.add('dropping'); });
+importPanel.addEventListener('dragleave', (e) => { if (!importPanel.contains(e.relatedTarget as Node | null)) importPanel.classList.remove('dropping'); });
+importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.classList.remove('dropping'); void readFile(e.dataTransfer?.files[0]); });
+
+// ---- The Play tab: the mark, a visit, what it is like to move, and moves.
+
 {
   const mark = $<HTMLInputElement>('[data-mark]');
   mark.addEventListener('change', () => { pg.mark = mark.checked; changed(); });
   const visits = $('[data-visit]');
   for (const shape of VISITS) {
     const b = make('button', { type: 'button', className: 'chip', textContent: shape });
-    b.addEventListener('click', () => { if (pg.shape !== shape) bot.visit(shape); pg.last = null; writeCode(); });
+    b.addEventListener('click', () => { if (pg.key !== `body:${shape}`) bot.visit(shape); pg.last = null; writeCode(); });
     visits.append(b);
     moveButtons.push(b);
   }
@@ -196,36 +606,6 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
     input.addEventListener('input', () => { pg.feel = { ...pg.feel, [k]: Number(input.value) }; out.textContent = pg.feel[k].toFixed(2); changed(); });
     feel.append(make('span', { textContent: k }), input, out);
   }
-}
-
-// Colours: the body's and the eyes', each a row of swatches and a panel for any colour at all. Each panel has a
-// little avatar in the colours so far, for a phone where the playground's is off screen.
-{
-  const previews: Mounted[] = [];
-  const faint = $('[data-eye-note]');
-  const paint = (): void => {
-    for (const p of previews) p.update(inked(pg.color, pg.eyes ?? undefined));
-    // The eyes as drawn: the picked colour, or the automatic one.
-    // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
-    const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
-    faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
-    changed();
-  };
-  const body = colorPicker($('[data-picker="body"]'), {
-    label: 'Body colour', value: pg.color, presets: COLOURS,
-    onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; paint(); },
-  });
-  const eyes = colorPicker($('[data-picker="eyes"]'), {
-    label: 'Eye colour', value: pg.eyes, presets: EYES, auto: 'Auto', start: '#FFFFFF',
-    onInput: (v) => { pg.eyes = v; paint(); },
-  });
-  for (const [i, p] of [body, eyes].entries()) {
-    previews.push(mount(p.preview, { shape: 'blob', size: 40, ...inked(pg.color, pg.eyes ?? undefined), seed: 300 + i }));
-  }
-}
-
-// Moves.
-{
   const box = $('[data-moves]');
   for (const m of MOVES) {
     const b = make('button', { type: 'button', className: m.here ? 'chip move here' : 'chip move', textContent: m.name });
@@ -240,9 +620,11 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
   amount.addEventListener('input', () => { pg.amount = Number(amount.value); out.textContent = String(pg.amount); writeCode(); });
 }
 
-// Size and pointer.
+// Settings: size and pointer.
 {
   const size = $<HTMLInputElement>('[data-size]'), out = $('[data-size-out]');
+  size.value = String(pg.size);
+  out.textContent = `${pg.size} px`;
   size.addEventListener('input', () => { pg.size = Number(size.value); out.textContent = `${pg.size} px`; changed(); });
   const follow = $<HTMLInputElement>('[data-follow]');
   follow.addEventListener('change', () => { pg.follow = follow.checked; changed(); });
@@ -251,9 +633,11 @@ chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.fo
 /** The waggle's definition as the page shows it under "Moves are data", for code that plays the waggle. */
 const waggleSource = ((t) => t.slice(t.indexOf('// A waggle'), t.indexOf('\n]);', t.indexOf('const waggle')) + 4))($('#wave-code').textContent ?? '');
 
-/** The code for the playground's avatar as it is now. */
+/** The code for the studio's avatar as it is now. */
 function writeCode(): void {
-  const o: string[] = [`shape: '${pg.shape}'`, `size: ${pg.size}`];
+  const e = entry(pg.key);
+  const shapeOption = e.kind === 'body' ? `shape: '${e.id}'` : e.kind === 'gallery' ? `shape: galleryAvatar('${e.id}').definition` : 'shape';
+  const o: string[] = [shapeOption, `size: ${pg.size}`];
   if (pg.color !== DEFAULT_COLOUR) o.push(`color: '${pg.color}'`);
   if (pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
@@ -268,9 +652,10 @@ function writeCode(): void {
   if (pg.last?.here) o.push('clips: { waggle }');
   const lines: string[] = [];
   for (let i = 0; i < o.length; i += 3) lines.push(`  ${o.slice(i, i + 3).join(', ')},`);
-  let text = pg.last?.here
-    ? `import { mount } from '@blot/avatar';\nimport { cue, eyes, head, toward, wave } from '@blot/avatar/moves';\n\n${waggleSource}\n`
-    : `import { mount } from '@blot/avatar';\n`;
+  let text = `import { ${e.kind === 'gallery' ? 'galleryAvatar, mount' : 'mount'} } from '@blot/avatar';\n`;
+  if (pg.last?.here) text += `import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';\n\n${waggleSource}\n`;
+  // One of yours is its definition, written out.
+  if (e.kind === 'yours' && e.definition) text += `\n// ${e.name}: an outline and its eyes.\nconst shape = ${JSON.stringify(e.definition)};\n`;
   text += `\nconst bot = mount(document.getElementById('bot'), {\n${lines.join('\n')}\n});\n`;
   const m = pg.last;
   if (m) {
@@ -283,7 +668,6 @@ function writeCode(): void {
   }
   $('[data-code]').textContent = text;
 }
-writeCode();
 
 // ---- One card per move.
 
@@ -313,12 +697,13 @@ writeCode();
   SHAPES.forEach((shape, i) => {
     const slot = make('div', { className: 'gallery-avatar' });
     const pick = make('button', { type: 'button', className: 'link', textContent: 'Try it' });
-    pick.setAttribute('aria-label', `Try ${shape} in the playground`);
+    pick.setAttribute('aria-label', `Try ${shape} in the studio`);
     pick.addEventListener('click', () => {
-      pg.shape = shape; syncShape(); changed();
-      // Focus goes to the chip that now shows the choice, so a keyboard or a screen reader follows the scroll.
-      $<HTMLButtonElement>('[data-choice="shape"] [aria-pressed="true"]').focus({ preventScroll: true });
-      $('#play').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      select(`body:${shape}`);
+      showTab('bot');
+      // Focus goes to the cell that now shows the choice, so a keyboard or a screen reader follows the scroll.
+      cells.get(`body:${shape}`)?.focus({ preventScroll: true });
+      $('#studio').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
     });
     list.append(make('li', { className: 'gallery-item' }, slot, make('span', { className: 'gallery-name', textContent: shape }), pick));
     mount(slot, { shape, size: 72, color: CYCLE[i % CYCLE.length], follow: true, followIn: slot.closest('li'), pokeable: true, label: shape, seed: 100 + i });
@@ -333,31 +718,35 @@ writeCode();
   });
 }
 
-// ---- Copy buttons.
+// ---- Copy buttons on the code.
 
 /** Where a copy's result is said, for a screen reader. */
-const said = make('span', { className: 'vh' });
-said.setAttribute('aria-live', 'polite');
-document.body.append(said);
+const copied = make('span', { className: 'vh' });
+copied.setAttribute('aria-live', 'polite');
+document.body.append(copied);
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
   b.addEventListener('click', async () => {
     const code = document.getElementById(b.dataset.copy ?? '');
     if (!code) return;
-    said.textContent = '';
-    try {
-      await navigator.clipboard.writeText(code.textContent ?? '');
+    copied.textContent = '';
+    if (await copyText(code.textContent ?? '')) {
       b.textContent = 'Copied';
-      said.textContent = 'Copied';
-    } catch {
-      // No clipboard (a plain-http page, or a browser that says no): select it, for a copy by hand.
+      copied.textContent = 'Copied';
+    } else {
+      // No clipboard: select it, for a copy by hand.
       getSelection()?.selectAllChildren(code);
       b.textContent = 'Press Ctrl+C';
-      said.textContent = 'Selected. Press Ctrl+C to copy.';
+      copied.textContent = 'Selected. Press Ctrl+C to copy.';
     }
     setTimeout(() => { b.textContent = 'Copy'; }, 1600);
   });
 }
 
+marked();
+coloured();
+actions();
 faces();
+paint();
 still();
 onMotion(still);
+if (shared.problem) said(shared.problem, true);

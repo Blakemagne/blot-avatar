@@ -1,6 +1,6 @@
 # @blot/avatar
 
-The avatar of blot's Bots, as a package anyone can use. The demo page in `site/` shows every body, every move and a playground: `npm run site:dev`, or [blakemagne.github.io/blot-avatar](https://blakemagne.github.io/blot-avatar/) once GitHub Pages is on.
+The avatar of blot's Bots, as a package anyone can use. The demo page in `site/` is a studio (pick one, colour it, set it to work, or have a model design one), every move and every body: `npm run site:dev`, or [blakemagne.github.io/blot-avatar](https://blakemagne.github.io/blot-avatar/) once GitHub Pages is on.
 
 A body is a real 3D shape made of a few rounded solids. The eyes are patches of its surface, so they lean, thin and go round the edge with it. The package turns a body, a pose and a face into three SVG path strings: the body and two eyes. Beside them it draws effects (a mark, a "!", sleep's Zs, sparks, rings that pass behind the body, a hop's shadow) as more paths, behind the body or in front.
 
@@ -20,8 +20,10 @@ src/react.ts      useLiveAvatar: the same, as a React hook
 src/mount.ts      mount: the same, on any page
 src/still.ts      the still pictures and the svg box
 src/paint.ts      painting the effects into an svg (mount and the React hook)
+src/engine/outline/  avatars from definitions: the path parser, the rules, and the body made from an outline
+src/gallery.ts    23 ready-made avatars as definitions
 golden/           frozen hashes of every frame the rig draws
-site/             the demo page (built into _site/ for GitHub Pages)
+site/             the demo page (built into _site/ for GitHub Pages); site/prompt.md is the design prompt for models
 scripts/          the demo page's build
 ```
 
@@ -287,6 +289,25 @@ Such a body's drawing has `layers`: paths to paint under the body (`front: false
 
 To draw a body of your own with `mount()` or `useLiveAvatar`, pass it as `body`.
 
+## Make one from an outline
+
+A shape need not be written as spheres. An **avatar definition** is one SVG path in a `0 0 100 100` box and where the eyes go:
+
+```json
+{"version":1,"id":"ghost","name":"Ghost","body":{"path":"M24 50C24 28 35 12 50 12C65 12 76 28 76 50L77 80C77 85 73 88 68 88C63 88 61 84 59 81C57 84 54 88 50 88C46 88 43 84 41 81C39 84 37 88 32 88C27 88 23 85 23 80Z"},"eyes":{"x":50,"y":42,"spacing":16,"scale":1.15}}
+```
+
+Pass it anywhere a shape goes: `mount(el, { shape: definition })`, `useLiveAvatar({ shape: definition })`, `bodyOf(definition)`, `stillState(definition, size)`, `visit(definition)`. The engine fills the outline with spheres, so every part comes out round, about as thick as it is wide; a hole (a subpath wound the other way) stays open from every side. The eyes ride the piece round them, and the body turns only as far as keeps both eyes in view (its `look`).
+
+- **Check one you did not write** with `validateAvatar(input)`: `{ ok: true, value }` (the path rewritten from its numbers) or `{ ok: false, errors }`, each error a sentence a person or a model can act on. The rules are the format's: the path within 8..92, at least 40 by 14 units and 600 units² of fill, eyes on solid fill with room, a slug for an id.
+- **The body** is `outlineBody(definition)`, kept for the same definition (by its id, path and eyes), the last 64. Making one takes about 40 to 270 ms, so a page that shows many should draw them when they are needed, or draw the stills once ahead of time (the demo page draws its gallery's at the build).
+- **Ready-made ones**: `GALLERY` is 23 of them, each with the name of its colour among `BOT_COLOURS`; `galleryAvatar(id)` finds one and `galleryColour(g)` gives its hex.
+- **Design one with a model.** `site/prompt.md` is a prompt that tells any model the format and how this engine makes a body, and asks for one line of JSON. The demo page's Generate tab adds your description to it and copies it, or opens it in Claude Code, Codex, Cursor or T3 Code; its Import tab checks what comes back, says what to change, and copies a repair prompt when it is refused. Yours are kept in that browser, and a link carries one whole (`?def=`).
+
+The format is open-bot-avatar's, so a definition made for it works here too, and the other way round. Its volume is not: there each part is a slab or turned like a vase; here every part is round.
+
+`src/engine/outline/outline.test.mjs` holds every gallery avatar to this: from the front it covers its outline, holes stay open, the eyes rest where the definition puts them on one smooth surface, and in every look and face both eyes show at 64 px and can be read at 16 px.
+
 ## The public API
 
 From `@blot/avatar`:
@@ -297,6 +318,7 @@ From `@blot/avatar`:
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
 - **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality` and `accent` (the effects' colour).
+- **Definitions.** A `Shape` is a body's id or an `AvatarDefinition`. `validateAvatar`, `outlineBody`, `GALLERY`, `galleryAvatar`, `galleryColour`, `parsePath`, `flattenPath`, `serializePath`, `PathError`, `EYE_W`, `EYE_H`, `BOX_SCALE`. A body's `eyes.cx` moves the pair off the middle of the face.
 
 From `@blot/avatar/moves`: everything for writing a move in plain words (see "Add an animation"): `cue`, `poke`, `head`, `body`, `eyes`, `antennas`, `toward`, `away`, the shapes (`beats`, `hold`, `peak`, `flight`, `hump`, `wave`, `wobble`, `surge`, `snapBack`), the effects (`sparks`, `sparksAllRound`, `exclamation`, `pulse`, `orbits`, `speedLines`), `byHand`, and the types `Shape`, `Line`, `Side`, `MoveOptions`.
 
@@ -371,7 +393,7 @@ These look like mistakes and are not. Do not undo them.
 
 ## The demo page and GitHub Pages
 
-`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script and a favicon the engine draws. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
+`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script, a favicon the engine draws, and `prompt.md`, the design prompt, which a short prompt in an agent app's link points at. The studio's plain parts (reading a model's reply, share links, prompts, agent links, the still to download) are in `site/studio.ts`, tested by `site/studio.test.mjs`. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
 
 `.github/workflows/pages.yml` checks, builds and publishes it on every push to `main`, but only while the repository is public: a Pages site is public even when its repository is private, and on a free account GitHub does not serve Pages from a private repository at all. While the repository is private the workflow skips itself. When it is made public, turn Pages on (Settings, Pages, Source: GitHub Actions) and the next push publishes it.
 

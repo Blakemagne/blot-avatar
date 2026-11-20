@@ -12,7 +12,7 @@
   <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip" href="#play">Skip to the playground</a>
+  <a class="skip" href="#studio">Skip to the studio</a>
 
   <header class="top">
     <div class="mark">
@@ -20,7 +20,7 @@
       <a href="#top">blot avatar</a>
     </div>
     <nav aria-label="Sections">
-      <a href="#play">Playground</a>
+      <a href="#studio">Studio</a>
       <a href="#moves">Moves</a>
       <a href="#shapes">Shapes</a>
       <a href="#use">Use it</a>
@@ -29,94 +29,137 @@
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="hero-text">
+    <section id="studio" class="band studio-band" aria-labelledby="studio-title">
+      <div class="studio-head">
         <p class="eyebrow">An avatar with a body</p>
-        <h1>Eyes on a real 3D shape, drawn as three SVG paths.</h1>
-        <p class="lede">Each body is a few rounded solids. The eyes are patches of its surface, so they lean, thin and slide round the edge as it turns. It follows your pointer, blinks, morphs from one shape to another and plays moves you can write yourself. Pure TypeScript, no dependencies, one frame loop for the whole page.</p>
-        <div class="cta">
-          <a class="button primary" href="#play">Try it</a>
-          <a class="button" href="#use">Put one on your page</a>
-        </div>
+        <h1 id="studio-title">Eyes on a real 3D shape, drawn as three SVG paths.</h1>
+        <p class="lede">Pick one, colour it, set it to work. Or describe your own to any model and bring back what it draws: an outline and two eyes become a body.</p>
         <p class="motion-note" data-motion-note hidden>Your system asks for reduced motion, so every avatar here is a still picture, facing front: moves, faces, activities and following are not shown.</p>
       </div>
-      <div class="hero-stage">
-        <div class="hero-avatar" data-avatar="hero"></div>
-        <p class="hint" aria-hidden="true">Move your pointer. Click it.</p>
-      </div>
-    </section>
+      <div class="studio">
+        <div class="stage-col">
+          <div class="stage" data-stage>
+            <div class="stage-avatar" data-avatar="play"></div>
+            <p class="hint" aria-hidden="true">Move your pointer. Click it. Keys 1 to 6 pick what it does.</p>
+          </div>
+          <div class="chips doing" data-choice="activity" role="group" aria-label="What it is doing"></div>
+          <div class="sub" data-form-row hidden>
+            <span class="sub-label" id="form-label">Turns into</span>
+            <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
+          </div>
+          <div class="actions">
+            <div class="menu" data-menu="export">
+              <button type="button" class="button small" aria-expanded="false">Export</button>
+              <div class="menu-list" hidden>
+                <button type="button" data-do="svg"><strong>Image</strong><span>SVG still, this colour</span></button>
+                <button type="button" data-do="json-file"><strong>Definition</strong><span>JSON, geometry only</span></button>
+              </div>
+            </div>
+            <div class="menu" data-menu="copy">
+              <button type="button" class="button small" aria-expanded="false">Copy</button>
+              <div class="menu-list" hidden>
+                <button type="button" data-do="code"><strong>Code</strong><span>mount() for this one</span></button>
+                <button type="button" data-do="json"><strong>JSON</strong><span>The definition</span></button>
+                <button type="button" data-do="link"><strong>Link</strong><span>Opens it in this colour, doing this</span></button>
+              </div>
+            </div>
+            <button type="button" class="button small" data-do="remove" hidden>Remove</button>
+            <span class="action-said" data-said role="status"></span>
+          </div>
+        </div>
 
-    <section id="play" class="band" aria-labelledby="play-title">
-      <div class="section-head">
-        <h2 id="play-title">Playground</h2>
-        <p>Every control changes one live avatar through <code>mount()</code> and <code>update()</code>. The code beside it is what you would write to get the same one.</p>
+        <div class="card-panel">
+          <div class="tabs">
+            <div class="tablist" role="tablist" aria-label="Studio">
+              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot" aria-selected="true">Bot</button>
+              <button type="button" role="tab" id="tab-play" aria-controls="panel-play" aria-selected="false" tabindex="-1">Play</button>
+              <button type="button" role="tab" id="tab-generate" aria-controls="panel-generate" aria-selected="false" tabindex="-1">Generate</button>
+              <button type="button" role="tab" id="tab-import" aria-controls="panel-import" aria-selected="false" tabindex="-1">Import</button>
+            </div>
+            <div class="menu settings" data-menu="settings">
+              <button type="button" class="tab-icon" aria-haspopup="dialog" aria-expanded="false" aria-label="Settings" title="Settings">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM12.9 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
+              </button>
+              <div class="menu-list settings-list" role="dialog" aria-label="Settings" hidden>
+                <label class="toggle"><input type="checkbox" data-follow checked autocomplete="off"> Eyes follow your pointer</label>
+                <label class="range">Size <input type="range" min="22" max="240" step="1" value="180" data-size autocomplete="off"><output data-size-out>180 px</output></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
+            <div class="bots-scroll" data-bots></div>
+            <div class="colour-row">
+              <div data-picker="body"></div>
+              <button type="button" class="link" data-reset-colour hidden>Back to its own colour</button>
+            </div>
+          </div>
+
+          <div class="tabpanel" role="tabpanel" id="panel-play" aria-labelledby="tab-play" hidden>
+            <fieldset>
+              <legend>Face</legend>
+              <div class="chips" data-choice="face"></div>
+              <p class="sub-label note" data-face-note hidden>A face is worn when idle; while busy, the activity has its own.</p>
+            </fieldset>
+            <fieldset>
+              <legend>Moves</legend>
+              <div class="chips" data-moves></div>
+              <div class="row">
+                <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> The other way</label>
+                <label class="range">How much <input type="range" min="0.25" max="2" step="0.25" value="1" data-amount autocomplete="off"><output data-amount-out>1</output></label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Waiting, and a visit</legend>
+              <div class="row">
+                <label class="toggle"><input type="checkbox" data-mark autocomplete="off"> A mark: something waits for you</label>
+              </div>
+              <div class="sub">
+                <span class="sub-label" id="visit-label">Go to a shape for a moment and come back</span>
+                <div class="chips" data-visit role="group" aria-labelledby="visit-label"></div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>What it is like to move</legend>
+              <div class="feel" data-feel></div>
+              <p class="sub-label">The engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. Try a hop, a bounce or a recoil.</p>
+            </fieldset>
+            <fieldset>
+              <legend>Eye colour</legend>
+              <div data-picker="eyes"></div>
+              <p class="sub-label note" data-eye-note hidden>These eyes barely show on this body. Pick an eye colour further from it.</p>
+            </fieldset>
+          </div>
+
+          <div class="tabpanel" role="tabpanel" id="panel-generate" aria-labelledby="tab-generate" hidden>
+            <label class="field-label" for="describe">Describe it: a hobby, a job, a thing</label>
+            <textarea id="describe" rows="4" data-describe placeholder="A cosy teapot. A gardener. My bike."></textarea>
+            <div class="row prompt-row">
+              <button type="button" class="button small primary" data-copy-prompt>Copy prompt</button>
+              <span class="open-in">
+                <button type="button" class="button small" data-open-agent>Open in Claude Code</button>
+                <select data-agent aria-label="Which app to open it in"></select>
+              </span>
+            </div>
+            <p class="sub-label note">The prompt says how this engine builds a body and asks for one line of JSON: an outline and where the eyes go. Paste it into any chat model, or open it in an agent app on this computer, where you read it before it is sent. Then bring back what it returns in Import. <a href="prompt.md" target="_blank" rel="noopener">Read the prompt</a>.</p>
+            <p class="sub-label note" data-generate-said role="status"></p>
+          </div>
+
+          <div class="tabpanel" role="tabpanel" id="panel-import" aria-labelledby="tab-import" hidden>
+            <label class="field-label" for="import-text">Paste what the model sent back, or drop a .json file here</label>
+            <textarea id="import-text" rows="7" spellcheck="false" data-import-text placeholder='{"version":1,"id":"teapot","name":"Teapot","body":{"path":"M… Z"},"eyes":{…}}'></textarea>
+            <div class="row">
+              <button type="button" class="button small primary" data-import>Add it</button>
+              <button type="button" class="button small" data-open-file>Open a file</button>
+              <input type="file" accept=".json,application/json" data-import-file hidden>
+            </div>
+            <div class="import-out" data-import-out role="status"></div>
+          </div>
+        </div>
       </div>
-      <div class="play">
-        <div class="stage" data-stage>
-          <div class="stage-avatar" data-avatar="play"></div>
-        </div>
-        <div class="controls">
-          <fieldset>
-            <legend>Shape</legend>
-            <div class="chips" data-choice="shape"></div>
-          </fieldset>
-          <fieldset>
-            <legend>Body colour</legend>
-            <div data-picker="body"></div>
-          </fieldset>
-          <fieldset>
-            <legend>Eye colour</legend>
-            <div data-picker="eyes"></div>
-            <p class="sub-label note" data-eye-note hidden>These eyes barely show on this body. Pick an eye colour further from it.</p>
-          </fieldset>
-          <fieldset>
-            <legend>Face</legend>
-            <div class="chips" data-choice="face"></div>
-            <p class="sub-label note" data-face-note hidden>A face is worn when idle; while busy, the activity has its own.</p>
-          </fieldset>
-          <fieldset>
-            <legend>Doing</legend>
-            <div class="chips" data-choice="activity"></div>
-            <div class="sub" data-form-row hidden>
-              <span class="sub-label" id="form-label">Turns into</span>
-              <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Waiting, and a visit</legend>
-            <div class="row">
-              <label class="toggle"><input type="checkbox" data-mark> A mark: something waits for you</label>
-            </div>
-            <div class="sub">
-              <span class="sub-label" id="visit-label">Go to a shape for a moment and come back</span>
-              <div class="chips" data-visit role="group" aria-labelledby="visit-label"></div>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>What it is like to move</legend>
-            <div class="feel" data-feel></div>
-            <p class="sub-label">The engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. Try a hop, a bounce or a recoil.</p>
-          </fieldset>
-          <fieldset>
-            <legend>Moves</legend>
-            <div class="chips" data-moves></div>
-            <div class="row">
-              <label class="toggle"><input type="checkbox" data-dir> The other way</label>
-              <label class="range">How much <input type="range" min="0.25" max="2" step="0.25" value="1" data-amount><output data-amount-out>1</output></label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Size and pointer</legend>
-            <div class="row">
-              <label class="range grow">Size <input type="range" min="22" max="240" step="1" value="180" data-size><output data-size-out>180 px</output></label>
-              <label class="toggle"><input type="checkbox" data-follow checked> Follow the pointer</label>
-            </div>
-          </fieldset>
-        </div>
-        <div class="code-panel play-code">
-          <div class="code-head"><span>Your page</span><button type="button" class="copy" data-copy="play-code">Copy</button></div>
-          <pre><code id="play-code" data-code></code></pre>
-        </div>
+      <div class="code-panel play-code">
+        <div class="code-head"><span>Your page</span><button type="button" class="copy" data-copy="play-code">Copy</button></div>
+        <pre><code id="play-code" data-code></code></pre>
       </div>
     </section>
 
@@ -145,7 +188,7 @@ bot.play('waggle', { dir: -1 });</code></pre>
     <section id="shapes" class="band" aria-labelledby="shapes-title">
       <div class="section-head">
         <h2 id="shapes-title">Every body</h2>
-        <p>Each body the engine draws, all watching your pointer on one shared frame loop. Click one to poke it, or try it in the playground.</p>
+        <p>Each body the engine draws, all watching your pointer on one shared frame loop. Click one to poke it, or try it in the studio.</p>
       </div>
       <ul class="gallery" data-gallery></ul>
       <div class="sizes-head">
