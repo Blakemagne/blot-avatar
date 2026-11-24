@@ -8,14 +8,16 @@ import { FACES, eyeOutline, type Face } from './faces';
 import { discAt, figureParts, figureRadius } from './figures';
 import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
 import { area, bounds, rotation, type Mat3 } from './math';
-import { isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
+import { COAT_FADE, coatShown, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
 import type { RigState } from './rig';
 import { silhouette, toPath } from './silhouette';
 
 /** The drawing box: 55.2 units across with the body's unit box in its middle 36, as the flat avatars had. */
 export const VIEW = 55.2;
 export const VIEW_BOX = `0 0 ${VIEW} ${VIEW}`;
-const MID = VIEW / 2, UNIT = 18;
+/** One body unit in drawing units: a body point (x, y) on screen is drawn at VIEW / 2 + x * VIEW_UNIT, VIEW / 2 + y * VIEW_UNIT. */
+export const VIEW_UNIT = 18;
+const MID = VIEW / 2, UNIT = VIEW_UNIT;
 
 export interface Drawing {
   viewBox: string;
@@ -35,6 +37,42 @@ export interface Drawing {
    * true, then the eyes. Only a body with antennas or decals has any.
    */
   layers?: Layer[];
+  /** What a renderer needs to draw a coat of fur for this frame; only when drawAvatar is asked for it. */
+  coat?: DrawnCoat;
+}
+
+/**
+ * A coat for one frame (see coat.ts for the mesh). The coat's image depends on `rotation` and on the eyes it
+ * clears round, and nothing else: draw it in the drawing's own units, then place it with `affine`, the same 2D
+ * move the body, eyes and layers have had. Paint order: the layers behind, the coat, the body path, the layers
+ * in front, the eyes. The body path is the flat body: while a coat shows, fill it at 1 - opacity (none at 1).
+ */
+export interface DrawnCoat {
+  /** The body the coat is of: coatMesh(body). Not always the body drawn: in a morph it is the one it leaves, then the one it becomes. */
+  body: Body;
+  /**
+   * 0..1: how much of the coat shows. 1 on a body; it eases to 0 as a morph sets off and back to 1 as it lands,
+   * and to 0 as the body turns into a loading figure (there is no 3D body under either to wear it).
+   */
+  opacity: number;
+  /**
+   * The pose's rotation, row by row (math.ts rotation): a body point p goes to p' = R p, body units, y up, z
+   * toward the viewer. It is then drawn in perspective from a camera at z = D (6): with s = D / (D - p'z), at
+   * X = VIEW / 2 + VIEW_UNIT * s * p'x and Y = VIEW / 2 - VIEW_UNIT * s * p'y in drawing units (y down), before `affine`.
+   */
+  rotation: Mat3;
+  /**
+   * The 2D move after the projection (squash and stretch, the pop, the hop, a move to the side, the mirror flip),
+   * as [a, b, c, d, e, f] in drawing units: X' = a X + c Y + e, Y' = b X + d Y + f (the order of SVG's matrix()
+   * and the canvas's setTransform). [1, 0, 0, 1, 0, 0] when there is none. b and c are always 0; a is negative when mirrored.
+   */
+  affine: [number, number, number, number, number, number];
+  /**
+   * Both eyes, as one SVG path in drawing units before `affine`: where they are in the coat's own image, for the
+   * pile to be cleared under them. The same polygons as Drawing.eyes (which are after it). Empty when no eye
+   * shows. The same string is the same eyes, so it can key a mask.
+   */
+  eyes: string;
 }
 
 /** One more path of a drawing: an antenna, a decal. */
@@ -192,7 +230,7 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  * Everything on screen for a state, as flat screen polygons (x right, y down, 1 unit = half the drawing box):
  * the body's path (pieces, and any holes wound the other way) and the two eye paths.
  */
-function compose(given: Body, state: RigState, size: number): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[] } {
+function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null } {
   const body = state.body ?? given, d = detail(size);
   rotation(state.pose, R);
   const own = silhouette(body, R, d.rim);
@@ -252,9 +290,12 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
   // (A move to the side is mirrored with everything else: a lean that slides right slides left when mirrored.)
   const tall = state.stretch ?? 1, big = state.scale ?? 1, up = state.lift ?? 0, flip = state.flip ?? 1, dx = (state.shift ?? 0) * flip;
   let shadow: Float64Array | null = null, opacity = 0;
+  // (For a coat: the eyes before the move, and the move, x' = a x + e and y' = d y + f in body units.)
+  let affine: readonly number[] = IDENTITY, bare: Float64Array[] | null = coat ? [...eyes[0], ...eyes[1]] : null;
   if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1 || dx !== 0) {
     // (The ground is under the body itself: a figure's little ball going round below it does not lift it.)
     const box = bounds(fig ? [outline[0]] : outline), ground = box[3], kx = (big * flip) / tall;
+    if (bare) { bare = bare.map((p) => p.slice()); affine = [kx, 0, 0, tall * big, dx, ground * (1 - tall) * big - up]; }
     for (const polys of [outline, eyes[0], eyes[1], ...layers.map((l) => l.polys)]) {
       for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] = p[i] * kx + dx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
     }
@@ -273,7 +314,25 @@ function compose(given: Body, state: RigState, size: number): { body: Float64Arr
     }
   }
   // The effects are placed against the body itself: not a figure's little ball going round it.
-  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline };
+  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline, affine, bare };
+}
+
+const IDENTITY = [1, 0, 0, 1, 0, 0] as const;
+
+/**
+ * Which body wears the coat, and how much of it shows. In a morph the outline is blended between two bodies:
+ * near the start it is still the old one's and near the end already the new one's, so each wears its coat
+ * there and neither does in the middle. A morph that set off from another fades from what that one showed.
+ */
+function coatOf(given: Body, state: RigState): { body: Body; opacity: number } {
+  const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
+  let body = state.body ?? given, opacity = 1;
+  if (morph) {
+    if (morph.k < 0.5) body = leaf(morph.from);
+    opacity = coatShown(morph.from, morph.k);
+  }
+  if (fig) opacity *= 1 - smooth(fig.k / COAT_FADE);
+  return { body, opacity };
 }
 
 /** The body as the effects see it this frame: its box, its middle, and (only if asked for) its reach from the middle. */
@@ -383,9 +442,12 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
   return compose(body, state, size).body;
 }
 
-/** One frame. `body` is drawn unless the state carries its own (a rig that was given one): then that one is. */
-export function drawAvatar(body: Body, colour: string, state: RigState, size: number): Drawing {
-  const { body: outline, eyes, layers, shadow, opacity, frame } = compose(body, state, size);
+/**
+ * One frame. `body` is drawn unless the state carries its own (a rig that was given one): then that one is.
+ * With `coat`, the drawing also carries what a coat of fur needs (Drawing.coat); the rest is the same either way.
+ */
+export function drawAvatar(body: Body, colour: string, state: RigState, size: number, opts?: { coat?: boolean }): Drawing {
+  const { body: outline, eyes, layers, shadow, opacity, frame, affine, bare } = compose(body, state, size, opts?.coat === true);
   const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
@@ -395,6 +457,10 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   const parts = shadow || state.fx?.length ? effectsOf(state, frame, size, shadow, opacity) : null;
   if (parts && parts.length) out.effects = parts.filter((p) => p.opacity > 0.004 && p.polys.length).map((p) => ({ layer: p.layer, role: p.role, opacity: Math.round(p.opacity * 1000) / 1000, d: toPath(p.polys, UNIT, MID) }));
   if (state.glow) out.glow = state.glow;
+  if (bare) {
+    const [a, , , d, e, f] = affine;
+    out.coat = { ...coatOf(body, state), rotation: new Float64Array(R), affine: [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f], eyes: toPath(bare, UNIT, MID) };
+  }
   return out;
 }
 

@@ -128,3 +128,22 @@ test('the still to download is an SVG of the body and both eyes, for a body and 
     assert.ok(svg.includes('fill="#FD690F"') && svg.includes('fill="#FFFFFF"'));
   }
 });
+
+test('a share link carries a fluffy finish and leaves a flat one out, and the finish comes back from it', () => {
+  const base = 'https://example.test/blot-avatar/';
+  assert.equal(S.shareLink(base, { id: 'heart', kind: 'body' }, '#FD690F', '#FD690F', 'idle', 'flat'), `${base}?avatar=heart`);
+  assert.equal(S.shareLink(base, { id: 'heart', kind: 'body' }, '#FD690F', '#FD690F', 'idle'), `${base}?avatar=heart`, 'flat is the default');
+  const fluffy = S.shareLink(base, { id: 'cat', kind: 'gallery', definition: cat }, '#1E86FC', '#F59312', 'working', 'fluffy');
+  assert.equal(fluffy, `${base}?gallery=cat&color=blue&doing=working&material=fluffy`);
+  assert.deepEqual(S.readShare(new URL(fluffy).search, ACTIVITIES), { gallery: 'cat', colour: '#1E86FC', doing: 'working', material: 'fluffy' });
+  const mine = { ...cat, id: 'my-cat' };
+  const read = S.readShare(new URL(S.shareLink(base, { id: mine.id, kind: 'yours', definition: mine }, '#FD690F', '#FD690F', 'idle', 'fluffy')).search, ACTIVITIES);
+  assert.equal(read.material, 'fluffy');
+  assert.deepEqual(read.definition, mine);
+  // Without one the visitor's own finish stays; a hand-written one is read with care.
+  assert.equal(S.readShare('?avatar=heart', ACTIVITIES).material, undefined);
+  assert.equal(S.readShare('?avatar=heart&material=Fluffy', ACTIVITIES).material, 'fluffy');
+  assert.equal(S.readShare('?avatar=heart&material=flat', ACTIVITIES).material, 'flat');
+  assert.equal(S.readShare('?avatar=heart&material=furry', ACTIVITIES).material, undefined);
+  assert.equal(S.readMaterial(null), undefined);
+});

@@ -1,6 +1,7 @@
 // A live avatar on any page, no framework: mount(host, { shape, size }) puts one in `host` and keeps it alive
 // until destroy(). It is the same controller React's useLiveAvatar runs, called in the same order.
 
+import { coatLayer, type CoatLayer } from './coat/layer';
 import { VIEW_BOX, colours } from './engine/draw';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
@@ -73,20 +74,66 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   const layered = (d: typeof latest) => {
     latest = d;
     if (!grouped && !d.layers?.length) return;
-    if (!grouped) { svg.insertBefore(under, paths[0]); svg.insertBefore(over, paths[1]); grouped = true; }
+    if (!grouped) {
+      if (split) split.below.appendChild(under); else svg.insertBefore(under, paths[0]);
+      svg.insertBefore(over, paths[1]);
+      grouped = true;
+    }
     writeLayers(under, over, d, opts.paint);
   };
   // The effects: what is behind the body, and what is in front of it.
   const back = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, front = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement;
   const boxed = (size: number) => {
     const b = svgBox(size);
-    svg.setAttribute('width', String(b.width));
-    svg.setAttribute('height', String(b.height));
-    svg.setAttribute('viewBox', VIEW_BOX);
-    svg.style.position = 'absolute';
-    svg.style.left = `${b.left}px`;
-    svg.style.top = `${b.top}px`;
-    svg.style.overflow = 'visible';
+    for (const s of split ? [split.below, svg] : [svg]) {
+      s.setAttribute('width', String(b.width));
+      s.setAttribute('height', String(b.height));
+      s.setAttribute('viewBox', VIEW_BOX);
+      s.style.position = 'absolute';
+      s.style.left = `${b.left}px`;
+      s.style.top = `${b.top}px`;
+      s.style.overflow = 'visible';
+    }
+  };
+
+  // The coat, for a fluffy body: a canvas between what is under the body and the body, painted by the shared
+  // renderer (coat/layer.ts). It goes in the first time a coat is painted, with a second svg under it for the
+  // effects behind and the antennas and decals under the body. Until then, and wherever no coat can be painted,
+  // the avatar is the one svg it always was.
+  let coat: CoatLayer | null = null, split: { below: SVGSVGElement; canvas: HTMLCanvasElement } | null = null;
+  const canvasOf = (): HTMLCanvasElement => {
+    if (!split) {
+      const doc = host.ownerDocument, below = doc.createElementNS(SVG, 'svg'), canvas = doc.createElement('canvas');
+      split = { below, canvas };
+      below.setAttribute('aria-hidden', 'true');
+      canvas.setAttribute('aria-hidden', 'true');
+      canvas.style.position = 'absolute';
+      canvas.style.display = 'none';
+      below.appendChild(back);
+      if (grouped) below.appendChild(under);
+      host.insertBefore(below, svg);
+      host.insertBefore(canvas, svg);
+      boxed(opts.size);
+    }
+    return split.canvas;
+  };
+  /** Wear the material asked for: a fluffy one gets its coat; a flat one is one svg again. */
+  const material = () => {
+    if (opts.material === 'fluffy') { coat ??= coatLayer(paths[0], canvasOf); return; }
+    coat?.stop();
+    coat = null;
+    if (!split) return;
+    svg.insertBefore(back, paths[0]);
+    if (grouped) svg.insertBefore(under, paths[0]);
+    split.below.remove();
+    split.canvas.remove();
+    split = null;
+    svg.style.filter = glowFilter(last, opts.size, colour());
+  };
+  /** The glow: round the coat and what is under it while a coat shows, round the one svg while none does. */
+  const glowed = (glow: string) => {
+    svg.style.filter = coat?.showing ? '' : glow;
+    if (split) split.below.style.filter = split.canvas.style.filter = glow;
   };
   const colour = (): FxPaint => {
     const c = colours(opts.color ?? '#FD690F');
@@ -98,6 +145,8 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     paths[0].style.fill = c.fill;
     paths[1].style.fill = paths[2].style.fill = c.eyeFill;
     paintEffects(back, front, last, c);
+    // (A coat at rest is not drawn again by itself: it is told the new colour.)
+    coat?.draw(last, opts.size, c.fill);
   };
   boxed(opts.size);
   svg.setAttribute('aria-hidden', 'true');
@@ -110,6 +159,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   layered(live.first);
   svg.appendChild(front);
   host.appendChild(svg);
+  material();
 
   // 3. Alive, in React's effect order.
   const detach = live.attach(host, (d) => {
@@ -119,8 +169,9 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     paths[2].setAttribute('d', d.eyes[1]);
     layered(d);
     const c = colour();
+    coat?.draw(d, opts.size, c.fill);
     paintEffects(back, front, d, c);
-    svg.style.filter = glowFilter(d, opts.size, c);
+    glowed(glowFilter(d, opts.size, c));
   });
   live.motion();
   live.follow(opts.follow);
@@ -176,6 +227,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
+      if (changed('material')) { material(); live.motion(); }
     },
     poke: (kind) => { if (!gone) live.poke(kind); },
     play: (name, cue) => !gone && live.play(name, cue),
@@ -185,8 +237,9 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       gone = true;
       detach();
       unheard();
-      opts = { ...opts, pokeable: false };
+      opts = { ...opts, pokeable: false, material: 'flat' };
       syncPoke();
+      material();
       svg.remove();
       host.style.width = was.width;
       host.style.height = was.height;

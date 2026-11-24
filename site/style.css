@@ -201,6 +201,9 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 .bot-plus { font-size: 28px; line-height: 1; color: var(--muted); }
 .bot-new:hover .bot-plus { color: var(--ink); }
 .colour-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; justify-items: start; }
+/* The finish: a small two-way switch under the colour. */
+.finish { margin-top: 4px; }
+.finish .seg { margin: 0; }
 
 .field-label { display: block; font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 textarea {

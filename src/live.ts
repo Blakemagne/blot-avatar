@@ -59,7 +59,15 @@ export interface LiveProps {
   mark?: boolean;
   /** What it is like to move (the engine's Personality, each 0..1); left out, the engine's own feel. */
   personality?: Partial<Personality>;
+  /**
+   * The body's finish: 'flat' (the default), or 'fluffy', a coat of fur drawn with WebGL2 round the eyes. Where
+   * WebGL2 is missing or fails, and on a server, the body is flat. Changed on an attached avatar, it changes at once.
+   */
+  material?: Material;
 }
+
+/** A body's finish: flat paint, or a coat of fur. */
+export type Material = 'flat' | 'fluffy';
 
 export interface Live {
   /** The rig. Under reduced motion a new shape builds a new one. */
@@ -149,6 +157,9 @@ export function lookWithin(size: number, dx: number, dy: number, reach: Reach, f
   return { x: (nx / d) * e || 0, y: (ny / d) * e || 0 };
 }
 
+/** What a fluffy avatar asks drawAvatar for: the coat's part of the drawing too. */
+const COAT = { coat: true } as const;
+
 /** Facing front with the neutral face: what an avatar that does not rest shows when nothing may move. */
 const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 
@@ -174,7 +185,7 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q) });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: q.material === 'fluffy' ? COAT : undefined });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
@@ -205,7 +216,7 @@ export function createLive(p: LiveProps): Live {
         const w = want;
         // (The colour passed to the engine is not used: the paths are painted by whoever draws them.)
         // With reduced motion the rig is not stepped, and whatever it was in the middle of is not shown.
-        out(drawAvatar(w.body, 'gray', reducedMotion() ? w.calm : rig.state, w.size));
+        out(drawAvatar(w.body, 'gray', reducedMotion() ? w.calm : rig.state, w.size, w.coat));
       };
       let last = 0, moves = -1, layout = -1, cx = 0, cy = 0, measured = -Infinity;
       /** The area it follows the pointer in, when it has one (followIn), as last measured. */

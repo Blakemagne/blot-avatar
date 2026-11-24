@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>blot avatar</title>
-  <meta name="description" content="A 3D body with eyes on its surface, drawn as three SVG paths. It looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. Pure TypeScript, no dependencies.">
+  <meta name="description" content="A 3D body with eyes on its surface, drawn as three SVG paths, with a WebGL2 coat of fur if you want one. It looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. Pure TypeScript, no dependencies.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#FD690F">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -34,7 +34,7 @@
     <section id="studio" class="view" data-view="studio" aria-labelledby="studio-title">
       <div class="view-head">
         <h1 id="studio-title" tabindex="-1">An avatar with a body</h1>
-        <p class="lede">Eyes on a real 3D shape, drawn as three SVG paths. Pick one, or have a model draw you one.</p>
+        <p class="lede">Eyes on a real 3D shape, drawn as three SVG paths (and a coat of fur in WebGL2, if you pick Fluffy). Pick one, or have a model draw you one.</p>
       </div>
       <div class="studio">
         <div class="stage-col">
@@ -51,7 +51,8 @@
             <div class="menu" data-menu="export">
               <button type="button" class="button small" aria-expanded="false">Export</button>
               <div class="menu-list" hidden>
-                <button type="button" data-do="svg"><strong>Image</strong><span>SVG still, this colour</span></button>
+                <button type="button" data-do="png" hidden><strong>Image, with fur</strong><span>PNG, as on the stage now</span></button>
+                <button type="button" data-do="svg"><strong>Image</strong><span data-svg-says>SVG still, this colour</span></button>
                 <button type="button" data-do="json-file"><strong>Definition</strong><span>JSON, geometry only</span></button>
               </div>
             </div>
@@ -106,6 +107,14 @@
             <div class="colour-row">
               <div data-picker="body"></div>
               <button type="button" class="link" data-reset-colour hidden>Back to its own colour</button>
+              <div class="sub finish">
+                <span class="sub-label" id="finish-label">Finish</span>
+                <div class="seg" role="group" aria-labelledby="finish-label" data-material>
+                  <button type="button" data-material-is="flat" aria-pressed="true">Flat</button>
+                  <button type="button" data-material-is="fluffy" aria-pressed="false">Fluffy</button>
+                </div>
+                <span class="sub-label" data-material-note hidden>No WebGL2 here, so it stays flat.</span>
+              </div>
             </div>
           </div>
 
@@ -280,7 +289,8 @@ export function Avatar({ size = 72 }) {
             <li><strong>Nothing drawn that nobody sees:</strong> off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
             <li><strong>Reduced motion respected:</strong> a still picture, and moves do nothing.</li>
             <li><strong>Deterministic:</strong> the same seed and steps draw the same paths, bit for bit.</li>
-            <li><strong>Paths, not pixels:</strong> three SVG paths a frame, coloured with any CSS.</li>
+            <li><strong>Paths, not pixels:</strong> flat, it is three SVG paths a frame, coloured with any CSS.</li>
+            <li><strong>Fur if you ask:</strong> <code>material: 'fluffy'</code> adds a WebGL2 coat under the eyes; without WebGL2 it is flat.</li>
           </ul>
           <div class="sizes-row">
             <div class="seg small-seg" role="group" aria-label="Size" data-sizes></div>

@@ -1,6 +1,7 @@
 // One animation-frame loop, one on-screen watcher and one pointer listener for every live avatar on the page.
 // The loop runs only while something is subscribed, the tab is showing and the person has not asked for
-// reduced motion, so a page with no live avatar on screen, or a tab in the background, costs nothing.
+// reduced motion, so a page with no live avatar on screen, or a tab in the background, costs nothing. Beside
+// it, one queue (soon) for the work the loop does not do, one job a task.
 
 type Tick = (now: number) => void;
 
@@ -36,10 +37,55 @@ export function onMotion(changed: () => void): () => void {
   return () => { told.delete(changed); };
 }
 
+/** True while the loop is running its ticks. */
+let framing = false;
+
 function loop(now: number): void {
   frame = 0;
-  for (const tick of ticks) tick(now);
+  framing = true;
+  try {
+    for (const tick of ticks) tick(now);
+  } finally {
+    framing = false;
+  }
   start();
+}
+
+/** Is the frame loop running its ticks right now? (A coat is painted at once in a frame, and through soon() outside one.) */
+export const inFrame = (): boolean => framing;
+
+/** Work waiting for its turn, first come first served. */
+const jobs: (() => void)[] = [];
+let turnAt: ReturnType<typeof setTimeout> | 0 = 0;
+
+/**
+ * Run `job` soon, in a task of its own after the ones already waiting: one job a task, so a page of them do not
+ * pile into one frame (one long job still holds up the frames while it runs). It is for what the frame loop does not draw (a still picture, the first coat of a body, which
+ * needs a mesh made), so it runs under reduced motion too, and in a background tab, only later. Returns the way
+ * to drop it before it runs.
+ */
+export function soon(job: () => void): () => void {
+  jobs.push(job);
+  queue();
+  return () => {
+    const at = jobs.indexOf(job);
+    if (at >= 0) jobs.splice(at, 1);
+  };
+}
+
+function queue(): void {
+  if (!turnAt && jobs.length) turnAt = setTimeout(turn, 0);
+}
+
+function turn(): void {
+  turnAt = 0;
+  const job = jobs.shift();
+  // (One that throws does not stop the ones after it.)
+  try {
+    job?.();
+  } finally {
+    queue();
+  }
 }
 
 function start(): void {

@@ -20,11 +20,12 @@ src/react.ts      useLiveAvatar: the same, as a React hook
 src/mount.ts      mount: the same, on any page
 src/still.ts      the still pictures and the svg box
 src/paint.ts      painting the effects into an svg (mount and the React hook)
+src/coat/         the fluffy coat: its WebGL2 renderer and shaders, the eyes' mask, the canvas an avatar shows it on
 src/engine/outline/  avatars from definitions: the path parser, the rules, and the body made from an outline
 src/gallery.ts    23 ready-made avatars as definitions
 golden/           frozen hashes of every frame the rig draws
 site/             the demo page (built into _site/ for GitHub Pages); site/prompt.md is the design prompt for models
-scripts/          the demo page's build
+scripts/          the demo page's build, and the coat's contact sheets (coat-sheet.mjs)
 ```
 
 ## Prove a change
@@ -36,6 +37,7 @@ scripts/          the demo page's build
 | `npm run golden` | the rig draws every existing behaviour exactly as before, bit for bit (about 80 s, so not part of `npm test`) |
 | `npm run site:dev` | the demo page on http://localhost:5300, rebuilt as you edit: judge a move or a shape by eye |
 | `npm run site` | the demo page built into `_site/`, a static folder GitHub Pages serves as it is |
+| `node scripts/coat-sheet.mjs [dir]` | the fluffy coat beside the flat body in headless Edge: contact sheets of bodies, sizes, colours and states, mount()'s DOM with a coat, a lost WebGL context, and the coat's timings (needs playwright-core: install it, or set `PLAYWRIGHT_CORE`) |
 
 Node 22 or later.
 
@@ -312,17 +314,17 @@ The format is open-bot-avatar's, so a definition made for it works here too, and
 
 From `@blot/avatar`:
 
-- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right], effects?, glow? }`: three path strings in the box `VIEW_BOX`, and the effects as more. `effectShapes`, `paintEffects`, `glowFilter`, `FX_KINDS`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`.
+- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right], effects?, glow? }`: three path strings in the box `VIEW_BOX`, and the effects as more. `effectShapes`, `paintEffects`, `glowFilter`, `FX_KINDS`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`. `drawAvatar(..., { coat: true })` adds `coat`, what a fluffy coat is drawn from; its parts are `coatMesh`, `coatDetail` and `dyeRamp`; `coatable()` says whether this page can draw one (it sets up WebGL2 the first time).
 - **The rig.** `new Rig({ seed, body, pose, rest, clips, personality })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `visit(body, stay)`, `setActivity(activity, form)`, `setMark`, `setPersonality`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `MANNERS`, `mannerFor`, `PERSONALITY`, `ACTIVITY_FACES`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
 - **Clips.** `CLIPS`, `POKES`, `CUES`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
-- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality` and `accent` (the effects' colour).
+- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality`, `accent` (the effects' colour) and `material` (`'flat'` or `'fluffy'`, the `Material` type).
 - **Definitions.** A `Shape` is a body's id or an `AvatarDefinition`. `validateAvatar`, `outlineBody`, `GALLERY`, `galleryAvatar`, `galleryColour`, `parsePath`, `flattenPath`, `serializePath`, `PathError`, `EYE_W`, `EYE_H`, `BOX_SCALE`. A body's `eyes.cx` moves the pair off the middle of the face.
 
 From `@blot/avatar/moves`: everything for writing a move in plain words (see "Add an animation"): `cue`, `poke`, `head`, `body`, `eyes`, `antennas`, `toward`, `away`, the shapes (`beats`, `hold`, `peak`, `flight`, `hump`, `wave`, `wobble`, `surge`, `snapBack`), the effects (`sparks`, `sparksAllRound`, `exclamation`, `pulse`, `orbits`, `speedLines`), `byHand`, and the types `Shape`, `Line`, `Side`, `MoveOptions`.
 
-From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box.
+From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, coat, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box. For `material: 'fluffy'`, draw two svgs of the same box with `<canvas ref={coat} aria-hidden style={{ position: 'absolute', display: 'none' }} />` between them (hidden from the first paint, so it never takes room; the coat shows it when it paints): the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. Render the canvas whenever the material is fluffy. Without it, or without WebGL2, the body is flat.
 
 ### The frame loop's rules
 
@@ -332,6 +334,7 @@ From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, 
 - An avatar at rest unsubscribes and costs nothing until something wakes it.
 - One under 48 px (`SMALL`) is drawn at most 30 times a second.
 - Only one of 64 px (`LARGE`) and up takes a full look. A small one turns at most `SMALL_LOOK` of the way. `mount()` leaves whether it can be poked to you (`pokeable`); blot makes only avatars of 64 px and up pokeable.
+- A fluffy coat adds no frames. It is painted in the frame its avatar is drawn in, and only when the pose, the eyes, the colour or the size changed: a breath, a squash or a hop moves the picture it has. A coat drawn outside a frame (a still picture, reduced motion, the first coat of a body, whose mesh took from about 25 to 150 ms to make in Edge on a desktop PC, and holds up the frames for that long) waits in one queue, `soon`, which runs one a task, under reduced motion too.
 
 ## Use it on a page
 
@@ -361,6 +364,47 @@ Colours:
 - `BOT_COLOURS` is blot's own palette, `[hex, name]` in the order its Create New Bot picker shows them: black, brown, red, orange, yellow, green, cyan, blue, violet, magenta and gray. blot paints a black Bot in the theme's ink; on a page, pass `fill: 'var(--ink)'` and an `eyeFill` the other way round to do the same.
 
 In React, use `useLiveAvatar` from `@blot/avatar/react`. The demo page has the whole component (put `host` on a span, `paths` on the three paths, and `first` as their first `d`).
+
+### A coat of fur
+
+`material: 'fluffy'` (on `mount` or `useLiveAvatar`) gives the body a coat of fur, drawn with WebGL2 and set round the eyes: the pile parts under them and darkens a little where it meets them. The eyes, the face, the antennas, the decals and the effects stay SVG over it. `update({ material })` switches at once, either way. Where there is no WebGL2 (a server, a test, an old browser), or it fails, the avatar is exactly the flat one. While it changes shape, and as it turns into a loading figure, the coat fades out and the flat body shows; it fades back as the new body lands.
+
+```ts
+const bot = mount(el, { shape: 'heart', size: 96, material: 'fluffy' });
+bot.update({ material: 'flat' });
+```
+
+Where it is fur, and where it is flat:
+
+| Where | Finish |
+|---|---|
+| `mount()` and `useLiveAvatar` in a browser with WebGL2, moving or still (reduced motion paints the still once, through `soon`) | fur |
+| Anything that is only `drawAvatar`'s paths: a server render (`renderToString`), a still you draw with `stillState`, the demo page's SVG export | flat: the coat is pixels and these are paths |
+| No WebGL2, a context that fails to start, a context lost (the coat comes back when it is restored) | flat |
+| A change of shape, and a loading figure (thinking, working) | the coat fades out over the first quarter (from where it was, when a change cuts into another), the flat body shows, and it fades back over the last quarter |
+| `useLiveAvatar` without a `<canvas ref={coat}>` | flat, with no WebGL2 set up for it |
+
+Every avatar on the page shares one WebGL2 context, which draws one coat at a time; each avatar keeps its own picture on a canvas under its body path (whose fill is turned down while the coat shows, so it still outlines and takes the pointer). The coat's colour is read from the body's: a hex colour as given, anything else (a name, a `var()`) as the page paints the body when the coat is drawn, so a theme change shows on the next picture, not before.
+
+The level of detail is open-bot-avatar's ladder (`coatDetail`), in this engine's units: a small avatar draws fewer layers of pile and fewer, wider strands, so it covers the same and costs less. A coat is drawn at every size; there is no size below which it is left out. At a device pixel ratio of 1 (twice the size in px does the same at 2):
+
+| Size | Layers of pile | Strand passes (of 8) | Strand width |
+|---|---|---|---|
+| 22 px | 2 | 3 | 2.67 |
+| 32 to 48 px | 2 | 4 | 2 |
+| 64 px | 2 | 5 | 1.6 |
+| 96 px | 3 | 6 | 1.33 |
+| 128 px | 3 | 7 | 1.14 |
+| 180 px and up | 5 | 8 | 1 |
+
+What it costs, measured in headless Edge on one desktop PC (an NVIDIA GTX 1060), main-thread time only:
+
+- **A body's first coat** makes its mesh, once per body and kept: from about 25 ms (the lightbulb) to about 150 ms (the cloud). It runs through `soon`, outside the frame loop, but it is one task: the page's frames wait for it, so a change of shape into a body not seen before stutters as it lands.
+- **The first coat on a page** sets up WebGL2: about 20 ms.
+- **Moving**, at 96 px: about 0.8 to 0.9 ms a frame for one avatar (about 0.5 ms flat), 3.3 to 4.2 ms for six (1.3 to 1.4 ms flat), main-thread time measured in headless Edge on one PC; it swings with load. A coat is painted again only when the pose, the eyes, the colour or the size changed; a breath, a squash or a hop moves the picture it has.
+- **At rest**, nothing is painted and nothing ticks.
+
+The GPU's time and the browser's compositing are not in those numbers. The demo page keeps its thumbnails flat: a coat for each of its 38 avatars would make 38 meshes, about 3 s of work in all (measured in Node on the same PC).
 
 ## What stays rig machinery, and why
 
@@ -393,7 +437,7 @@ These look like mistakes and are not. Do not undo them.
 
 ## The demo page and GitHub Pages
 
-`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script, a favicon the engine draws, and `prompt.md`, the design prompt, which a short prompt in an agent app's link points at. The studio's plain parts (reading a model's reply, share links, prompts, agent links, the still to download) are in `site/studio.ts`, tested by `site/studio.test.mjs`. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
+`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script, a favicon the engine draws, and `prompt.md`, the design prompt, which a short prompt in an agent app's link points at. The studio's plain parts (reading a model's reply, share links, prompts, agent links, the still to download) are in `site/studio.ts`, tested by `site/studio.test.mjs`. The studio's Finish switch (Flat, Fluffy) is kept in the browser and carried in a share link as `?material=fluffy`; with fur on, Export offers a PNG of the stage as it is, and the SVG stays flat. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
 
 `.github/workflows/pages.yml` checks, builds and publishes it on every push to `main`, but only while the repository is public: a Pages site is public even when its repository is private, and on a free account GitHub does not serve Pages from a private repository at all. While the repository is private the workflow skips itself. When it is made public, turn Pages on (Settings, Pages, Source: GitHub Actions) and the next push publishes it.
 

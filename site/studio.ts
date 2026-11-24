@@ -4,7 +4,7 @@
 // Scholz and its contributors (MIT; see THIRD_PARTY_NOTICES.md).
 
 import {
-  BOT_COLOURS, bodyOf, colours, drawAvatar, stillState, validateAvatar, type AvatarDefinition, type Shape,
+  BOT_COLOURS, bodyOf, colours, drawAvatar, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
 
 // ---- Prompts
@@ -166,8 +166,15 @@ export function freeId(yours: readonly AvatarDefinition[], d: AvatarDefinition):
 //   &color=blue           one of blot's colours by name, or a hex colour with or without #
 //   &doing=working        what it is doing: idle, thinking, working, waiting, speaking or sleeping
 //   &def=…                a whole definition as base64url JSON (or JSON as it is): checked like an import, then added to yours
+//   &material=fluffy      its finish, flat or fluffy; a link without one leaves the finish the visitor chose
 
-export interface Shared { avatar?: string; gallery?: string; definition?: AvatarDefinition; colour?: string; doing?: string; problem?: string }
+export interface Shared { avatar?: string; gallery?: string; definition?: AvatarDefinition; colour?: string; doing?: string; material?: Material; problem?: string }
+
+/** A finish named in a link or kept in a browser: 'flat' or 'fluffy'. Anything else is undefined. */
+export function readMaterial(v: string | null | undefined): Material | undefined {
+  const t = v?.trim().toLowerCase();
+  return t === 'flat' || t === 'fluffy' ? t : undefined;
+}
 
 /** A definition as compact JSON in base64url, UTF-8 safe, without padding. */
 export function encodeDefinition(d: AvatarDefinition): string {
@@ -218,11 +225,13 @@ export function readShare(search: string, doings: readonly string[]): Shared {
   if (colour) out.colour = colour;
   const doing = q.get('doing')?.trim().toLowerCase();
   if (doing && doings.includes(doing)) out.doing = doing;
+  const material = readMaterial(q.get('material'));
+  if (material) out.material = material;
   return out;
 }
 
-/** A link to this avatar as it is now. A body or a gallery avatar goes by id, one of yours with its definition; its own colour and idle are left out. */
-export function shareLink(base: string, pick: { id: string; kind: 'body' | 'gallery' | 'yours'; definition?: AvatarDefinition }, colour: string, own: string, doing: string): string {
+/** A link to this avatar as it is now. A body or a gallery avatar goes by id, one of yours with its definition; its own colour, idle and flat are left out. */
+export function shareLink(base: string, pick: { id: string; kind: 'body' | 'gallery' | 'yours'; definition?: AvatarDefinition }, colour: string, own: string, doing: string, material: Material = 'flat'): string {
   const q = new URLSearchParams();
   if (pick.kind === 'yours' && pick.definition) q.set('def', encodeDefinition(pick.definition));
   else q.set(pick.kind === 'gallery' ? 'gallery' : 'avatar', pick.id);
@@ -231,12 +240,13 @@ export function shareLink(base: string, pick: { id: string; kind: 'body' | 'gall
     q.set('color', named ? named[1].toLowerCase() : colour.replace(/^#/, '').toUpperCase());
   }
   if (doing !== 'idle') q.set('doing', doing);
+  if (material !== 'flat') q.set('material', material);
   return `${base}?${q}`;
 }
 
 // ---- A still to download
 
-/** The avatar as a standalone SVG file, facing you, in this colour, its view cut to the body and a little room. */
+/** The avatar as a standalone SVG file, facing you, in this colour, its view cut to the body and a little room. It is always flat: the coat is pixels. */
 export function stillSvg(shape: Shape, colour: string, size = 512): string {
   const d = drawAvatar(bodyOf(shape), colour, stillState(shape, size), size), c = colours(colour);
   const layers = d.layers ?? [];

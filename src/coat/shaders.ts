@@ -1,0 +1,234 @@
+// Ported from open-bot-avatar (MIT): dom/fluffy/shaders.ts, by Dominik Scholz.
+//
+// The coat's shaders. One program draws three kinds of geometry, chosen by `pass`: the body's solid surface,
+// shells of pile lifted off it, and single strands on top. All three sample the same pile, fixed to the body,
+// so the coat holds together as the avatar turns.
+//
+// The pile is shaped in open-bot-avatar's own space (its viewBox units, COAT_UNIT body units each, with y down),
+// so its numbers are used as they are. The vertex shader takes our mesh (body units, y up) there, and brings the
+// result back to draw it with our rotation and perspective (math.ts): the coat lands on the SVG outline, eyes and
+// antennas exactly. Its eyes are not drawn here. Ours are paths over the coat, and the coat only parts its pile
+// round them, from a field of how far each pixel is from an eye (mask.ts).
+
+import { DYE_RAMP_RANGE } from '../engine/dye';
+import { COAT_UNIT } from '../engine/coat';
+import { VIEW, VIEW_UNIT } from '../engine/draw';
+import { D } from '../engine/math';
+
+/** The values of the `pass` uniform. */
+export const PASS = { body: 0, shell: 1, strand: 2 } as const;
+
+/** A number as a GLSL float literal. */
+const float = (n: number): string => (Number.isInteger(n) ? `${n}.` : `${n}`);
+
+const passes = `const int BODY = ${PASS.body}, SHELL = ${PASS.shell}, STRAND = ${PASS.strand};`;
+
+/**
+ * A strand whose root faces away from the camera further than this (the cosine) is not drawn: half the roots are
+ * on the back. Those just past the rim still are, since their tips come round it and fuzz the outline.
+ */
+const BACK = -0.3;
+
+export const vertexShader = `#version 300 es
+precision highp float;
+precision highp int;
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec2 seed;
+// The pose's rotation, and the same in open-bot-avatar's space (y down).
+uniform mat3 rotation, view;
+// The middle and half size of the body's box, and the camera, in body units.
+uniform vec3 middle, extent, camera;
+// The picture's square, drawing units (middle x, middle y, half its side), and how deep the coat goes, body units.
+uniform vec4 square;
+uniform float shell;
+uniform float strandWidth; // 1 at full detail; wider where fewer strands are drawn
+uniform int pass;
+out vec3 N, pilePosition, lean;
+out float tip, variation, across;
+${passes}
+const vec3 FLIP = vec3(1., -1., 1.);
+const float UNIT = ${float(1 / COAT_UNIT)}, D = ${float(D)}, VIEW_UNIT = ${float(VIEW_UNIT)}, MID = ${float(VIEW / 2)};
+
+void main() {
+  // Into open-bot-avatar's space: its units, y down.
+  vec3 n = normalize(FLIP * normal), p = FLIP * position * UNIT;
+  vec3 rounded = FLIP * (position - middle) / extent;
+  // Broadly bend the lighting normals across flat faces.
+  vec3 shadingNormal = normalize(n + .78 * rounded);
+  pilePosition = p;
+  // Sweep across the visible surface. A downwards bias keeps the front from parting at a point.
+  // Project without normalizing, so foreshortened locks get shorter continuously at a grazing angle.
+  float wave = .21 * sin(dot(p, vec3(.11, .045, .08))) + .14 * sin(.13 * p.y - .07 * p.z);
+  float angle = .22 + .94 * (view * shadingNormal).x + wave;
+  vec3 sweep = transpose(view) * vec3(sin(angle), cos(angle), .18);
+  lean = sweep - n * dot(n, sweep);
+
+  tip = 0.;
+  variation = .5;
+  across = 0.;
+  if (pass == SHELL) {
+    p += n * shell * 1.10;
+    p += lean * (1.05 * shell);
+  }
+  if (pass == STRAND) {
+    if (dot(normal, normalize(camera - position)) < ${float(BACK)}) {
+      // Outside the clip volume at every vertex: the whole strand is dropped.
+      gl_Position = vec4(0., 0., 2., 1.);
+      return;
+    }
+    // Four cross-sections make a bent, tapered strand. Roots are fixed to the body.
+    tip = float(gl_VertexID / 2) / 3.;
+    across = float(gl_VertexID % 2) * 2. - 1.;
+    vec3 tangent = normalize(cross(n, abs(n.y) < .93 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+    vec3 bitangent = cross(n, tangent);
+    float flow = 2.3 * sin(.24 * p.x + .13 * p.z + sin(.22 * p.y)) + 1.3 * sin(.32 * p.y - .15 * p.x);
+    float turn = flow + (seed.x - .5) * 2.6;
+    vec3 comb = lean + .24 * (tangent * cos(turn) + bitangent * sin(turn));
+    vec3 bend = cross(n, comb);
+    float len = mix(1.6, 3.8, seed.y);
+    vec3 direction = n * (.30 + .18 * tip) + comb * (.93 - .12 * tip) + bend * (seed.x - .5) * .45 * tip;
+    pilePosition += comb * (.7 * len * tip);
+    p += n * .52;
+    float width = (.073 + .11 * seed.y) * strandWidth;
+    p += .065 * n + len * tip * direction;
+    vec3 screenDir = view * (direction + .06 * comb);
+    vec2 widthDir = normalize(vec2(-screenDir.y, screenDir.x) + vec2(.0001, 0));
+    p += transpose(view) * vec3(widthDir * across * width * (1. - .94 * tip), 0);
+    shadingNormal = normalize(shadingNormal + .19 * comb);
+    variation = seed.x;
+  }
+
+  N = view * shadingNormal;
+  // Back to body units and into our camera: X = MID + VIEW_UNIT s x', Y = MID - VIEW_UNIT s y' with s = D / w, as
+  // math.ts draws the outline, and the square of the picture as clip space. w carries the perspective, so
+  // everything between the corners is drawn in it too.
+  vec3 q = rotation * (FLIP * p / UNIT);
+  float w = D - q.z, deep = square.w;
+  gl_Position = vec4(
+    (VIEW_UNIT * D * q.x + (MID - square.x) * w) / square.z,
+    (VIEW_UNIT * D * q.y + (square.y - MID) * w) / square.z,
+    (D * w - (D * D - deep * deep)) / deep,
+    w);
+}`;
+
+export const fragmentShader = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D dyeRamp;
+uniform highp sampler3D brushedPile;
+uniform sampler2D eyeField;
+uniform vec3 color;
+uniform int pass;
+uniform float shell;
+// The eye field's texture coordinates from the pixel's (gl_FragCoord.xy * xy + zw), and how many of
+// open-bot-avatar's units a byte of the field spans end to end (0: no eyes).
+uniform vec4 eyeMap;
+uniform float eyeRange;
+in vec3 N, pilePosition, lean;
+in float tip, variation, across;
+out vec4 result;
+${passes}
+// Beyond this the eyes change nothing, open-bot-avatar units.
+const float FAR = 3.8;
+
+// Sample the same roots at every view: only the direction of the short filter changes. The solid coat, the
+// shells and the strands all use this one field.
+float brushedHeight() {
+  vec3 uvw = pilePosition / 15.;
+  vec3 stepUV = lean * .019;
+  float locks = 4. * texture(brushedPile, uvw).r;
+  for (int i = 1; i <= 3; i++) {
+    vec3 delta = float(i) * stepUV;
+    locks += (4. - float(i)) * (texture(brushedPile, uvw + delta).r + texture(brushedPile, uvw - delta).r);
+  }
+  float tuft = texture(brushedPile, uvw * .42).r;
+  return clamp(.5 + 1.65 * (locks / 16. - .5) + .16 * (tuft - .5), 0., 1.);
+}
+
+// How far this pixel is from the nearest eye's edge (less than 0 inside one), and the way out of the eye,
+// x right and y down.
+float eyeDistance(out vec2 outward) {
+  outward = vec2(0.);
+  if (eyeRange <= 0.) return FAR;
+  vec2 uv = gl_FragCoord.xy * eyeMap.xy + eyeMap.zw;
+  if (uv.x <= 0. || uv.y <= 0. || uv.x >= 1. || uv.y >= 1.) return FAR;
+  float d = (texture(eyeField, uv).r - .5) * eyeRange;
+  if (d < FAR) {
+    vec2 texel = 1. / vec2(textureSize(eyeField, 0));
+    vec2 g = vec2(texture(eyeField, uv + vec2(texel.x, 0)).r - texture(eyeField, uv - vec2(texel.x, 0)).r,
+                  texture(eyeField, uv + vec2(0, texel.y)).r - texture(eyeField, uv - vec2(0, texel.y)).r);
+    outward = g / max(length(g), .001);
+  }
+  return d;
+}
+
+void main() {
+  vec3 n = normalize(N);
+  vec3 light = normalize(vec3(-.52, -.83, .62));
+  float diffuse = dot(n, light);
+  float wrap = clamp((diffuse + .65) / 1.65, 0., 1.);
+  float facingLight = clamp(.66 + .34 * diffuse, 0., 1.);
+  float diffuseLevel = .87 + .13 * wrap;
+  float sheen = .014 * wrap * wrap;
+  float rimExposure = 1.;
+
+  // Pile gives way to the eyes, which are drawn over the coat.
+  vec2 outward;
+  float d = eyeDistance(outward);
+  if (pass == SHELL && d < .1) discard;
+  if (pass == STRAND && d < .10 - .08 * variation) discard;
+
+  float height = brushedHeight();
+  // Density variation survives rim lighting even when the strongest dye channel is saturated.
+  float pileFill = .925 + .075 * smoothstep(.22, .81, height);
+  if (pass == STRAND) {
+    float edge = min(1., abs(across));
+    float glint = smoothstep(.08, .82, tip) * (1. - .32 * edge * edge);
+    diffuseLevel *= .935 + .11 * variation + .035 * clamp(tip, 0., 1.);
+    sheen += (.012 + .20 * glint) * (.44 + .56 * variation) * facingLight;
+  } else {
+    float layer = pass == SHELL ? shell : 0.;
+    // A shell keeps only the locks that reach its height.
+    if (pass == SHELL && height < .21 + .59 * layer) discard;
+    // The solid backing is dyed as brightly as the roots. Relief is mostly from the softly lit crests of
+    // neighbouring locks.
+    diffuseLevel *= .895 + .16 * height + .035 * layer;
+    sheen += (.012 + .13 * smoothstep(.41, .86, height) + .022 * layer) * facingLight;
+    rimExposure = .80 + .34 * layer;
+  }
+
+  // A soft light behind the right shoulder grazes the pile. Weighting by view angle confines it to the
+  // silhouette as the avatar turns.
+  float grazing = 1. - smoothstep(.09, .83, abs(n.z));
+  float backlit = smoothstep(-.20, .79, dot(n.xy, vec2(.66, -.75)));
+
+  // Where the pile meets an eye: a crease, and a darker ring at the very edge, so the eye sits in the coat.
+  float upper = 0., crease = 0., contact = 0.;
+  if (d < FAR) {
+    upper = dot(outward, normalize(vec2(.96, -.28)));
+    crease = (1. - smoothstep(-.12, 1.65 + 1.30 * upper + .6 * (height - .5), d)) * .24;
+    contact = (1. - smoothstep(-.04, .38, d)) * .35;
+  }
+  float occlusion = crease * (.76 + .18 * upper);
+  float fiberLight = (sheen + .46 * grazing * backlit * rimExposure) * (1. - crease);
+  diffuseLevel = diffuseLevel * (1. - .48 * occlusion) * (1. - (.36 + .04 * upper) * contact);
+
+  // Light falling on the body reveals its curvature. Light caught by raised fibres can carry on above the
+  // nominal exposure of the dye.
+  float backing = diffuseLevel * pileFill;
+  float exposure = backing * backing * (.72 + .39 * wrap) + 1.45 * fiberLight * pileFill;
+  vec4 ramp = texture(dyeRamp, vec2(exposure / ${float(DYE_RAMP_RANGE)}, .5));
+  vec3 base = ramp.rgb;
+  if (ramp.a > 0.) {
+    // On yellow, the dyed roots and the light scattered by the tips can have the same lightness and still
+    // differ in colour.
+    float value = max(color.r, max(color.g, color.b));
+    vec3 dye = color / max(value, .001);
+    float weakest = min(dye.r, min(dye.g, dye.b));
+    vec3 scatter = (1. - dye) * (.09 + .91 * (dye - weakest)) * clamp(1.85 * fiberLight, 0., 1.);
+    float brightness = clamp(value * diffuseLevel + (.35 + .65 * value) * fiberLight, 0., 1.);
+    base = mix(base, (dye + scatter) * brightness * pileFill, ramp.a);
+  }
+  result = vec4(base, 1.);
+}`;

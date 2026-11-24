@@ -190,8 +190,8 @@ test('on mount the face is worn before the activity, so the activity\'s own face
   a.detach();
 });
 
-test('the controller, the hook and mount() use the shared frame loop only', () => {
-  for (const file of ['live.ts', 'react.ts', 'mount.ts']) {
+test('the controller, the hook, mount() and the coat use the shared frame loop only', () => {
+  for (const file of ['live.ts', 'react.ts', 'mount.ts', 'coat/layer.ts', 'coat/renderer.ts', 'coat/mask.ts']) {
     const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(src, /requestAnimationFrame/, file);
   }
@@ -313,4 +313,16 @@ test('followReach and followMost: a shorter reach turns sooner, most caps the tu
   // The direction is kept: no look is longer than `most`.
   const d = lookFor(30, 400, 300, 1600, { reach: 160, most: 0.9 });
   assert.ok(Math.hypot(d.x, d.y) <= 0.9 + 1e-9);
+});
+
+test('a fluffy avatar is drawn with its coat and a flat one without, the rest the same; the first picture is flat', () => {
+  const a = mounted({ shape: 'blob', size: 72, material: 'fluffy' });
+  const { coat, ...rest } = a.drawn.at(-1);
+  assert.ok(coat && coat.opacity === 1, 'what a coat needs, in the drawing');
+  assert.deepEqual(rest, drawAvatar(bodyOf('blob'), 'gray', a.live.rig.state, 72));
+  assert.equal(a.live.first.coat, undefined);
+  a.live.want({ shape: 'blob', size: 72 });
+  a.live.motion();
+  assert.equal(a.drawn.at(-1).coat, undefined, 'flat again at once');
+  a.detach();
 });

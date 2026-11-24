@@ -2,6 +2,7 @@
 // is an optional peer, needed only by whoever imports this file.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { coatLayer, type CoatLayer } from './coat/layer';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import type { Drawing } from './engine/draw';
@@ -19,6 +20,11 @@ import { onMotion, reducedMotion } from './ticker';
  * `layers[1]` on one after it (before the eyes); the frame loop fills them, in `paint`'s colours where given.
  * For the effects (a mark, sparks, rings, Zs), put `fx[0]` on an empty <g> before everything (`layers[0]` too)
  * and `fx[1]` on one after the eyes, and pass `fxPaint`; leave them off and the effects are not drawn.
+ * For `material: 'fluffy'`, draw it as two svgs of the same box with a <canvas> between them, `coat` on the
+ * canvas and `style={{ position: 'absolute', display: 'none' }}` (so it takes no room before the coat shows it):
+ * the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. The
+ * canvas is placed and shown when a coat is painted; until then, and where none can be, the body is flat.
+ * Without the canvas (render it whenever the material is fluffy) it is flat too.
  */
 export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint }) {
   const host = useRef<HTMLSpanElement>(null);
@@ -31,6 +37,9 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   paint.current = p.paint;
   const back = useRef<SVGGElement>(null);
   const front = useRef<SVGGElement>(null);
+  const coat = useRef<HTMLCanvasElement>(null);
+  /** The coat, while the material is fluffy. */
+  const layer = useRef<CoatLayer | null>(null);
   /** The colours, for the effects: read on every frame, never through a render. */
   const fxPaint = useRef<FxPaint | undefined>(p.fxPaint);
   fxPaint.current = p.fxPaint;
@@ -47,6 +56,24 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   live.want(p);
   const shape = bodyOf(p.shape);
 
+  /** The glow: round the coat and what is under it while a coat shows, round the body's svg while none does. */
+  const glowed = (d: Drawing, c: FxPaint) => {
+    const glow = glowFilter(d, size.current, c), top = body.current?.ownerSVGElement, low = back.current?.ownerSVGElement;
+    if (top) top.style.filter = layer.current?.showing ? '' : glow;
+    if (low && low !== top) low.style.filter = glow;
+    if (coat.current) coat.current.style.filter = glow;
+  };
+  // The coat first, so that the first picture is drawn with it.
+  useEffect(() => {
+    const el = coat.current;
+    if (el) { el.style.position = 'absolute'; el.style.display = 'none'; }
+    // (motion() draws again at once, as mount() does on a new material; before attach it does nothing.)
+    if (p.material !== 'fluffy' || !body.current || !el) { live.motion(); return; }
+    const l = coatLayer(body.current, () => coat.current);
+    layer.current = l;
+    live.motion();
+    return () => { l.stop(); layer.current = null; };
+  }, [p.material]);
   // In the order live.ts expects (attach first, then motion, follow, shape, face, doing), which React keeps.
   useEffect(() => (host.current ? live.attach(host.current, (d) => {
     last.current = d;
@@ -55,10 +82,10 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     right.current?.setAttribute('d', d.eyes[1]);
     writeLayers(under.current, over.current, d, paint.current);
     const c = fxPaint.current;
+    layer.current?.draw(d, size.current, c?.fill);
     if (c) {
       paintEffects(back.current, front.current, d, c);
-      const svg = body.current?.ownerSVGElement;
-      if (svg) svg.style.filter = glowFilter(d, size.current, c);
+      glowed(d, c);
     }
   }) : undefined), []);
   useEffect(() => live.motion(), [reduced]);
@@ -72,14 +99,19 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     const d = last.current, c = fxPaint.current;
     if (!d || !c) return;
     paintEffects(back.current, front.current, d, c);
-    const svg = body.current?.ownerSVGElement;
-    if (svg) svg.style.filter = glowFilter(d, size.current, c);
+    glowed(d, c);
   }, [p.fxPaint?.fill, p.fxPaint?.eyeFill, p.fxPaint?.accent]);
+  // ... and, after every render, the coat is handed the drawing again: a new fill on the body path, or in fxPaint,
+  // reaches a still coat. (It paints nothing when nothing it is drawn from changed.)
+  useEffect(() => {
+    const d = last.current, l = layer.current;
+    if (d && l && (l.showing || l.pending)) l.draw(d, size.current, fxPaint.current?.fill);
+  });
   // ... and the antennas' and decals' (as mount() does).
   useEffect(() => {
     const d = last.current;
     if (d) writeLayers(under.current, over.current, d, paint.current);
   }, [JSON.stringify(p.paint ?? null)]);
 
-  return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, first: live.first, reduced, live };
+  return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, coat, first: live.first, reduced, live };
 }

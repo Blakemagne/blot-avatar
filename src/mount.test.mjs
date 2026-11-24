@@ -218,3 +218,54 @@ test('a mounted avatar with a mark draws it in front of the body, and the mark g
   assert.equal(front.children.length, 0);
   m.destroy();
 });
+
+/** An element as plain data: its tag, attributes, style and children, to compare two avatars' whole trees. */
+const tree = (el) => ({ tag: el.tag, attrs: Object.fromEntries(el.attrs), style: { ...el.style }, children: el.children.map(tree) });
+
+test('fluffy where no coat can be drawn (here: no WebGL2, as on a server) is exactly the flat avatar, frame by frame', () => {
+  const flat = new El('div'), fluffy = new El('div');
+  const a = mount(flat, { shape: 'heart', size: 72, activity: 'thinking' });
+  const b = mount(fluffy, { shape: 'heart', size: 72, activity: 'thinking', material: 'fluffy' });
+  assert.deepEqual(tree(fluffy), tree(flat));
+  see(flat, true); see(fluffy, true);
+  for (let t = 1000; t < 1500; t += 16) {
+    pump(t);
+    assert.deepEqual(tree(fluffy), tree(flat), `at ${t} ms`);
+  }
+  a.destroy(); b.destroy();
+});
+
+test('a fluffy avatar\'s destroy() stops it and leaves the host as it was found', () => {
+  const host = new El('div');
+  host.style.width = '10px';
+  const m = mount(host, { shape: 'blob', size: 72, material: 'fluffy', activity: 'thinking', pokeable: true });
+  see(host, true);
+  pump(1000); pump(1016);
+  m.destroy();
+  assert.deepEqual(ticking(), { count: 0, running: false });
+  assert.deepEqual(host.children, []);
+  assert.deepEqual([host.style.width, host.style.height, host.style.position], ['10px', undefined, undefined]);
+  assert.equal(host.attrs.size, 0);
+  assert.equal(host.listeners(), 0);
+});
+
+test('the material switches on a mounted avatar, back and forth, and it is drawn again at once', () => {
+  const flat = new El('div'), host = new El('div');
+  const a = mount(flat, { shape: 'blob', size: 72 });
+  const m = mount(host, { shape: 'blob', size: 72 });
+  let drawn = 0;
+  const was = m.live.motion;
+  m.live.motion = () => { drawn++; return was(); };
+  m.update({ material: 'fluffy' });
+  assert.equal(drawn, 1);
+  assert.deepEqual(tree(host), tree(flat), 'no coat can be drawn here, so it is flat');
+  m.update({ material: 'fluffy' });
+  assert.equal(drawn, 1, 'the same material again is no change');
+  m.update({ material: 'flat' });
+  m.update({ material: 'fluffy' });
+  m.update({ material: 'flat' });
+  assert.equal(drawn, 4);
+  assert.deepEqual(tree(host), tree(flat));
+  a.destroy(); m.destroy();
+  assert.deepEqual(host.children, []);
+});

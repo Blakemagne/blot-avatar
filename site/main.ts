@@ -8,15 +8,15 @@
 // doing under it, Export and Copy, and a card of tabs to pick one, play with it, or have a model make a new one.
 
 import {
-  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, colours, drawAvatar, galleryColour,
+  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, coatMesh, coatable, colours, drawAvatar, galleryColour,
   mount, onMotion, reducedMotion, stillState, svgBox,
-  type AvatarDefinition, type MountOptions, type Mounted, type Personality, type Shape,
+  type AvatarDefinition, type Material, type MountOptions, type Mounted, type Personality, type Shape,
 } from '@blot/avatar';
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 import { colorPicker, contrast } from './picker';
 import PROMPT from './prompt.md';
 import {
-  AGENTS, designBrief, freeId, isAgent, parseImport, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
+  AGENTS, designBrief, freeId, isAgent, parseImport, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
 } from './studio';
 
 /** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
@@ -121,7 +121,7 @@ function play(bot: Mounted, m: Move, cue?: { dir?: number; amount?: number }): v
 async function copyText(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
-function download(name: string, type: string, text: string): void {
+function download(name: string, type: string, text: BlobPart): void {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = make('a', { href: url, download: name });
   document.body.append(a);
@@ -189,15 +189,18 @@ const entry = (key: string): Entry => entries().find((e) => e.key === key) ?? BO
 // ---- The studio's avatar.
 
 const narrow = matchMedia('(max-width: 720px)');
+/** The finish picked last, kept in this browser. */
+const MATERIAL_KEY = 'blot-avatar:material';
 const pg = {
   key: 'body:blob', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
   size: narrow.matches ? 150 : 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
+  material: readMaterial(stored.get(MATERIAL_KEY)) ?? 'flat' as Material,
 };
 /** The colour picked for each avatar this visit; one with none shows its own. */
 const picked = new Map<string, string>();
 const options = (): MountOptions => ({
   shape: entry(pg.key).shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
-  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT,
+  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
 // A link's query picks the avatar, its colour and what it is doing, once, as the page opens; then it is cleared,
@@ -218,6 +221,7 @@ const shared = readShare(location.search, ACTIVITIES);
   }
   if (shared.colour) picked.set(pg.key, shared.colour);
   if (shared.doing) pg.activity = shared.doing;
+  if (shared.material) pg.material = shared.material;
   pg.color = picked.get(pg.key) ?? entry(pg.key).own;
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
 }
@@ -329,7 +333,7 @@ for (const menu of document.querySelectorAll<HTMLElement>('[data-menu]')) {
   trigger.addEventListener('click', () => {
     const on = list.hidden !== false;
     open(on);
-    if (on) list.querySelector<HTMLElement>('button:not(:disabled), input')?.focus();
+    if (on) list.querySelector<HTMLElement>('button:not(:disabled):not([hidden]), input')?.focus();
   });
   document.addEventListener('pointerdown', (e) => { if (!menu.contains(e.target as Node)) open(false); });
   menu.addEventListener('focusout', (e) => { if (!menu.contains(e.relatedTarget as Node | null)) open(false); });
@@ -379,8 +383,17 @@ function cellFor(e: Entry): HTMLLIElement {
   b.append(slot);
   paintThumb(b, picked.get(e.key) ?? e.own);
   b.addEventListener('click', () => select(e.key));
-  // A body made from an outline takes a moment to build: start on it as the pointer comes, not on the click.
-  if (e.kind !== 'body') b.addEventListener('pointerenter', () => setTimeout(() => bodyOf(e.shape)), { once: true });
+  // A body made from an outline takes a moment to build, and so does a coat's mesh: start on them before the
+  // click, so the change of shape does not stutter as it lands. The body as the pointer comes; the mesh, which
+  // holds up the page for up to 150 ms, only once the pointer rests on the cell, so a sweep across the grid
+  // makes none. (Both are made once and kept, so a second visit costs nothing.)
+  let rest: ReturnType<typeof setTimeout> | undefined;
+  b.addEventListener('pointerenter', () => {
+    setTimeout(() => bodyOf(e.shape));
+    clearTimeout(rest);
+    rest = setTimeout(() => { if (pg.material === 'fluffy') coatMesh(bodyOf(e.shape)); }, 250);
+  });
+  b.addEventListener('pointerleave', () => clearTimeout(rest));
   cells.set(e.key, b);
   return make('li', {}, b);
 }
@@ -438,7 +451,7 @@ function coloured(): void {
 const previews: Mounted[] = [];
 const faint = $('[data-eye-note]');
 function paint(): void {
-  for (const p of previews) p.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined) });
+  for (const p of previews) p.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material });
   // The eyes as drawn: the picked colour, or the automatic one.
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
   const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
@@ -455,13 +468,39 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
     onInput: (v) => { pg.eyes = v; paint(); },
   });
   for (const [i, p] of [bodyPicker, eyePicker].entries()) {
-    previews.push(mount(p.preview, { shape: entry(pg.key).shape, size: 40, ...inked(pg.color, pg.eyes ?? undefined), seed: 300 + i }));
+    previews.push(mount(p.preview, { shape: entry(pg.key).shape, size: 40, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material, seed: 300 + i }));
   }
   resetColour.addEventListener('click', () => {
     picked.delete(pg.key);
     select(pg.key);
     // The button is hidden now: focus goes to the colour it went back to.
     $('[data-picker="body"]').querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  });
+}
+
+// The finish, beside the colour: flat, or a coat of fur. It is kept in this browser and goes into the code, the
+// link and every avatar that shows the studio's (the stage, the Moves view's, the colour previews). The thumbnails
+// stay flat: a coat for each would make 38 meshes as the page opens, about 3 s of work in all (in Node).
+const materialNote = $('[data-material-note]');
+const materialButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-material-is]')];
+function finished(): void {
+  // Where no coat can be drawn (no WebGL2, or it fails) the body stays flat, the switch says so and there is no PNG.
+  // (Asked only once fur is: it sets up WebGL2.)
+  const noGl = pg.material === 'fluffy' && !coatable();
+  for (const b of materialButtons) b.setAttribute('aria-pressed', String(b.dataset.materialIs === pg.material));
+  materialNote.hidden = !noGl;
+  doButton('png').hidden = pg.material !== 'fluffy' || noGl;
+  $('[data-svg-says]').textContent = pg.material === 'fluffy' ? 'SVG still, flat: no fur' : 'SVG still, this colour';
+  writeUse();
+}
+for (const b of materialButtons) {
+  b.addEventListener('click', () => {
+    const m = readMaterial(b.dataset.materialIs);
+    if (!m || m === pg.material) return;
+    pg.material = m;
+    stored.set(MATERIAL_KEY, m);
+    finished();
+    paint();
   });
 }
 
@@ -500,6 +539,80 @@ async function copy(text: string, failed: string): Promise<void> {
   else said(failed, true);
 }
 doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color)); });
+doButton('png').addEventListener('click', async () => {
+  const e = entry(pg.key), png = await stagePng();
+  if (png) download(`${e.id}.png`, 'image/png', png);
+  else said('No picture: this browser would not draw one.');
+});
+
+/**
+ * The stage's avatar as it is now, as a PNG: each of its layers in turn (the svg under the coat, the coat's canvas,
+ * the svg over it), at the coat's own pixels, each with its glow, cut to what is drawn. The svgs are drawn as
+ * images, their colours resolved first, since an image does not see the page's style. Null if it cannot be drawn.
+ */
+async function stagePng(): Promise<Blob | null> {
+  try { return await drawStage(); } catch { return null; }
+}
+async function drawStage(): Promise<Blob | null> {
+  const host = $('[data-avatar="play"]'), box = svgBox(pg.size);
+  const coat = [...host.children].find((c): c is HTMLCanvasElement => c instanceof HTMLCanvasElement && c.style.display !== 'none' && c.width > 0);
+  const scale = coat ? coat.width / parseFloat(getComputedStyle(coat).width) : Math.max(2, devicePixelRatio || 1);
+  // Room round the drawing box, half of it each way, for what reaches past it: a "!", the Zs, the glow.
+  const room = box.width / 2, side = Math.ceil(2 * box.width * scale), out = make('canvas', { width: side, height: side }), ctx = out.getContext('2d');
+  if (!ctx) return null;
+  // A layer's glow (a CSS drop-shadow) at the export's pixels: a canvas's filter is not scaled with its drawing.
+  const glowOf = (el: Element): string => {
+    const f = getComputedStyle(el).filter;
+    return !f || f === 'none' ? 'none' : f.replace(/(-?[\d.]+)px/g, (_, n: string) => `${Number(n) * scale}px`);
+  };
+  for (const layer of host.children) {
+    if (layer instanceof SVGSVGElement) {
+      const copy = layer.cloneNode(true) as SVGSVGElement, from = layer.querySelectorAll('*'), to = copy.querySelectorAll<SVGElement>('*');
+      from.forEach((el, i) => {
+        const cs = getComputedStyle(el);
+        for (const k of ['fill', 'fill-opacity', 'stroke', 'stroke-opacity', 'opacity'] as const) to[i].style.setProperty(k, cs.getPropertyValue(k));
+      });
+      copy.removeAttribute('style');
+      copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      copy.setAttribute('width', String(side));
+      copy.setAttribute('height', String(side));
+      const [vx, vy, vw, vh] = (copy.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
+      copy.setAttribute('viewBox', `${vx - vw / 2} ${vy - vh / 2} ${2 * vw} ${2 * vh}`);
+      const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' }));
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        ctx.filter = glowOf(layer);
+        ctx.drawImage(img, 0, 0, side, side);
+        ctx.filter = 'none';
+      } finally { URL.revokeObjectURL(url); }
+    } else if (layer === coat) {
+      // Where the coat sits, and the breath, squash or hop it is moved by (a CSS transform about its corner).
+      const cs = getComputedStyle(coat), m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform), w = parseFloat(cs.width);
+      ctx.save();
+      ctx.filter = glowOf(coat);
+      ctx.scale(scale, scale);
+      ctx.translate(parseFloat(cs.left) - box.left + room, parseFloat(cs.top) - box.top + room);
+      ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
+      ctx.globalAlpha = Number(cs.opacity);
+      ctx.drawImage(coat, 0, 0, w, w);
+      ctx.restore();
+    }
+  }
+  // Cut to what is drawn, square, with a little room.
+  const px = ctx.getImageData(0, 0, side, side).data;
+  let x0 = side, y0 = side, x1 = -1, y1 = -1;
+  for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
+    if (px[(y * side + x) * 4 + 3] < 8) continue;
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return null;
+  const cut = Math.ceil(Math.max(x1 - x0, y1 - y0) * 1.08) + 2, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const fit = make('canvas', { width: cut, height: cut });
+  fit.getContext('2d')?.drawImage(out, Math.round(cut / 2 - cx), Math.round(cut / 2 - cy));
+  return new Promise((done) => fit.toBlob(done, 'image/png'));
+}
 doButton('json-file').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) download(`${e.id}.json`, 'application/json', json(e.definition)); });
 const codeToggle = $<HTMLButtonElement>('[data-show-code]'), codeBox = $('#code-box');
 const showCode = (on: boolean): void => {
@@ -516,7 +629,7 @@ doButton('code').addEventListener('click', async () => {
 doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'No clipboard here: use Export instead.'); });
 doButton('link').addEventListener('click', () => {
   const e = entry(pg.key);
-  const link = shareLink(`${location.origin}${location.pathname}`, { id: e.id, kind: e.kind, definition: e.definition }, pg.color, e.own, pg.activity);
+  const link = shareLink(`${location.origin}${location.pathname}`, { id: e.id, kind: e.kind, definition: e.definition }, pg.color, e.own, pg.activity, pg.material);
   void copy(link, `No clipboard here. The link: ${link}`);
 });
 doButton('remove').addEventListener('click', () => {
@@ -666,6 +779,19 @@ importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.cl
 /** The waggle's definition as the page shows it under "Moves are data", for code that plays the waggle. */
 const waggleSource = ((t) => t.slice(t.indexOf('// A waggle'), t.indexOf('\n]);', t.indexOf('const waggle')) + 4))($('#wave-code').textContent ?? '');
 
+/** Use it's code for any page and for React, as written there, and with the finish picked when it is fluffy. */
+const useCode = { page: $('#mount-code'), react: $('#react-code') };
+const useFlat = { page: useCode.page.textContent ?? '', react: useCode.react.textContent ?? '' };
+function writeUse(): void {
+  const fluffy = pg.material === 'fluffy';
+  useCode.page.textContent = fluffy ? useFlat.page.replace("label: 'Ada',", "label: 'Ada', material: 'fluffy',") : useFlat.page;
+  useCode.react.textContent = !fluffy ? useFlat.react : useFlat.react
+    .replace("const { host, paths, first } = useLiveAvatar({ shape: 'star', size, follow: true });",
+      "const { host, paths, coat, first } = useLiveAvatar({\n    shape: 'star', size, follow: true, material: 'fluffy',\n  });")
+    // The coat's canvas goes under the svg, hidden until a coat shows it (without WebGL2 the body stays flat).
+    .replace(/(\n\s*)<svg /, "$1<canvas ref={coat} aria-hidden style={{ position: 'absolute', display: 'none' }} />$1<svg ");
+}
+
 /** The code for the studio's avatar as it is now. */
 function writeCode(): void {
   const e = entry(pg.key);
@@ -678,6 +804,7 @@ function writeCode(): void {
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
   if (pg.follow) o.push('follow: true');
   if (pg.mark) o.push('mark: true');
+  if (pg.material !== 'flat') o.push(`material: '${pg.material}'`);
   const feel = (Object.keys(PERSONALITY) as (keyof Personality)[]).filter((k) => pg.feel[k] !== PERSONALITY[k]).map((k) => `${k}: ${pg.feel[k]}`);
   if (feel.length) o.push(`personality: { ${feel.join(', ')} }`);
   o.push(`accent: '${ACCENT}'`);
@@ -707,10 +834,10 @@ function writeCode(): void {
 const moveStage = $('[data-move-stage]'), moveSaid = $('[data-move-said]');
 const mover = mount($('[data-avatar="moves"]'), {
   shape: entry(pg.key).shape, size: narrow.matches ? 120 : 150, ...inked(pg.color, pg.eyes ?? undefined), follow: true, followIn: moveStage,
-  pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT,
+  pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT, material: pg.material,
 });
 /** The moves are shown on the avatar in the studio, as it is now. */
-const moversTurn = (): void => mover.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel });
+const moversTurn = (): void => mover.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel, material: pg.material });
 function moveRow(m: Move): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.name }), make('span', { textContent: SAYS[m.name] ?? `A ${m.lane}.` }));
   b.addEventListener('click', () => {
@@ -744,13 +871,15 @@ $('[data-lane="own"]').append(...MOVES.filter((m) => m.here).map(moveRow));
   page(0);
 }
 
-// ---- One avatar at the size picked, and what that size does.
+// ---- One avatar at the size picked, and what that size does. It wears the studio's finish: a coat at every size.
+
+let sizer: Mounted;
 
 {
   const SIZES = [22, 32, 48, 64, 96, 128];
   const note = $('[data-size-note]');
   let size = 64;
-  const one = mount($('[data-avatar="size"]'), {
+  sizer = mount($('[data-avatar="size"]'), {
     shape: 'star', size, color: DEFAULT_COLOUR, follow: true, followIn: $('[data-size-stage]'), pokeable: true, label: 'the star at the size picked', seed: 200, accent: ACCENT,
   });
   const says = (s: number): string => s < 48
@@ -758,7 +887,7 @@ $('[data-lane="own"]').append(...MOVES.filter((m) => m.here).map(moveRow));
     : s < 64 ? `${s} px: drawn every frame; it still turns only part of the way.` : `${s} px: drawn every frame, it turns all the way, and this page lets a click poke it.`;
   const sync = chips($('[data-sizes]'), SIZES.map(String), () => String(size), (v) => {
     size = Number(v);
-    one.update({ size, pokeable: size >= 64 });
+    sizer.update({ size, pokeable: size >= 64 });
     note.textContent = says(size);
   }, (v) => `${v} px`);
   note.textContent = says(size);
@@ -781,6 +910,7 @@ function route(): void {
     else a.removeAttribute('aria-current');
   }
   if (view === 'moves') moversTurn();
+  if (view === 'use') sizer.update({ material: pg.material });
   if (view === 'studio') marked();
   if (first) return;
   scrollTo({ top: 0 });
@@ -816,6 +946,7 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
 }
 
 showList(LIST[entry(pg.key).kind]);
+finished();
 route();
 coloured();
 actions();

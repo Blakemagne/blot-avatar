@@ -85,3 +85,18 @@ test('a hidden tab does not tick, and picks up again when it is shown', () => {
   assert.deepEqual(seen, [32]);
   stop();
 });
+
+test('soon() runs one job a task, first come first served, and a job dropped before its turn never runs', async () => {
+  const { soon } = await import('./ticker.ts');
+  const ran = [], task = () => new Promise((done) => setTimeout(done, 0));
+  soon(() => ran.push(1));
+  const drop = soon(() => ran.push(2));
+  soon(() => ran.push(3));
+  drop();
+  await task();
+  assert.deepEqual(ran, [1]);
+  await task();
+  assert.deepEqual(ran, [1, 3]);
+  await task();
+  assert.deepEqual(ran, [1, 3]);
+});
