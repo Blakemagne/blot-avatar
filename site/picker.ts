@@ -5,13 +5,13 @@
 // and the hex field takes '#abc', '#aabbcc' or the same without '#'.
 
 export interface PickerOptions {
-  /** What it picks, for labels: 'Body colour'. */
+  /** What it picks, for labels: 'body colour'. */
   label: string;
   /** '#RRGGBB', or null for the automatic choice when `auto` is given. */
   value: string | null;
   /** The swatches: a colour, its name, and (if it is drawn some other way, such as in the theme's ink) how its swatch is painted. */
   presets: readonly (readonly [hex: string, name: string, show?: string])[];
-  /** The automatic choice's chip text, e.g. 'Auto'. Without it there is always a colour. */
+  /** The automatic choice's chip text, e.g. 'auto'. Without it there is always a colour. */
   auto?: string;
   /** What any colour starts from when the value is the automatic one. */
   start?: string;
@@ -108,8 +108,8 @@ export function colorPicker(box: HTMLElement, o: PickerOptions): Picker {
   });
   const open = el('button', 'swatch any');
   open.type = 'button';
-  open.title = 'Any colour';
-  open.setAttribute('aria-label', `Any ${o.label.toLowerCase()}`);
+  open.title = 'any colour';
+  open.setAttribute('aria-label', `any ${o.label.toLowerCase()}`);
   open.setAttribute('aria-expanded', 'false');
   open.setAttribute('aria-controls', id);
   row.append(open);
@@ -136,7 +136,7 @@ export function colorPicker(box: HTMLElement, o: PickerOptions): Picker {
   const preview = el('div', 'cp-preview');
   const hexLabel = el('label', 'cp-hex');
   const hexText = el('span', '');
-  hexText.textContent = 'Hex';
+  hexText.textContent = 'hex';
   const field = el('input', '');
   field.type = 'text';
   field.spellcheck = false;
@@ -160,13 +160,13 @@ export function colorPicker(box: HTMLElement, o: PickerOptions): Picker {
     square.setAttribute('aria-valuetext', `saturation ${Math.round(hsv.s * 100)}%, brightness ${Math.round(hsv.v * 100)}%, ${hex}`);
     hue.value = String(Math.round(hsv.h) % 360);
     if (document.activeElement !== field) field.value = value ?? '';
-    // 'Auto' shows in the empty field only while it is true.
+    // 'auto' shows in the empty field only while it is true.
     field.placeholder = value === null && o.auto ? o.auto : '';
     for (const [i, b] of swatches.entries()) b.setAttribute('aria-pressed', String(o.presets[i][0] === value));
     autoChip?.setAttribute('aria-pressed', String(value === null));
     const custom = value !== null && !o.presets.some(([p]) => p === value);
     // A disclosure, not a toggle: what it holds is said in its name, not as a pressed state.
-    open.setAttribute('aria-label', custom ? `Any ${o.label.toLowerCase()}, now ${value}` : `Any ${o.label.toLowerCase()}`);
+    open.setAttribute('aria-label', custom ? `any ${o.label.toLowerCase()}, now ${value}` : `any ${o.label.toLowerCase()}`);
     open.classList.toggle('on', custom);
     open.style.setProperty('--swatch', custom ? value! : 'transparent');
   };

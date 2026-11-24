@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>blot avatar</title>
-  <meta name="description" content="A 3D body with eyes on its surface, drawn as three SVG paths, with a WebGL2 coat of fur if you want one. It looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. Pure TypeScript, no dependencies.">
+  <meta name="description" content="a 3D body with eyes on its surface, drawn as three SVG paths, with a WebGL2 coat of fur if you want one. it looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. pure typescript, no dependencies.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#FD690F">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -12,91 +12,91 @@
   <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip" href="#main" data-skip>Skip to the page</a>
+  <a class="skip" href="#main" data-skip>skip to the page</a>
 
   <header class="top">
     <div class="mark">
       <span class="mark-bot" data-avatar="logo"></span>
       <a class="mark-name" href="#studio">blot avatar</a>
     </div>
-    <nav aria-label="Views">
-      <a href="#studio" data-view-link="studio">Studio</a>
-      <a href="#moves" data-view-link="moves">Moves</a>
-      <a href="#use" data-view-link="use">Use it</a>
-      <a class="gh" href="https://github.com/Blakemagne/blot-avatar">GitHub</a>
+    <nav aria-label="views">
+      <a href="#studio" data-view-link="studio">studio</a>
+      <a href="#moves" data-view-link="moves">moves</a>
+      <a href="#use" data-view-link="use">use it</a>
+      <a class="gh" href="https://github.com/Blakemagne/blot-avatar">github</a>
     </nav>
   </header>
 
   <main id="main" tabindex="-1">
-    <p class="motion-note" data-motion-note hidden>Your system asks for reduced motion, so every avatar here is a still picture, facing front: moves, faces, activities and following are not shown.</p>
+    <p class="motion-note" data-motion-note hidden>your system asks for reduced motion, so every avatar here is a still picture, facing front: moves, faces, activities and following are not shown.</p>
 
     <!-- The studio: one avatar, and a card of tabs to pick it, play with it, or make a new one. -->
     <section id="studio" class="view" data-view="studio" aria-labelledby="studio-title">
       <div class="view-head">
-        <h1 id="studio-title" tabindex="-1">An avatar with a body</h1>
-        <p class="lede">Eyes on a real 3D shape, drawn as three SVG paths (and a coat of fur in WebGL2, if you pick Fluffy). Pick one, or have a model draw you one.</p>
+        <h1 id="studio-title" tabindex="-1">an avatar with a body</h1>
+        <p class="lede">eyes on a real 3D shape, drawn as three SVG paths (and a coat of fur in WebGL2, if you pick fluffy). pick one, or have a model draw you one.</p>
       </div>
       <div class="studio">
         <div class="stage-col">
           <div class="stage" data-stage>
             <div class="stage-avatar" data-avatar="play"></div>
-            <p class="hint" aria-hidden="true">Click it. Keys 1 to 6 pick what it does.</p>
+            <p class="hint" aria-hidden="true">click it. keys 1 to 6 pick what it does.</p>
           </div>
-          <div class="chips doing" data-choice="activity" role="group" aria-label="What it is doing"></div>
+          <div class="chips doing" data-choice="activity" role="group" aria-label="what it is doing"></div>
           <div class="sub" data-form-row hidden>
-            <span class="sub-label" id="form-label">Turns into</span>
+            <span class="sub-label" id="form-label">turns into</span>
             <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
           </div>
           <div class="actions">
             <div class="menu" data-menu="export">
-              <button type="button" class="button small" aria-expanded="false">Export</button>
+              <button type="button" class="button small" aria-expanded="false">export</button>
               <div class="menu-list" hidden>
-                <button type="button" data-do="png" hidden><strong>Image, with fur</strong><span>PNG, as on the stage now</span></button>
-                <button type="button" data-do="svg"><strong>Image</strong><span data-svg-says>SVG still, this colour</span></button>
-                <button type="button" data-do="json-file"><strong>Definition</strong><span>JSON, geometry only</span></button>
+                <button type="button" data-do="png" hidden><strong>image, with fur</strong><span>PNG, as on the stage now</span></button>
+                <button type="button" data-do="svg"><strong>image</strong><span data-svg-says>SVG still, this colour</span></button>
+                <button type="button" data-do="json-file"><strong>definition</strong><span>JSON, geometry only</span></button>
               </div>
             </div>
             <div class="menu" data-menu="copy">
-              <button type="button" class="button small" aria-expanded="false">Copy</button>
+              <button type="button" class="button small" aria-expanded="false">copy</button>
               <div class="menu-list" hidden>
-                <button type="button" data-do="code"><strong>Code</strong><span>mount() for this one</span></button>
-                <button type="button" data-do="json"><strong>JSON</strong><span>The definition</span></button>
-                <button type="button" data-do="link"><strong>Link</strong><span>Opens it in this colour, doing this</span></button>
+                <button type="button" data-do="code"><strong>code</strong><span>mount() for this one</span></button>
+                <button type="button" data-do="json"><strong>JSON</strong><span>the definition</span></button>
+                <button type="button" data-do="link"><strong>link</strong><span>opens it in this colour, doing this</span></button>
               </div>
             </div>
-            <button type="button" class="button small" data-show-code aria-expanded="false" aria-controls="code-box">Show code</button>
-            <button type="button" class="button small" data-do="remove" hidden>Remove</button>
+            <button type="button" class="button small" data-show-code aria-expanded="false" aria-controls="code-box">show code</button>
+            <button type="button" class="button small" data-do="remove" hidden>remove</button>
             <span class="action-said" data-said role="status"></span>
           </div>
           <div class="code-panel" id="code-box" hidden>
-            <div class="code-head"><span>Your page</span><button type="button" class="copy" data-copy="play-code">Copy</button></div>
+            <div class="code-head"><span>your page</span><button type="button" class="copy" data-copy="play-code">copy</button></div>
             <pre><code id="play-code" data-code></code></pre>
           </div>
         </div>
 
         <div class="card-panel">
           <div class="tabs">
-            <div class="tablist" role="tablist" aria-label="Studio" data-tabs="card">
-              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">Bot</button>
-              <button type="button" role="tab" id="tab-play" aria-controls="panel-play">Play</button>
-              <button type="button" role="tab" id="tab-new" aria-controls="panel-new">New</button>
+            <div class="tablist" role="tablist" aria-label="studio" data-tabs="card">
+              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">bot</button>
+              <button type="button" role="tab" id="tab-play" aria-controls="panel-play">play</button>
+              <button type="button" role="tab" id="tab-new" aria-controls="panel-new">new</button>
             </div>
             <div class="menu settings" data-menu="settings">
-              <button type="button" class="tab-icon" aria-expanded="false" aria-label="Settings" title="Settings">
+              <button type="button" class="tab-icon" aria-expanded="false" aria-label="settings" title="settings">
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM12.9 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
               </button>
-              <div class="menu-list settings-list" role="dialog" aria-label="Settings" hidden>
-                <label class="toggle"><input type="checkbox" data-follow checked autocomplete="off"> Eyes follow your pointer</label>
-                <label class="range">Size <input type="range" min="22" max="240" step="1" value="180" data-size autocomplete="off"><output data-size-out>180 px</output></label>
+              <div class="menu-list settings-list" role="dialog" aria-label="settings" hidden>
+                <label class="toggle"><input type="checkbox" data-follow checked autocomplete="off"> eyes follow your pointer</label>
+                <label class="range">size <input type="range" min="22" max="240" step="1" value="180" data-size autocomplete="off"><output data-size-out>180 px</output></label>
               </div>
             </div>
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
-            <div class="seg" role="tablist" aria-label="Which avatars" data-tabs="bots">
-              <button type="button" role="tab" id="seg-bodies" aria-controls="bots-bodies">Bodies</button>
-              <button type="button" role="tab" id="seg-outlines" aria-controls="bots-outlines">Outlines</button>
-              <button type="button" role="tab" id="seg-yours" aria-controls="bots-yours">Yours <span class="count" data-yours-count></span></button>
+            <div class="seg" role="tablist" aria-label="which avatars" data-tabs="bots">
+              <button type="button" role="tab" id="seg-bodies" aria-controls="bots-bodies">bodies</button>
+              <button type="button" role="tab" id="seg-outlines" aria-controls="bots-outlines">outlines</button>
+              <button type="button" role="tab" id="seg-yours" aria-controls="bots-yours">yours <span class="count" data-yours-count></span></button>
             </div>
             <div class="bots-box" data-bots>
               <div role="tabpanel" id="bots-bodies" aria-labelledby="seg-bodies"></div>
@@ -106,75 +106,75 @@
             <p class="sub-label pick-note" data-pick-note></p>
             <div class="colour-row">
               <div data-picker="body"></div>
-              <button type="button" class="link" data-reset-colour hidden>Back to its own colour</button>
+              <button type="button" class="link" data-reset-colour hidden>back to its own colour</button>
               <div class="sub finish">
-                <span class="sub-label" id="finish-label">Finish</span>
+                <span class="sub-label" id="finish-label">finish</span>
                 <div class="seg" role="group" aria-labelledby="finish-label" data-material>
-                  <button type="button" data-material-is="flat" aria-pressed="true">Flat</button>
-                  <button type="button" data-material-is="fluffy" aria-pressed="false">Fluffy</button>
+                  <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
+                  <button type="button" data-material-is="fluffy" aria-pressed="false">fluffy</button>
                 </div>
-                <span class="sub-label" data-material-note hidden>No WebGL2 here, so it stays flat.</span>
+                <span class="sub-label" data-material-note hidden>no WebGL2 here, so it stays flat.</span>
               </div>
             </div>
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-play" aria-labelledby="tab-play">
-            <div class="seg" role="tablist" aria-label="Play with" data-tabs="play">
-              <button type="button" role="tab" id="seg-face" aria-controls="play-face">Face</button>
-              <button type="button" role="tab" id="seg-moves" aria-controls="play-moves">Moves</button>
-              <button type="button" role="tab" id="seg-feel" aria-controls="play-feel">Feel</button>
-              <button type="button" role="tab" id="seg-eyes" aria-controls="play-eyes">Eyes</button>
+            <div class="seg" role="tablist" aria-label="play with" data-tabs="play">
+              <button type="button" role="tab" id="seg-face" aria-controls="play-face">face</button>
+              <button type="button" role="tab" id="seg-moves" aria-controls="play-moves">moves</button>
+              <button type="button" role="tab" id="seg-feel" aria-controls="play-feel">feel</button>
+              <button type="button" role="tab" id="seg-eyes" aria-controls="play-eyes">eyes</button>
             </div>
             <div role="tabpanel" id="play-face" aria-labelledby="seg-face">
               <div class="chips" data-choice="face"></div>
-              <p class="sub-label note" data-face-note hidden>A face is worn when idle; while busy, the activity has its own.</p>
-              <label class="toggle mark-row"><input type="checkbox" data-mark autocomplete="off"> A mark: something waits for you</label>
+              <p class="sub-label note" data-face-note hidden>a face is worn when idle; while busy, the activity has its own.</p>
+              <label class="toggle mark-row"><input type="checkbox" data-mark autocomplete="off"> a mark: something waits for you</label>
             </div>
             <div role="tabpanel" id="play-moves" aria-labelledby="seg-moves">
               <div class="chips" data-moves></div>
               <div class="row">
-                <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> The other way</label>
-                <label class="range">How much <input type="range" min="0.25" max="2" step="0.25" value="1" data-amount autocomplete="off"><output data-amount-out>1</output></label>
+                <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> the other way</label>
+                <label class="range">how much <input type="range" min="0.25" max="2" step="0.25" value="1" data-amount autocomplete="off"><output data-amount-out>1</output></label>
               </div>
               <div class="sub">
-                <span class="sub-label" id="visit-label">Visit a shape</span>
+                <span class="sub-label" id="visit-label">visit a shape</span>
                 <div class="chips" data-visit role="group" aria-labelledby="visit-label"></div>
               </div>
             </div>
             <div role="tabpanel" id="play-feel" aria-labelledby="seg-feel">
               <div class="feel" data-feel></div>
-              <p class="sub-label note">The engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. Try a hop or a bounce.</p>
+              <p class="sub-label note">the engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. try a hop or a bounce.</p>
             </div>
             <div role="tabpanel" id="play-eyes" aria-labelledby="seg-eyes">
               <div data-picker="eyes"></div>
-              <p class="sub-label note" data-eye-note hidden>These eyes barely show on this body. Pick an eye colour further from it.</p>
+              <p class="sub-label note" data-eye-note hidden>these eyes barely show on this body. pick an eye colour further from it.</p>
             </div>
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-new" aria-labelledby="tab-new">
-            <div class="seg steps" role="tablist" aria-label="Make a new one" data-tabs="new">
-              <button type="button" role="tab" id="seg-describe" aria-controls="new-describe"><span class="step-n">1</span> Describe it</button>
-              <button type="button" role="tab" id="seg-import" aria-controls="new-import"><span class="step-n">2</span> Bring it back</button>
+            <div class="seg steps" role="tablist" aria-label="make a new one" data-tabs="new">
+              <button type="button" role="tab" id="seg-describe" aria-controls="new-describe"><span class="step-n">1</span> describe it</button>
+              <button type="button" role="tab" id="seg-import" aria-controls="new-import"><span class="step-n">2</span> bring it back</button>
             </div>
             <div role="tabpanel" id="new-describe" aria-labelledby="seg-describe">
-              <label class="field-label" for="describe">A hobby, a job, a thing</label>
-              <textarea id="describe" rows="3" data-describe placeholder="A cosy teapot. A gardener. My bike."></textarea>
+              <label class="field-label" for="describe">a hobby, a job, a thing</label>
+              <textarea id="describe" rows="3" data-describe placeholder="a cosy teapot. a gardener. my bike."></textarea>
               <div class="row prompt-row">
-                <button type="button" class="button small primary" data-copy-prompt>Copy prompt</button>
+                <button type="button" class="button small primary" data-copy-prompt>copy prompt</button>
                 <span class="open-in">
-                  <button type="button" class="button small" data-open-agent>Open in Claude Code</button>
-                  <select data-agent aria-label="Which app to open it in"></select>
+                  <button type="button" class="button small" data-open-agent>open in claude code</button>
+                  <select data-agent aria-label="which app to open it in"></select>
                 </span>
               </div>
-              <p class="sub-label note">Paste it into any chat model, or open it in an agent app (you read it there before it is sent). It asks for one line of JSON: an outline and where the eyes go. <a href="prompt.md" target="_blank" rel="noopener">The prompt</a>.</p>
+              <p class="sub-label note">paste it into any chat model, or open it in an agent app (you read it there before it is sent). it asks for one line of JSON: an outline and where the eyes go. <a href="prompt.md" target="_blank" rel="noopener">the prompt</a>.</p>
               <p class="sub-label note" data-generate-said role="status"></p>
             </div>
             <div role="tabpanel" id="new-import" aria-labelledby="seg-import">
-              <label class="field-label" for="import-text">Paste the reply, or drop a .json file here</label>
+              <label class="field-label" for="import-text">paste the reply, or drop a .json file here</label>
               <textarea id="import-text" rows="5" spellcheck="false" data-import-text placeholder='{"version":1,"id":"teapot","name":"Teapot","body":{"path":"M… Z"},"eyes":{…}}'></textarea>
               <div class="row">
-                <button type="button" class="button small primary" data-import>Add it</button>
-                <button type="button" class="button small" data-open-file>Open a file</button>
+                <button type="button" class="button small primary" data-import>add it</button>
+                <button type="button" class="button small" data-open-file>open a file</button>
                 <input type="file" accept=".json,application/json" data-import-file hidden>
               </div>
               <div class="import-out" data-import-out role="status"></div>
@@ -187,8 +187,8 @@
     <!-- Moves: one stage, every move a click away, a page at a time. -->
     <section id="moves" class="view" data-view="moves" aria-labelledby="moves-title" hidden>
       <div class="view-head">
-        <h1 id="moves-title" tabindex="-1">Moves are data</h1>
-        <p class="lede">A move is a part of the avatar, what it does, how far, and the shape it takes over time. Pick one to see it.</p>
+        <h1 id="moves-title" tabindex="-1">moves are data</h1>
+        <p class="lede">a move is a part of the avatar, what it does, how far, and the shape it takes over time. pick one to see it.</p>
       </div>
       <div class="moves-view">
         <div class="stage small-stage" data-move-stage>
@@ -196,20 +196,20 @@
         </div>
         <div class="card-panel moves-card">
           <div class="tabs">
-            <div class="seg" role="tablist" aria-label="Which moves" data-tabs="lanes">
-              <button type="button" role="tab" id="seg-pokes" aria-controls="lane-poke">Pokes</button>
-              <button type="button" role="tab" id="seg-cues" aria-controls="lane-cue">Cues</button>
-              <button type="button" role="tab" id="seg-yours-move" aria-controls="lane-own">Write one</button>
+            <div class="seg" role="tablist" aria-label="which moves" data-tabs="lanes">
+              <button type="button" role="tab" id="seg-pokes" aria-controls="lane-poke">pokes</button>
+              <button type="button" role="tab" id="seg-cues" aria-controls="lane-cue">cues</button>
+              <button type="button" role="tab" id="seg-yours-move" aria-controls="lane-own">write one</button>
             </div>
           </div>
           <div class="tabpanel">
-            <div role="tabpanel" id="lane-poke" aria-labelledby="seg-pokes"><p class="sub-label">What a click does: each poke plays the next.</p><ul class="move-list" data-lane="poke"></ul></div>
-            <div role="tabpanel" id="lane-cue" aria-labelledby="seg-cues"><p class="sub-label">What a page plays: <code>bot.play(name)</code>.</p><ul class="move-list" data-lane="cue"></ul><div class="pager" data-cue-pager></div></div>
+            <div role="tabpanel" id="lane-poke" aria-labelledby="seg-pokes"><p class="sub-label">what a click does: each poke plays the next.</p><ul class="move-list" data-lane="poke"></ul></div>
+            <div role="tabpanel" id="lane-cue" aria-labelledby="seg-cues"><p class="sub-label">what a page plays: <code>bot.play(name)</code>.</p><ul class="move-list" data-lane="cue"></ul><div class="pager" data-cue-pager></div></div>
             <div role="tabpanel" id="lane-own" aria-labelledby="seg-yours-move">
-              <p class="sub-label">The waggle is not in the package: this page writes it in three lines and brings it in through <code>clips</code>.</p>
+              <p class="sub-label">the waggle is not in the package: this page writes it in three lines and brings it in through <code>clips</code>.</p>
               <ul class="move-list" data-lane="own"></ul>
               <div class="code-panel">
-                <div class="code-head"><span>The waggle</span><button type="button" class="copy" data-copy="wave-code">Copy</button></div>
+                <div class="code-head"><span>the waggle</span><button type="button" class="copy" data-copy="wave-code">copy</button></div>
                 <pre><code id="wave-code">import { mount } from '@blot/avatar';
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 
@@ -232,24 +232,24 @@ bot.play('waggle', { dir: -1 });</code></pre>
     <!-- Use it: one way at a time. -->
     <section id="use" class="view" data-view="use" aria-labelledby="use-title" hidden>
       <div class="view-head">
-        <h1 id="use-title" tabindex="-1">Put one on your page</h1>
-        <p class="lede">TypeScript source with no dependency: the page that uses it compiles it (Vite, esbuild, tsx).</p>
+        <h1 id="use-title" tabindex="-1">put one on your page</h1>
+        <p class="lede">typescript source with no dependency: the page that uses it compiles it (vite, esbuild, tsx).</p>
       </div>
       <div class="use">
         <div class="card-panel">
           <div class="tabs">
-            <div class="seg" role="tablist" aria-label="How" data-tabs="use">
-              <button type="button" role="tab" id="seg-install" aria-controls="use-install">Install</button>
-              <button type="button" role="tab" id="seg-page" aria-controls="use-page">Any page</button>
-              <button type="button" role="tab" id="seg-react" aria-controls="use-react">React</button>
+            <div class="seg" role="tablist" aria-label="how" data-tabs="use">
+              <button type="button" role="tab" id="seg-install" aria-controls="use-install">install</button>
+              <button type="button" role="tab" id="seg-page" aria-controls="use-page">any page</button>
+              <button type="button" role="tab" id="seg-react" aria-controls="use-react">react</button>
             </div>
           </div>
           <div role="tabpanel" id="use-install" aria-labelledby="seg-install" class="code-panel flat">
-            <div class="code-head"><span>npm</span><button type="button" class="copy" data-copy="install-code">Copy</button></div>
+            <div class="code-head"><span>npm</span><button type="button" class="copy" data-copy="install-code">copy</button></div>
             <pre><code id="install-code">npm install github:Blakemagne/blot-avatar</code></pre>
           </div>
           <div role="tabpanel" id="use-page" aria-labelledby="seg-page" class="code-panel flat">
-            <div class="code-head"><span>No framework</span><button type="button" class="copy" data-copy="mount-code">Copy</button></div>
+            <div class="code-head"><span>no framework</span><button type="button" class="copy" data-copy="mount-code">copy</button></div>
             <pre><code id="mount-code">import { mount } from '@blot/avatar';
 
 const bot = mount(document.getElementById('bot'), {
@@ -262,7 +262,7 @@ bot.update({ activity: 'thinking', face: 'attentive' });
 bot.destroy(); // the element is left as it was found</code></pre>
           </div>
           <div role="tabpanel" id="use-react" aria-labelledby="seg-react" class="code-panel flat">
-            <div class="code-head"><span>A hook</span><button type="button" class="copy" data-copy="react-code">Copy</button></div>
+            <div class="code-head"><span>a hook</span><button type="button" class="copy" data-copy="react-code">copy</button></div>
             <pre><code id="react-code">import { useLiveAvatar } from '@blot/avatar/react';
 import { svgBox } from '@blot/avatar';
 
@@ -283,17 +283,17 @@ export function Avatar({ size = 72 }) {
           </div>
         </div>
         <div class="rules">
-          <h2>What it promises</h2>
+          <h2>what it promises</h2>
           <ul>
-            <li><strong>One frame loop</strong> for every avatar on a page.</li>
-            <li><strong>Nothing drawn that nobody sees:</strong> off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
-            <li><strong>Reduced motion respected:</strong> a still picture, and moves do nothing.</li>
-            <li><strong>Deterministic:</strong> the same seed and steps draw the same paths, bit for bit.</li>
-            <li><strong>Paths, not pixels:</strong> flat, it is three SVG paths a frame, coloured with any CSS.</li>
-            <li><strong>Fur if you ask:</strong> <code>material: 'fluffy'</code> adds a WebGL2 coat under the eyes; without WebGL2 it is flat.</li>
+            <li><strong>one frame loop</strong> for every avatar on a page.</li>
+            <li><strong>nothing drawn that nobody sees:</strong> off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
+            <li><strong>reduced motion respected:</strong> a still picture, and moves do nothing.</li>
+            <li><strong>deterministic:</strong> the same seed and steps draw the same paths, bit for bit.</li>
+            <li><strong>paths, not pixels:</strong> flat, it is three SVG paths a frame, coloured with any CSS.</li>
+            <li><strong>fur if you ask:</strong> <code>material: 'fluffy'</code> adds a WebGL2 coat under the eyes; without WebGL2 it is flat.</li>
           </ul>
           <div class="sizes-row">
-            <div class="seg small-seg" role="group" aria-label="Size" data-sizes></div>
+            <div class="seg small-seg" role="group" aria-label="size" data-sizes></div>
             <div class="size-stage" data-size-stage><div data-avatar="size"></div></div>
             <p class="sub-label" data-size-note></p>
           </div>
@@ -303,8 +303,8 @@ export function Avatar({ size = 72 }) {
   </main>
 
   <footer class="foot">
-    <p>Made for <strong>blot</strong>, by Blakemagne. MIT licensed.</p>
-    <p><a href="https://github.com/Blakemagne/blot-avatar">Source</a> · <a href="https://github.com/Blakemagne/blot-avatar#readme">README</a> · <a href="https://github.com/Blakemagne/blot-avatar/blob/main/LICENSE">Licence</a></p>
+    <p>made for <strong>blot</strong>, by blakemagne. MIT licensed.</p>
+    <p><a href="https://github.com/Blakemagne/blot-avatar">source</a> · <a href="https://github.com/Blakemagne/blot-avatar#readme">README</a> · <a href="https://github.com/Blakemagne/blot-avatar/blob/main/LICENSE">licence</a></p>
   </footer>
 </body>
 </html>

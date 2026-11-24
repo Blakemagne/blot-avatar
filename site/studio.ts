@@ -40,10 +40,10 @@ export const deepLink = (base: string, params: Record<string, string>): string =
 
 /** Desktop agent apps a prompt opens in. A link fills the prompt in and sends nothing: it is read there first. */
 export const AGENTS = {
-  claude: { label: 'Claude Code', link: (p: string) => deepLink('claude://code/new', { q: p }) },
-  codex: { label: 'Codex', link: (p: string) => deepLink('codex://threads/new', { prompt: p }) },
-  cursor: { label: 'Cursor', link: (p: string) => deepLink('cursor://anysphere.cursor-deeplink/prompt', { text: p }) },
-  t3code: { label: 'T3 Code', link: (p: string) => deepLink('t3code://new', { prompt: p }) },
+  claude: { label: 'claude code', link: (p: string) => deepLink('claude://code/new', { q: p }) },
+  codex: { label: 'codex', link: (p: string) => deepLink('codex://threads/new', { prompt: p }) },
+  cursor: { label: 'cursor', link: (p: string) => deepLink('cursor://anysphere.cursor-deeplink/prompt', { text: p }) },
+  t3code: { label: 't3 code', link: (p: string) => deepLink('t3code://new', { prompt: p }) },
 } as const;
 export type Agent = keyof typeof AGENTS;
 export const isAgent = (v: unknown): v is Agent => typeof v === 'string' && Object.hasOwn(AGENTS, v);
@@ -82,61 +82,61 @@ export function extractJson(text: string): { json: string; notes: string[] } {
   const fences = [...t.matchAll(/```[\w-]*[^\S\n]*\n([\s\S]*?)```/g)].map((m) => m[1].trim()).filter((f) => /^[[{]/.test(f));
   if (fences.length) {
     const outside = t.replace(/```[\s\S]*?```/g, '').trim() !== '';
-    const notes = outside ? ['Read the JSON inside the code fence.'] : [];
+    const notes = outside ? ['read the JSON inside the code fence.'] : [];
     if (fences.length === 1) return { json: fences[0], notes };
     // One fence that is not JSON is the one to say what is wrong with.
     const bad = fences.find((f) => !parses(f));
     if (bad) return { json: bad, notes };
-    return { json: JSON.stringify(fences.flatMap((f) => [JSON.parse(f)].flat())), notes: [`Read the JSON in ${fences.length} code fences.`] };
+    return { json: JSON.stringify(fences.flatMap((f) => [JSON.parse(f)].flat())), notes: [`read the JSON in ${fences.length} code fences.`] };
   }
   let longest = '';
   for (let i = 0; i < t.length; i++) {
     if (t[i] !== '{' && t[i] !== '[') continue;
     const end = spanEnd(t, i), span = t.slice(i, end);
-    if (parses(span)) return { json: span, notes: span === t ? [] : ['Left out the words round the JSON.'] };
+    if (parses(span)) return { json: span, notes: span === t ? [] : ['left out the words round the JSON.'] };
     if (span.length > longest.length) longest = span;
     // Not inside it: a definition that is cut off or has a stray comma holds a body that is JSON by itself.
     i = end - 1;
   }
-  return { json: longest || t, notes: longest && longest !== t ? ['Left out the words round the JSON.'] : [] };
+  return { json: longest || t, notes: longest && longest !== t ? ['left out the words round the JSON.'] : [] };
 }
 
 function syntaxHints(json: string): string[] {
   const hints: string[] = [];
-  if (/,\s*[}\]]/.test(json)) hints.push('Take out the comma before a } or ].');
+  if (/,\s*[}\]]/.test(json)) hints.push('take out the comma before a } or ].');
   if (/'[^']*'\s*:/.test(json)) hints.push('JSON wants double quotes round keys and strings.');
   if (/\/\/|\/\*/.test(json)) hints.push('JSON has no comments: take them out.');
-  if (!/[}\]]$/.test(json.trim())) hints.push('The reply looks cut off: ask for the whole definition again.');
-  return hints.length ? hints : ['Paste the reply just as the model sent it.'];
+  if (!/[}\]]$/.test(json.trim())) hints.push('the reply looks cut off: ask for the whole definition again.');
+  return hints.length ? hints : ['paste the reply just as the model sent it.'];
 }
 
 /** What was pasted or dropped: one definition or a list of them, each checked by validateAvatar. */
 export function parseImport(text: string): Imported {
-  if (!text.trim()) return { ok: false, errors: ['Nothing to add yet.'], hints: ['Paste the JSON the model sent back, or drop a .json file here.'], notes: [], source: '' };
+  if (!text.trim()) return { ok: false, errors: ['nothing to add yet.'], hints: ['paste the JSON the model sent back, or drop a .json file here.'], notes: [], source: '' };
   const { json, notes } = extractJson(text);
   let data: unknown;
   try {
     data = JSON.parse(json);
   } catch (err) {
-    return { ok: false, errors: [`That is not JSON: ${err instanceof Error ? err.message : String(err)}`], hints: syntaxHints(json), notes, source: json };
+    return { ok: false, errors: [`that is not JSON: ${err instanceof Error ? err.message : String(err)}`], hints: syntaxHints(json), notes, source: json };
   }
   const items = Array.isArray(data) ? data : [data];
-  if (!items.length) return { ok: false, errors: ['The list is empty.'], hints: ['Paste one definition, or a list of them.'], notes, source: json };
+  if (!items.length) return { ok: false, errors: ['the list is empty.'], hints: ['paste one definition, or a list of them.'], notes, source: json };
   const values: AvatarDefinition[] = [], errors: string[] = [];
   items.forEach((item, i) => {
     const r = validateAvatar(item);
     if (r.ok) values.push(r.value);
-    else errors.push(...r.errors.map((e) => (items.length > 1 ? `Item ${i + 1}: ${e}` : e)));
+    else errors.push(...r.errors.map((e) => (items.length > 1 ? `item ${i + 1}: ${e}` : e)));
   });
   if (errors.length) {
     return {
       ok: false, errors, notes, source: json,
-      hints: ['Copy the repair prompt and send it to the same chat: it carries these errors.', 'Geometry only: one body path and the eyes. Colour and motion are added here.'],
+      hints: ['copy the repair prompt and send it to the same chat: it carries these errors.', 'geometry only: one body path and the eyes. colour and motion are added here.'],
     };
   }
   const kept = once(values);
-  if (kept.length < values.length) notes.push('Two of them had the same id: the later one is kept.');
-  if (kept.length > 1) notes.push(`Added ${kept.length} definitions.`);
+  if (kept.length < values.length) notes.push('two of them had the same id: the later one is kept.');
+  if (kept.length > 1) notes.push(`added ${kept.length} definitions.`);
   return { ok: true, values: kept, notes };
 }
 
@@ -189,13 +189,13 @@ function decodeDefinition(value: string): AvatarDefinition | string {
     try {
       json = new TextDecoder().decode(Uint8Array.from(atob(json.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
     } catch {
-      return 'The link\'s def is neither base64url nor JSON.';
+      return 'the link\'s def is neither base64url nor JSON.';
     }
   }
   let raw: unknown;
-  try { raw = JSON.parse(json); } catch { return 'The link\'s def is not JSON.'; }
+  try { raw = JSON.parse(json); } catch { return 'the link\'s def is not JSON.'; }
   const r = validateAvatar(raw);
-  return r.ok ? r.value : `The link's def is not an avatar: ${r.errors.join('; ')}`;
+  return r.ok ? r.value : `the link's def is not an avatar: ${r.errors.join('; ')}`;
 }
 
 /** A colour named in a link: one of blot's by name, or hex. Anything else is undefined. */

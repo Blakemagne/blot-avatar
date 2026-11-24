@@ -16,7 +16,7 @@ test('a reply is read in a code fence, in words round it, or bare; a list adds e
     assert.ok(r.ok, text);
     assert.deepEqual(r.values, [cat]);
   }
-  assert.deepEqual(S.parseImport(`Here:\n\`\`\`\n${one}\n\`\`\``).notes, ['Read the JSON inside the code fence.']);
+  assert.deepEqual(S.parseImport(`Here:\n\`\`\`\n${one}\n\`\`\``).notes, ['read the JSON inside the code fence.']);
   assert.deepEqual(S.parseImport(`\`\`\`\n${one}\n\`\`\``).notes, [], 'nothing to say when the fence is all there is');
   const two = S.parseImport(JSON.stringify([cat, galleryAvatar('egg').definition]));
   assert.ok(two.ok && two.values.length === 2);
@@ -70,9 +70,9 @@ test('a reply that is not an avatar says why, with hints, and keeps the text for
   assert.equal(empty.ok, false);
   assert.equal(empty.source, '');
   const comma = S.parseImport('{"version":1,}');
-  assert.ok(!comma.ok && comma.errors[0].startsWith('That is not JSON') && comma.hints.some((h) => h.includes('comma')));
+  assert.ok(!comma.ok && comma.errors[0].startsWith('that is not JSON') && comma.hints.some((h) => h.includes('comma')));
   const bad = S.parseImport(JSON.stringify([cat, { ...cat, id: 'Bad Id' }]));
-  assert.ok(!bad.ok && bad.errors.some((e) => e.startsWith('Item 2: id must be')), JSON.stringify(bad));
+  assert.ok(!bad.ok && bad.errors.some((e) => e.startsWith('item 2: id must be')), JSON.stringify(bad));
   assert.equal(bad.source, JSON.stringify([cat, { ...cat, id: 'Bad Id' }]));
   assert.equal(S.parseImport('[]').ok, false);
 });

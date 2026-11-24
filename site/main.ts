@@ -35,29 +35,29 @@ const MOVES: Move[] = [
 
 /** What each move reads as. A clip added to the package later gets its name and lane only. */
 const SAYS: Record<string, string> = {
-  spin: 'Half a turn and back. A click plays the pokes in turn, and this is the first.',
-  nod: 'A nod: yes.',
-  hop: 'A hop off the ground, with a squash as it lands.',
-  shake: 'A shake of the head: no.',
-  bounce: 'Two quick hops: done!',
-  tilt: 'The head leans over and holds: hm?',
-  delight: 'Up off the ground with happy eyes, and sparks thrown up.',
-  wink: 'One eye shuts and opens again.',
-  wide: 'A squint, then the eyes go wide.',
-  alert: 'Up sharply, eyes open, and a pulse of its own outline.',
-  recoil: 'A jump back away from something on one side.',
-  lean: 'A lean to one side, held, and back.',
-  tug: 'Pulled one way, then it springs back and rings out.',
-  settle: 'A wobble that dies away, as if set down hard.',
-  flare: 'A surge of glow that flickers out; the body swells with it.',
-  float: 'Up off the ground for two slow bobs.',
-  look: 'A glance to one side and up: the eyes first, the head after.',
-  exclaim: 'A "!" gathers above its head out of sparks, and falls apart.',
-  burst: 'It draws in and lets go: sparks fly off all round.',
-  comet: 'A wind-up, a dash with speed lines behind it, and back.',
-  rings: 'Rings come round it, passing behind and in front.',
-  rock: 'A rock from side to side about a point below it.',
-  waggle: 'A swing and a half from side to side, the eyes going with it. Written on this page, in three lines.',
+  spin: 'half a turn and back. a click plays the pokes in turn, and this is the first.',
+  nod: 'a nod: yes.',
+  hop: 'a hop off the ground, with a squash as it lands.',
+  shake: 'a shake of the head: no.',
+  bounce: 'two quick hops: done!',
+  tilt: 'the head leans over and holds: hm?',
+  delight: 'up off the ground with happy eyes, and sparks thrown up.',
+  wink: 'one eye shuts and opens again.',
+  wide: 'a squint, then the eyes go wide.',
+  alert: 'up sharply, eyes open, and a pulse of its own outline.',
+  recoil: 'a jump back away from something on one side.',
+  lean: 'a lean to one side, held, and back.',
+  tug: 'pulled one way, then it springs back and rings out.',
+  settle: 'a wobble that dies away, as if set down hard.',
+  flare: 'a surge of glow that flickers out; the body swells with it.',
+  float: 'up off the ground for two slow bobs.',
+  look: 'a glance to one side and up: the eyes first, the head after.',
+  exclaim: 'a "!" gathers above its head out of sparks, and falls apart.',
+  burst: 'it draws in and lets go: sparks fly off all round.',
+  comet: 'a wind-up, a dash with speed lines behind it, and back.',
+  rings: 'rings come round it, passing behind and in front.',
+  rock: 'a rock from side to side about a point below it.',
+  waggle: 'a swing and a half from side to side, the eyes going with it. written on this page, in three lines.',
 };
 
 /** The effects' colour (a mark, sparks, rings, Zs, a glow) on every avatar here. */
@@ -65,9 +65,9 @@ const ACCENT = '#7C5CFF';
 /** The shapes a visit goes to. */
 const VISITS = ['teardrop', 'hex', 'wedge', 'star'];
 
-/** blot's Bot colours. Black is drawn as blot draws it: in the page's ink, light on the dark theme. */
+/** blot's Bot colours, named in lowercase as the page writes. Black is drawn as blot draws it: in the page's ink, light on the dark theme. */
 const BLACK = '#000000';
-const COLOURS = BOT_COLOURS.map(([hex, name]) => [hex, name, hex === BLACK ? 'var(--ink)' : undefined] as const);
+const COLOURS = BOT_COLOURS.map(([hex, name]) => [hex, name.toLowerCase(), hex === BLACK ? 'var(--ink)' : undefined] as const);
 const DEFAULT_COLOUR = '#FD690F';
 /** The colours the galleries go through: blot's, from orange on, and no black. */
 const CYCLE = [...BOT_COLOURS.slice(3), ...BOT_COLOURS.slice(1, 3)].map(([hex]) => hex);
@@ -76,7 +76,7 @@ const inked = (color: string, eyes?: string): Pick<MountOptions, 'color' | 'fill
   color === BLACK ? { color, fill: 'var(--ink)', eyeFill: eyes ?? 'var(--bg)' } : { color, fill: undefined, eyeFill: eyes };
 /** Eye colours to start from. With none picked the eyes are automatic: white, or dark on a pale body. */
 const EYES: [string, string][] = [
-  ['#FFFFFF', 'White'], ['#1C1C1C', 'Ink'], ['#FFD23F', 'Gold'], ['#7FE3FF', 'Ice'], ['#FF5C8A', 'Pink'], ['#3DDC84', 'Mint'],
+  ['#FFFFFF', 'white'], ['#1C1C1C', 'ink'], ['#FFD23F', 'gold'], ['#7FE3FF', 'ice'], ['#FF5C8A', 'pink'], ['#3DDC84', 'mint'],
 ];
 /** Below this contrast with the body, the eyes are hard to make out. */
 const FAINT = 1.6;
@@ -170,6 +170,14 @@ const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, na
 const GALLERY_ENTRIES: Entry[] = GALLERY.map((g): Entry => ({
   key: `gallery:${g.definition.id}`, id: g.definition.id, name: g.definition.name, kind: 'gallery', shape: g.definition, own: galleryColour(g), definition: g.definition,
 })).sort((a, b) => BOT_COLOURS.findIndex(([h]) => h === a.own) - BOT_COLOURS.findIndex(([h]) => h === b.own) || a.name.localeCompare(b.name));
+/** An avatar's name as the page writes it, in lowercase (the gallery's and yours have capitals in their definitions). */
+const named = (e: Entry): string => e.name.toLowerCase();
+/**
+ * Text from elsewhere (the engine's checks, the browser's JSON errors) as the page writes it: a capital that starts
+ * a sentence goes lowercase. A word in capitals (JSON), a path command (M, Z) and anything in double quotes (the
+ * person's own text, quoted back by the browser) stay as they are.
+ */
+const calm = (t: string): string => t.split(/("[^"]*")/).map((s, i) => (i % 2 ? s : s.replace(/(^|[.!?:;]\s+)([A-Z])(?=[a-z])/g, (_, before: string, c: string) => before + c.toLowerCase()))).join('');
 const yoursEntry = (d: AvatarDefinition): Entry => ({ key: `yours:${d.id}`, id: d.id, name: d.name, kind: 'yours', shape: d, own: DEFAULT_COLOUR, definition: d });
 
 const YOURS_KEY = 'blot-avatar:yours';
@@ -375,8 +383,8 @@ const paintThumb = (cell: HTMLElement, colour: string): void => {
 const cells = new Map<string, HTMLButtonElement>();
 const botsBox = $('[data-bots]'), pickNote = $('[data-pick-note]');
 function cellFor(e: Entry): HTMLLIElement {
-  const b = make('button', { type: 'button', className: 'bot-cell', title: e.name });
-  b.setAttribute('aria-label', e.name);
+  const b = make('button', { type: 'button', className: 'bot-cell', title: named(e) });
+  b.setAttribute('aria-label', named(e));
   const slot = make('span', { className: 'bot-thumb' });
   slot.style.width = slot.style.height = `${__THUMB__}px`;
   slot.append(thumb(e));
@@ -403,15 +411,15 @@ function grid(label: string, list: Entry[], extra?: HTMLElement): HTMLUListEleme
   ul.setAttribute('aria-label', label);
   return ul;
 }
-const newTile = make('button', { type: 'button', className: 'bot-cell bot-new', title: 'Make a new one' }, make('span', { className: 'bot-plus', textContent: '+' }));
-newTile.setAttribute('aria-label', 'Make a new one');
+const newTile = make('button', { type: 'button', className: 'bot-cell bot-new', title: 'make a new one' }, make('span', { className: 'bot-plus', textContent: '+' }));
+newTile.setAttribute('aria-label', 'make a new one');
 newTile.addEventListener('click', () => { showCard('tab-new'); showStep('seg-describe'); describe.focus(); });
 $('#bots-bodies').append(grid('blot\'s bodies', BODY_ENTRIES));
-$('#bots-outlines').append(grid('From outlines', GALLERY_ENTRIES));
+$('#bots-outlines').append(grid('from outlines', GALLERY_ENTRIES));
 const yoursList = $('#bots-yours'), yoursCount = $('[data-yours-count]');
 function drawYours(): void {
-  const none = yours.length ? [] : [make('p', { className: 'sub-label', textContent: 'None yet. + has a model draw one from a few words.' })];
-  yoursList.replaceChildren(grid('Yours', yours.map(yoursEntry), newTile), ...none);
+  const none = yours.length ? [] : [make('p', { className: 'sub-label', textContent: 'none yet. + has a model draw one from a few words.' })];
+  yoursList.replaceChildren(grid('yours', yours.map(yoursEntry), newTile), ...none);
   yoursCount.textContent = yours.length ? String(yours.length) : '';
 }
 drawYours();
@@ -429,7 +437,7 @@ const KIND_SAYS: Record<Entry['kind'], string> = { body: 'one of blot\'s bodies'
 function marked(): void {
   for (const [k, b] of cells) b.setAttribute('aria-pressed', String(k === pg.key));
   const e = entry(pg.key);
-  pickNote.textContent = `On the stage: ${e.name}, ${KIND_SAYS[e.kind]}.`;
+  pickNote.textContent = `on the stage: ${named(e)}, ${KIND_SAYS[e.kind]}.`;
   const cell = cells.get(pg.key);
   if (!cell || botsBox.hidden || !botsBox.offsetParent) return;
   const box = botsBox.getBoundingClientRect(), c = cell.getBoundingClientRect();
@@ -443,7 +451,7 @@ function coloured(): void {
   if (cell) paintThumb(cell, pg.color);
   resetColour.hidden = pg.color.toUpperCase() === e.own.toUpperCase();
   const name = BOT_COLOURS.find(([h]) => h === e.own)?.[1] ?? e.own;
-  resetColour.textContent = `Back to its own colour, ${name.toLowerCase()}`;
+  resetColour.textContent = `back to its own colour, ${name.toLowerCase()}`;
 }
 
 // Colours: the body's and the eyes', each a row of swatches and a panel for any colour at all. Each panel has a
@@ -459,12 +467,12 @@ function paint(): void {
   changed();
 }
 const bodyPicker = colorPicker($('[data-picker="body"]'), {
-  label: 'Body colour', value: pg.color, presets: COLOURS,
+  label: 'body colour', value: pg.color, presets: COLOURS,
   onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
 });
 {
   const eyePicker = colorPicker($('[data-picker="eyes"]'), {
-    label: 'Eye colour', value: pg.eyes, presets: EYES, auto: 'Auto', start: '#FFFFFF',
+    label: 'eye colour', value: pg.eyes, presets: EYES, auto: 'auto', start: '#FFFFFF',
     onInput: (v) => { pg.eyes = v; paint(); },
   });
   for (const [i, p] of [bodyPicker, eyePicker].entries()) {
@@ -531,18 +539,18 @@ function actions(): void {
     b.title = e.definition ? '' : 'blot\'s own bodies are not drawn from an outline, so there is no definition to give';
   }
   doButton('remove').hidden = e.kind !== 'yours';
-  doButton('remove').setAttribute('aria-label', `Remove ${e.name} from yours`);
+  doButton('remove').setAttribute('aria-label', `remove ${named(e)} from yours`);
 }
 const json = (d: AvatarDefinition) => `${JSON.stringify(d, null, 2)}\n`;
 async function copy(text: string, failed: string): Promise<void> {
-  if (await copyText(text)) said('Copied');
+  if (await copyText(text)) said('copied');
   else said(failed, true);
 }
 doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color)); });
 doButton('png').addEventListener('click', async () => {
   const e = entry(pg.key), png = await stagePng();
   if (png) download(`${e.id}.png`, 'image/png', png);
-  else said('No picture: this browser would not draw one.');
+  else said('no picture: this browser would not draw one.');
 });
 
 /**
@@ -618,19 +626,19 @@ const codeToggle = $<HTMLButtonElement>('[data-show-code]'), codeBox = $('#code-
 const showCode = (on: boolean): void => {
   codeBox.hidden = !on;
   codeToggle.setAttribute('aria-expanded', String(on));
-  codeToggle.textContent = on ? 'Hide code' : 'Show code';
+  codeToggle.textContent = on ? 'hide code' : 'show code';
 };
 codeToggle.addEventListener('click', () => showCode(codeBox.hidden !== false));
 doButton('code').addEventListener('click', async () => {
-  if (await copyText($('[data-code]').textContent ?? '')) { said('Copied'); return; }
+  if (await copyText($('[data-code]').textContent ?? '')) { said('copied'); return; }
   showCode(true);
-  said('No clipboard here: the code is open under the actions, to copy by hand.', true);
+  said('no clipboard here: the code is open under the actions, to copy by hand.', true);
 });
-doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'No clipboard here: use Export instead.'); });
+doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'no clipboard here: use export instead.'); });
 doButton('link').addEventListener('click', () => {
   const e = entry(pg.key);
   const link = shareLink(`${location.origin}${location.pathname}`, { id: e.id, kind: e.kind, definition: e.definition }, pg.color, e.own, pg.activity, pg.material);
-  void copy(link, `No clipboard here. The link: ${link}`);
+  void copy(link, `no clipboard here. the link: ${link}`);
 });
 doButton('remove').addEventListener('click', () => {
   const e = entry(pg.key);
@@ -642,7 +650,7 @@ doButton('remove').addEventListener('click', () => {
   select('body:blob');
   // The Remove button is hidden now: focus goes to the Export button beside where it was.
   $<HTMLButtonElement>('[data-menu="export"] > button').focus();
-  said(`Removed ${e.name}`);
+  said(`removed ${named(e)}`);
 });
 
 // ---- Generate: a prompt for any model, or an agent app.
@@ -651,7 +659,7 @@ const AGENT_KEY = 'blot-avatar:agent';
 let agent: Agent = ((v) => (isAgent(v) ? v : 'claude'))(stored.get(AGENT_KEY));
 const agentSelect = $<HTMLSelectElement>('[data-agent]'), openAgent = $<HTMLButtonElement>('[data-open-agent]');
 for (const [id, a] of Object.entries(AGENTS)) agentSelect.append(make('option', { value: id, textContent: a.label }));
-const syncAgent = () => { agentSelect.value = agent; openAgent.textContent = `Open in ${AGENTS[agent].label}`; };
+const syncAgent = () => { agentSelect.value = agent; openAgent.textContent = `open in ${AGENTS[agent].label}`; };
 agentSelect.addEventListener('change', () => { if (isAgent(agentSelect.value)) { agent = agentSelect.value; stored.set(AGENT_KEY, agent); syncAgent(); } });
 syncAgent();
 /** Where this page serves the design prompt, for the short form of a prompt. Opened from disk, it is the published page's. */
@@ -660,7 +668,7 @@ const describe = $<HTMLTextAreaElement>('[data-describe]'), generateSaid = $('[d
 const importText = $<HTMLTextAreaElement>('[data-import-text]'), importOut = $('[data-import-out]');
 const described = (): string | null => {
   const text = describe.value.trim();
-  if (!text) { generateSaid.textContent = 'Describe it first: a few words is enough.'; describe.focus(); return null; }
+  if (!text) { generateSaid.textContent = 'describe it first: a few words is enough.'; describe.focus(); return null; }
   return text;
 };
 /** Sent: on to Import, for what comes back. */
@@ -673,8 +681,8 @@ const sent = (note: string): void => {
 $('[data-copy-prompt]').addEventListener('click', async () => {
   const text = described();
   if (!text) return;
-  if (await copyText(designBrief(PROMPT, promptUrl(), text).full)) sent('Copied the prompt. Paste it into any chat model, then paste its reply here.');
-  else generateSaid.textContent = 'No clipboard here. Open it in an app instead, or read the prompt and write to a model yourself.';
+  if (await copyText(designBrief(PROMPT, promptUrl(), text).full)) sent('copied the prompt. paste it into any chat model, then paste its reply here.');
+  else generateSaid.textContent = 'no clipboard here. open it in an app instead, or read the prompt and write to a model yourself.';
 });
 openAgent.addEventListener('click', () => {
   const text = described();
@@ -682,9 +690,9 @@ openAgent.addEventListener('click', () => {
   // An app's link has a length limit and the whole prompt is long: the link carries the short form, which points at
   // the prompt here. A long description still makes a link a browser may not open, so past LINK_MOST it is not tried.
   const link = AGENTS[agent].link(designBrief(PROMPT, promptUrl(), text).linked);
-  if (link.length > LINK_MOST) { generateSaid.textContent = `That description is too long for a link to ${AGENTS[agent].label}. Copy the prompt instead, or say it in fewer words.`; return; }
+  if (link.length > LINK_MOST) { generateSaid.textContent = `that description is too long for a link to ${AGENTS[agent].label}. copy the prompt instead, or say it in fewer words.`; return; }
   location.href = link;
-  sent(`Opening ${AGENTS[agent].label}. Read the prompt there and send it, then paste its reply here.`);
+  sent(`opening ${AGENTS[agent].label}. read the prompt there and send it, then paste its reply here.`);
 });
 
 // ---- Import: what a model sends back.
@@ -692,13 +700,13 @@ openAgent.addEventListener('click', () => {
 function add(text: string): void {
   const r = parseImport(text);
   if (!r.ok) {
-    const out: Node[] = [make('p', { className: 'import-bad', textContent: 'Not added.' }), make('ul', { className: 'import-errors' }, ...r.errors.map((e) => make('li', { textContent: e })))];
-    for (const n of [...r.notes, ...r.hints]) out.push(make('p', { className: 'sub-label', textContent: n }));
+    const out: Node[] = [make('p', { className: 'import-bad', textContent: 'not added.' }), make('ul', { className: 'import-errors' }, ...r.errors.map((e) => make('li', { textContent: calm(e) })))];
+    for (const n of [...r.notes, ...r.hints]) out.push(make('p', { className: 'sub-label', textContent: calm(n) }));
     if (r.source) {
-      const repair = make('button', { type: 'button', className: 'button small', textContent: 'Copy repair prompt' });
+      const repair = make('button', { type: 'button', className: 'button small', textContent: 'copy repair prompt' });
       repair.addEventListener('click', async () => {
-        repair.textContent = await copyText(repairBrief(PROMPT, promptUrl(), r.source, r.errors).full) ? 'Copied' : 'No clipboard here';
-        setTimeout(() => { repair.textContent = 'Copy repair prompt'; }, 1600);
+        repair.textContent = await copyText(repairBrief(PROMPT, promptUrl(), r.source, r.errors).full) ? 'copied' : 'no clipboard here';
+        setTimeout(() => { repair.textContent = 'copy repair prompt'; }, 1600);
       });
       out.push(repair);
     }
@@ -712,10 +720,10 @@ function add(text: string): void {
   for (const d of r.values) picked.delete(`yours:${d.id}`);
   redrawYours();
   select(`yours:${r.values[r.values.length - 1].id}`);
-  const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name);
-  const lines = [`Added ${r.values.map((d) => d.name).join(', ')}: on the stage now, and kept under Bot, Yours, in this browser.`, ...r.notes];
-  if (replaced.length) lines.push(`It took the place of the one you had with the same id: ${replaced.join(', ')}.`);
-  importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: t })));
+  const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name.toLowerCase());
+  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and kept under bot, yours, in this browser.`, ...r.notes];
+  if (replaced.length) lines.push(`it took the place of the one you had with the same id: ${replaced.join(', ')}.`);
+  importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: calm(t) })));
   importText.value = '';
 }
 $('[data-import]').addEventListener('click', () => add(importText.value));
@@ -839,7 +847,7 @@ const mover = mount($('[data-avatar="moves"]'), {
 /** The moves are shown on the avatar in the studio, as it is now. */
 const moversTurn = (): void => mover.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel, material: pg.material });
 function moveRow(m: Move): HTMLLIElement {
-  const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.name }), make('span', { textContent: SAYS[m.name] ?? `A ${m.lane}.` }));
+  const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.name }), make('span', { textContent: SAYS[m.name] ?? `a ${m.lane}.` }));
   b.addEventListener('click', () => {
     play(mover, m);
     moveSaid.textContent = m.lane === 'poke' ? `bot.poke('${m.name}')` : `bot.play('${m.name}')`;
@@ -855,10 +863,10 @@ $('[data-lane="own"]').append(...MOVES.filter((m) => m.here).map(moveRow));
   const rows = MOVES.filter((m) => m.lane === 'cue' && !m.here).map(moveRow);
   const count = Math.ceil(rows.length / PER_PAGE);
   pager.setAttribute('role', 'group');
-  pager.setAttribute('aria-label', 'Pages of cues');
+  pager.setAttribute('aria-label', 'pages of cues');
   const pages = Array.from({ length: count }, (_, i) => {
     const b = make('button', { type: 'button', className: 'chip', textContent: String(i + 1) });
-    b.setAttribute('aria-label', `Page ${i + 1} of ${count}`);
+    b.setAttribute('aria-label', `page ${i + 1} of ${count}`);
     b.addEventListener('click', () => page(i));
     return b;
   });
@@ -933,15 +941,15 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
     if (!code) return;
     copied.textContent = '';
     if (await copyText(code.textContent ?? '')) {
-      b.textContent = 'Copied';
-      copied.textContent = 'Copied';
+      b.textContent = 'copied';
+      copied.textContent = 'copied';
     } else {
       // No clipboard: select it, for a copy by hand.
       getSelection()?.selectAllChildren(code);
-      b.textContent = 'Press Ctrl+C';
-      copied.textContent = 'Selected. Press Ctrl+C to copy.';
+      b.textContent = 'press ctrl+c';
+      copied.textContent = 'selected. press ctrl+c to copy.';
     }
-    setTimeout(() => { b.textContent = 'Copy'; }, 1600);
+    setTimeout(() => { b.textContent = 'copy'; }, 1600);
   });
 }
 
@@ -954,4 +962,4 @@ faces();
 paint();
 still();
 onMotion(still);
-if (shared.problem) said(shared.problem, true);
+if (shared.problem) said(calm(shared.problem), true);
