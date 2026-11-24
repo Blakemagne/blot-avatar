@@ -1,19 +1,23 @@
 // A coat's geometry: every body, built-in or from a definition, is covered by closed meshes that lie on its
-// pieces exactly, with roots spread evenly over it in passes, the same every time. And a drawing asked for a
-// coat carries the pose, the 2D move and the eyes a renderer needs, and changes nothing else. Run with: npm test
+// pieces exactly, with normals that turn across the seams between pieces and roots spread evenly over it in
+// passes, the same every time. And a drawing asked for a coat carries the pose, the 2D move and the eyes a
+// renderer needs, and changes nothing else. Run with: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
 const { BODIES, FACES, GALLERY, deg, drawAvatar, outlineBody, rotation } = await import('../index.ts');
-const { COAT_UNIT, FULL_DETAIL, MAX_EDGE, ROOT_DENSITY, ROOT_PASSES, STRAND_MAX, coatDetail, coatMesh, rootsIn } = await import('./coat.ts');
+const { COAT_UNIT, FULL_DETAIL, MAX_EDGE, ROOT_DENSITY, ROOT_PASSES, SEAM, STRAND_MAX, coatDetail, coatMesh, meshOf, rootsIn } = await import('./coat.ts');
 const { prepare, surfaceTop } = await import('./body.ts');
 const { BOX_SCALE } = await import('./outline/inflate.ts');
 
 const EVERY = [...Object.entries(BODIES), ...GALLERY.map((g) => [`gallery ${g.definition.id}`, outlineBody(g.definition)])];
 const piecesOf = (body) => (body.outline ?? body).pieces;
-const reach = (piece, nx, ny, nz) => Math.max(...piece.map(([x, y, z, r]) => nx * x + ny * y + nz * z + r));
+const reach = (piece, nx, ny, nz) => { let most = -Infinity; for (const [x, y, z, r] of piece) most = Math.max(most, nx * x + ny * y + nz * z + r); return most; };
 const still = (yaw = 0, pitch = 0, more = {}) => ({ pose: { yaw: deg(yaw), pitch: deg(pitch), roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral, ...more });
+/** Every body's mesh as the hulls are, each vertex with its own piece's normal (no easing at the seams). */
+const hulls = new Map();
+const hullMesh = (id, body) => hulls.get(id) ?? hulls.set(id, meshOf(body.outline ?? body, 0)).get(id);
 
 /** Every body's mesh, timed: built once here, so later tests read it from the cache. */
 const built = new Map();
@@ -53,9 +57,9 @@ test('each mesh is closed: every edge is in two triangles, once each way, and no
   }
 });
 
-test('triangles are wound counter-clockwise seen from outside', () => {
+test('triangles are wound counter-clockwise seen from outside their piece', () => {
   for (const [id, body] of EVERY) {
-    const { vertices: v, indices } = coatMesh(body);
+    const { vertices: v, indices } = hullMesh(id, body);
     let wrong = 0;
     for (let i = 0; i < indices.length; i += 3) {
       const [a, b, c] = [indices[i] * 6, indices[i + 1] * 6, indices[i + 2] * 6];
@@ -69,7 +73,7 @@ test('triangles are wound counter-clockwise seen from outside', () => {
 
 test('every vertex is on the hull of a piece, with that hull\'s normal there, and no piece\'s front is above it', () => {
   for (const [id, body] of EVERY) {
-    const pieces = piecesOf(body), { vertices: v } = coatMesh(body);
+    const pieces = piecesOf(body), { vertices: v } = hullMesh(id, body);
     const preps = pieces.map((piece) => prepare({ pieces: [piece] })), hit = { z: 0, nx: 0, ny: 0, nz: 0 };
     for (let i = 0; i < v.length; i += 6) {
       const [x, y, z, nx, ny, nz] = v.subarray(i, i + 6);
@@ -83,6 +87,113 @@ test('every vertex is on the hull of a piece, with that hull\'s normal there, an
         const front = on.some((k) => surfaceTop(preps[k], x, y, hit) && Math.abs(hit.z - z) < 2e-4);
         assert.ok(front, `${id}: vertex at ${x}, ${y}, ${z} is not on the front of the piece it touches`);
       }
+    }
+  }
+});
+
+/** A ball that holds a piece: x, y, z, r. */
+const balls = new WeakMap();
+const ballOf = (piece) => {
+  if (!balls.has(piece)) {
+    const m = [0, 1, 2].map((k) => piece.reduce((sum, s) => sum + s[k], 0) / piece.length);
+    balls.set(piece, [...m, Math.max(...piece.map(([x, y, z, r]) => Math.hypot(x - m[0], y - m[1], z - m[2]) + r))]);
+  }
+  return balls.get(piece);
+};
+/**
+ * A lower bound on how far p is outside a piece (0 or less inside it). First how far p is outside a ball that holds
+ * the piece, if that is more than `enough`; else how far p is in front of a plane the piece is behind, across n and
+ * across the direction to p from the centre of the sphere it is nearest the surface of (or of every sphere: `every`).
+ */
+const apart = (piece, x, y, z, nx, ny, nz, enough, every = false) => {
+  const [bx, by, bz, br] = ballOf(piece), ball = Math.hypot(x - bx, y - by, z - bz) - br;
+  if (ball > enough) return ball;
+  let most = nx * x + ny * y + nz * z - reach(piece, nx, ny, nz);
+  const across = (cx, cy, cz) => {
+    const l = Math.hypot(x - cx, y - cy, z - cz);
+    if (l > 1e-12) most = Math.max(most, ((x - cx) * x + (y - cy) * y + (z - cz) * z) / l - reach(piece, (x - cx) / l, (y - cy) / l, (z - cz) / l));
+  };
+  if (every) for (const [cx, cy, cz] of piece) across(cx, cy, cz);
+  else {
+    let k = 0, e = Infinity;
+    piece.forEach(([cx, cy, cz, r], j) => { const d = Math.hypot(x - cx, y - cy, z - cz) - r; if (d < e) { e = d; k = j; } });
+    across(...piece[k]);
+  }
+  return most;
+};
+
+test('the coat is the hulls, with a normal eased toward another piece\'s only within SEAM of it', () => {
+  for (const [id, body] of EVERY) {
+    const pieces = piecesOf(body), hull = hullMesh(id, body), coat = coatMesh(body), h = hull.vertices, v = coat.vertices;
+    assert.deepEqual(coat.indices, hull.indices, id);
+    assert.equal(v.length, h.length, id);
+    assert.equal(coat.roots.length, hull.roots.length, id);
+    // Every vertex and every root where the hulls have it, with the same seeds.
+    let moved = 0;
+    for (let i = 0; i < v.length; i += 6) for (let k = 0; k < 3; k++) if (v[i + k] !== h[i + k]) moved++;
+    for (let i = 0; i < coat.roots.length; i += 8) for (const k of [0, 1, 2, 6, 7]) if (coat.roots[i + k] !== hull.roots[i + k]) moved++;
+    assert.equal(moved, 0, `${id}: ${moved} values moved`);
+    let eased = 0, far = 0, wrong = 0, length = 1;
+    for (let i = 0; i < v.length; i += 6) {
+      const x = h[i], y = h[i + 1], z = h[i + 2], nx = h[i + 3], ny = h[i + 4], nz = h[i + 5];
+      const l = Math.hypot(v[i + 3], v[i + 4], v[i + 5]);
+      if (Math.abs(l - 1) > Math.abs(length - 1)) length = l;
+      const same = v[i + 3] === nx && v[i + 4] === ny && v[i + 5] === nz;
+      if (!same) eased++;
+      // Its own piece is 0 away; if every other is SEAM or more, the normal is the hull's.
+      let close = 0;
+      for (const piece of pieces) if (apart(piece, x, y, z, nx, ny, nz, SEAM) < SEAM && ++close > 1) break;
+      if (close <= 1) { far++; if (!same) wrong++; }
+    }
+    assert.ok(Math.abs(length - 1) < 1e-5, `${id}: a normal of length ${length}`);
+    assert.equal(wrong, 0, `${id}: ${wrong} of the ${far} vertices far from the other pieces eased`);
+    assert.ok(pieces.length === 1 ? eased === 0 : eased > 0, `${id}: ${eased} normals eased`);
+  }
+});
+
+test('where two pieces meet, the coat\'s normals turn across the seam instead of folding there', () => {
+  // Vertices of two pieces within half an edge of each other, neither more than a hair inside any piece: the
+  // surface either side of a seam. There the hulls' normals fold by up to 137 degrees; the coat's turn by at
+  // most 40 (on the flower, whose face showed its seams as lines, the hulls' by 92 and the coat's by 7).
+  const NEAR = MAX_EDGE / 2, HAIR = -0.005;
+  for (const [id, body] of EVERY) {
+    const pieces = piecesOf(body);
+    if (pieces.length === 1) continue;
+    const hull = hullMesh(id, body), h = hull.vertices, v = coatMesh(body).vertices, count = h.length / 6;
+    // Which piece's closed mesh each vertex is in: the mesh's connected parts.
+    const up = Int32Array.from({ length: count }, (_, i) => i);
+    const find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let t = 0; t < hull.indices.length; t += 3) for (const e of [1, 2]) { const a = find(hull.indices[t]), b = find(hull.indices[t + e]); if (a !== b) up[b] = a; }
+    const part = Int32Array.from({ length: count }, (_, i) => find(i));
+    const out = new Map();
+    const outside = (i) => {
+      if (!out.has(i)) {
+        const [x, y, z, nx, ny, nz] = h.subarray(i * 6, i * 6 + 6);
+        out.set(i, pieces.every((piece) => apart(piece, x, y, z, nx, ny, nz, HAIR, true) > HAIR));
+      }
+      return out.get(i);
+    };
+    const angle = (m, a, b) => Math.acos(Math.min(1, m[a * 6 + 3] * m[b * 6 + 3] + m[a * 6 + 4] * m[b * 6 + 4] + m[a * 6 + 5] * m[b * 6 + 5])) * (180 / Math.PI);
+    // Vertices by cells NEAR wide, so a vertex's neighbours are in its cell and the 26 round it.
+    const cell = (i) => [0, 1, 2].map((k) => Math.floor(h[i * 6 + k] / NEAR) + 512), key = (cx, cy, cz) => (cx * 1024 + cy) * 1024 + cz;
+    const grid = new Map();
+    for (let i = 0; i < count; i++) { const k = key(...cell(i)); (grid.get(k) ?? grid.set(k, []).get(k)).push(i); }
+    let pairs = 0, hullMost = 0, coatMost = 0;
+    for (let i = 0; i < count; i++) {
+      const [cx, cy, cz] = cell(i), x = h[i * 6], y = h[i * 6 + 1], z = h[i * 6 + 2];
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+        for (const j of grid.get(key(cx + dx, cy + dy, cz + dz)) ?? []) {
+          if (j <= i || part[i] === part[j] || Math.hypot(h[j * 6] - x, h[j * 6 + 1] - y, h[j * 6 + 2] - z) >= NEAR || !outside(i) || !outside(j)) continue;
+          pairs++;
+          hullMost = Math.max(hullMost, angle(h, i, j));
+          coatMost = Math.max(coatMost, angle(v, i, j));
+        }
+      }
+    }
+    assert.ok(coatMost < 45, `${id}: normals ${coatMost.toFixed(1)} degrees apart across a seam (the hulls' ${hullMost.toFixed(1)})`);
+    if (id === 'flower') {
+      assert.ok(pairs > 20 && hullMost > 80, `flower: ${pairs} pairs, the hulls' normals ${hullMost.toFixed(1)} degrees apart`);
+      assert.ok(coatMost < 10, `flower: normals ${coatMost.toFixed(1)} degrees apart across a seam`);
     }
   }
 });
@@ -137,9 +248,9 @@ test('a root buried in another piece deeper than the longest hair is not kept', 
     const pieces = piecesOf(body), { roots } = coatMesh(body);
     for (let i = 0; i < roots.length / 8; i += 97) {
       const [x, y, z] = roots.subarray(i * 8, i * 8 + 3);
-      const deep = pieces.map((piece) => depth(piece, x, y, z)).sort((a, b) => b - a);
-      // Its own piece has it at the surface; every other no deeper than a hair (and the directions' slack).
-      assert.ok(deep[1] === undefined || deep[1] < STRAND_MAX + 0.02, `${id}: a root ${deep[1]} deep in another piece`);
+      // Its own piece has it at the surface, 0 deep; every other no deeper than a hair (and the directions' slack).
+      const deepest = Math.max(...pieces.map((piece) => depth(piece, x, y, z)));
+      assert.ok(deepest < STRAND_MAX + 0.02, `${id}: a root ${deepest} deep in another piece`);
     }
   }
 });

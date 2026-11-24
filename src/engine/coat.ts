@@ -11,6 +11,12 @@
 // split until no edge is longer than MAX_EDGE, and every new point is put back on the hull exactly (the hull's
 // nearest point, with its true normal). The pieces are separate closed meshes that overlap, as the pieces do.
 //
+// Where two pieces meet, their surfaces fold into each other at a crease, and a coat lit and combed by each
+// piece's own normals draws the crease as a hard line, light on one side and dark on the other (the flower's
+// face did, under its top petal and over its bottom one). Fur fills a seam: so near another piece a vertex's
+// normal is eased toward that piece's (SEAM), as the normals of the pieces' smooth union would be, and the pile
+// lies on across the seam as a soft fold. Only the normals are eased; the points stay on the hulls.
+//
 // Units: body units throughout (x right, y UP, z toward the viewer, as in body.ts). Open-bot-avatar measures in
 // the viewBox units of its 100-unit box; its numbers come over multiplied by COAT_UNIT.
 
@@ -43,6 +49,13 @@ export const STRAND_MAX = 3.8 * COAT_UNIT;
 export const STRAND_MIN = 1.6 * COAT_UNIT;
 /** How far the pile stands off the surface at most, body units (open-bot-avatar's 4): room to leave round the body. */
 export const PILE_REACH = 4 * COAT_UNIT;
+/**
+ * How far from another piece a vertex's normal starts turning toward that piece's, body units. At a crease the
+ * two meet half way, from either side. About the pile's reach and a quarter: fur from both sides fills the
+ * valley. More than STRAND_MAX, so that a vertex buried deeper than this in another piece shows in no pass, and
+ * keeps its own normal.
+ */
+export const SEAM = 0.12;
 /** Shells of pile at full detail. */
 export const SHELLS = 5;
 /**
@@ -54,9 +67,12 @@ export const FULL_DETAIL = 2.56 / COAT_UNIT;
 
 /** A body as a coat's renderer needs it. Every array is the same from call to call: do not change them. */
 export interface CoatMesh {
-  /** Per vertex, 6 floats: position x, y, z, then the unit outward normal; body units, y up, z toward the viewer. */
+  /**
+   * Per vertex, 6 floats: position x, y, z, then the unit normal the coat stands along; body units, y up, z toward
+   * the viewer. The normal is the hull's own, eased toward another piece's within SEAM of it.
+   */
   vertices: Float32Array;
-  /** Triangles, three vertex indices each, wound counter-clockwise seen from outside (from the normal's side). */
+  /** Triangles, three vertex indices each, wound counter-clockwise seen from outside their piece. */
   indices: Uint32Array;
   /**
    * Hair roots, 8 floats each: position x, y, z, unit normal, and two random numbers in [0, 1). Stored in
@@ -99,7 +115,7 @@ const meshes = new WeakMap<Solid, CoatMesh>();
 export function coatMesh(body: Body): CoatMesh {
   const solid: Solid = body.outline ?? body;
   let m = meshes.get(solid);
-  if (!m) { m = build(solid); meshes.set(solid, m); }
+  if (!m) { m = meshOf(solid); meshes.set(solid, m); }
   return m;
 }
 
@@ -544,7 +560,11 @@ function unfold(v: number[], t: number[]): void {
   }
 }
 
-function build(solid: Solid): CoatMesh {
+/**
+ * A solid's coat, made anew (coatMesh keeps one per body: use that). `seam` is how far the normals are eased
+ * near another piece; at 0 every vertex keeps its own piece's normal, which is how the tests check the hulls.
+ */
+export function meshOf(solid: Solid, seam = SEAM): CoatMesh {
   const hulls = solid.pieces.map(hullOf);
   const verts: number[] = [], idx: number[] = [];
   /** Where each piece's triangles start in idx, and their count. */
@@ -556,17 +576,13 @@ function build(solid: Solid): CoatMesh {
     for (const x of v) verts.push(x);
     for (const i of t) idx.push(i + base);
   }
-  // Which other piece, if any, each vertex is buried in deeper than the longest hair. Depth inside a convex
-  // piece is least at a triangle's corners, so a triangle with all three buried in one piece grows nothing.
+  // Each vertex among the other pieces (seamAt): its normal eased near them, and which one, if any, it is
+  // buried in deeper than the longest hair. Depth inside a convex piece is least at a triangle's corners, so a
+  // triangle with all three buried in one piece grows nothing.
   const owner = new Int32Array(verts.length / 6);
   spans.forEach(([start, count], piece) => { for (let i = start; i < start + count; i++) owner[idx[i]] = piece; });
   const sunk = new Int32Array(verts.length / 6).fill(-1);
-  if (hulls.length > 1) {
-    for (let i = 0; i < sunk.length; i++) {
-      const o = i * 6;
-      sunk[i] = buriedIn(hulls, owner[i], verts[o], verts[o + 1], verts[o + 2], verts[o + 3], verts[o + 4], verts[o + 5]);
-    }
-  }
+  if (hulls.length > 1) for (let i = 0; i < sunk.length; i++) sunk[i] = seamAt(hulls, owner[i], verts, i * 6, seam);
   // Roots by area, open-bot-avatar's way: per triangle, floor(area * density + a random share).
   const random = randomFrom(51821);
   const roots: number[] = [];
@@ -607,6 +623,72 @@ function build(solid: Solid): CoatMesh {
     radius = Math.max(radius, Math.hypot(x, y, z));
   }
   return { vertices: Float32Array.from(verts), indices: Uint32Array.from(idx), roots: passes, box: [x0, y0, z0, x1, y1, z1], radius };
+}
+
+/** 1 at 0, 0 from 1, smoothly (flat at both ends). */
+const ease = (t: number): number => (t <= 0 ? 1 : t >= 1 ? 0 : (1 - t) * (1 - t) * (1 + 2 * t));
+
+/** seamAt's: each piece near the vertex, as its distance and its normal there (d, x, y, z); and a point found. */
+const near: number[] = [];
+const found: Spot = { x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, on: -1 };
+
+/**
+ * The vertex at v[o] (position, normal) of piece `own`, among the other pieces: its normal eased toward theirs
+ * within `seam` of them, in place; and the piece other than its own that it is deeper than STRAND_MAX inside, or
+ * -1 (the first, as buriedIn finds it).
+ *
+ * Each piece's distance d from p (less than 0 inside it) and its normal at the point nearest p are the value and
+ * the gradient of its distance field. The eased normal is the normals of the pieces near p weighted by
+ * ease((d - least) / seam), least being the least d (0, p's own piece, unless p is inside another): the gradient
+ * of a smooth union of the pieces. Far from the others it is p's own normal; at a crease, where p's own piece
+ * and another both have d = 0, it is half way between the two, from either side. A vertex deeper than `seam` in
+ * another piece shows in no pass, and keeps its own.
+ */
+function seamAt(hulls: Hull[], own: number, v: number[], o: number, seam: number): number {
+  const px = v[o], py = v[o + 1], pz = v[o + 2], deep = Math.max(seam, STRAND_MAX);
+  let sunk = -1, least = 0;
+  near.length = 0;
+  for (let q = 0; q < hulls.length; q++) {
+    if (q === own) continue;
+    const hull = hulls[q], s = hull.s, [bx, by, bz, br] = hull.ball;
+    if ((px - bx) ** 2 + (py - by) ** 2 + (pz - bz) ** 2 >= (br + seam) ** 2) continue;
+    // The sphere whose surface p is nearest. Deep inside it, p is deep inside q. Well in front of the plane q
+    // reaches to in the direction from its centre, p is well outside q.
+    let e = Infinity, k = 0, l = 0;
+    for (let j = 0; j < hull.n; j++) {
+      const vx = px - s[j * 4], vy = py - s[j * 4 + 1], vz = pz - s[j * 4 + 2], lj = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (lj - s[j * 4 + 3] < e) { e = lj - s[j * 4 + 3]; k = j; l = lj; }
+    }
+    let d = e;
+    if (e >= -deep) {
+      if (l > 1e-12) {
+        const ux = (px - s[k * 4]) / l, uy = (py - s[k * 4 + 1]) / l, uz = (pz - s[k * 4 + 2]) / l;
+        if (ux * px + uy * py + uz * pz - reach(hull, ux, uy, uz) >= seam) continue;
+      }
+      // Outside q, the nearest point (nearest() takes p to be outside: so it is, if p is in front of the plane
+      // q reaches to there; and it is not, if p is in one of q's spheres). Inside, the nearest point of the surface.
+      if (e > 1e-9 && nearest(hull, px, py, pz, found) && found.nx * px + found.ny * py + found.nz * pz - reach(hull, found.nx, found.ny, found.nz) > 1e-9) {
+        d = Math.hypot(found.x - px, found.y - py, found.z - pz);
+      } else if (inner(hull, px, py, pz, found)) d = -Math.hypot(found.x - px, found.y - py, found.z - pz);
+      else continue;
+    }
+    if (d < -STRAND_MAX && sunk < 0) sunk = q;
+    if (d < -deep) return sunk;
+    if (d < seam) {
+      near.push(d, found.nx, found.ny, found.nz);
+      least = Math.min(least, d);
+    }
+  }
+  if (!near.length || seam <= 0) return sunk;
+  const w = ease(-least / seam);
+  let nx = w * v[o + 3], ny = w * v[o + 4], nz = w * v[o + 5];
+  for (let i = 0; i < near.length; i += 4) {
+    const wi = ease((near[i] - least) / seam);
+    nx += wi * near[i + 1]; ny += wi * near[i + 2]; nz += wi * near[i + 3];
+  }
+  const len = Math.hypot(nx, ny, nz);
+  if (len > 1e-9) { v[o + 3] = nx / len; v[o + 4] = ny / len; v[o + 5] = nz / len; }
+  return sunk;
 }
 
 /** The piece other than its own that p is deeper than STRAND_MAX inside, or -1. (n: p's normal, tried first.) */
