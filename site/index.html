@@ -285,21 +285,10 @@ export function Avatar({ size = 72 }) {
 }</code></pre>
           </div>
         </div>
-        <div class="rules">
-          <h2>what it promises</h2>
-          <ul>
-            <li><strong>one frame loop</strong> for every avatar on a page.</li>
-            <li><strong>nothing drawn that nobody sees:</strong> off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
-            <li><strong>reduced motion respected:</strong> a still picture, and moves do nothing.</li>
-            <li><strong>deterministic:</strong> the same seed and steps draw the same paths, bit for bit.</li>
-            <li><strong>paths, not pixels:</strong> flat, it is three SVG paths a frame, coloured with any CSS.</li>
-            <li><strong>fur if you ask:</strong> <code>material: 'fluffy'</code> adds a WebGL2 coat under the eyes; without WebGL2 it is flat.</li>
-          </ul>
-          <div class="sizes-row">
-            <div class="seg small-seg" role="group" aria-label="size" data-sizes></div>
-            <div class="size-stage" data-size-stage><div data-avatar="size"></div></div>
-            <p class="sub-label" data-size-note></p>
-          </div>
+        <div class="sizes-row">
+          <div class="seg small-seg" role="group" aria-label="size" data-sizes></div>
+          <div class="size-stage" data-size-stage><div data-avatar="size"></div></div>
+          <p class="sub-label" data-size-note></p>
         </div>
       </div>
     </section>
