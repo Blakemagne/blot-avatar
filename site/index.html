@@ -128,7 +128,10 @@
             <div role="tabpanel" id="play-face" aria-labelledby="seg-face">
               <div class="chips" data-choice="face"></div>
               <p class="sub-label note" data-face-note hidden>a face is worn when idle; while busy, the activity has its own.</p>
-              <label class="toggle mark-row"><input type="checkbox" data-mark autocomplete="off"> a mark: something waits for you</label>
+              <div class="row mark-row">
+                <label class="toggle"><input type="checkbox" data-mark autocomplete="off"> a mark: something waits for you</label>
+                <label class="toggle"><input type="checkbox" data-ultra autocomplete="off"> ultracode: a star's power</label>
+              </div>
             </div>
             <div role="tabpanel" id="play-moves" aria-labelledby="seg-moves">
               <div class="chips" data-moves></div>

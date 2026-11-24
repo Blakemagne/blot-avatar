@@ -201,14 +201,14 @@ const narrow = matchMedia('(max-width: 720px)');
 const MATERIAL_KEY = 'blot-avatar:material';
 const pg = {
   key: 'body:blob', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
-  size: narrow.matches ? 150 : 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, feel: { ...PERSONALITY } as Personality,
+  size: narrow.matches ? 150 : 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, ultra: false, feel: { ...PERSONALITY } as Personality,
   material: readMaterial(stored.get(MATERIAL_KEY)) ?? 'flat' as Material,
 };
 /** The colour picked for each avatar this visit; one with none shows its own. */
 const picked = new Map<string, string>();
 const options = (): MountOptions => ({
   shape: entry(pg.key).shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
-  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, personality: pg.feel, accent: ACCENT, material: pg.material,
+  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
 // A link's query picks the avatar, its colour and what it is doing, once, as the page opens; then it is cleared,
@@ -745,6 +745,8 @@ importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.cl
 {
   const mark = $<HTMLInputElement>('[data-mark]');
   mark.addEventListener('change', () => { pg.mark = mark.checked; changed(); });
+  const ultra = $<HTMLInputElement>('[data-ultra]');
+  ultra.addEventListener('change', () => { pg.ultra = ultra.checked; changed(); });
   const visits = $('[data-visit]');
   for (const shape of VISITS) {
     const b = make('button', { type: 'button', className: 'chip', textContent: shape });
@@ -812,6 +814,7 @@ function writeCode(): void {
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
   if (pg.follow) o.push('follow: true');
   if (pg.mark) o.push('mark: true');
+  if (pg.ultra) o.push('ultra: true');
   if (pg.material !== 'flat') o.push(`material: '${pg.material}'`);
   const feel = (Object.keys(PERSONALITY) as (keyof Personality)[]).filter((k) => pg.feel[k] !== PERSONALITY[k]).map((k) => `${k}: ${pg.feel[k]}`);
   if (feel.length) o.push(`personality: { ${feel.join(', ')} }`);
