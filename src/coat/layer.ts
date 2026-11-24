@@ -2,7 +2,8 @@
 // mount() and React's useLiveAvatar both use it.
 //
 // The picture is drawn again only when the body turns, the eyes change, or the colour, size or body does (and
-// while ultracode's power comes or goes, which dyes the coat toward lavender). A breath, a squash, a hop or a
+// while ultracode's power comes or goes, which dyes the coat toward lavender, and on every frame of a change of
+// shape, whose outline moves under it: the coat is stretched onto it, and near half way two coats cross over). A breath, a squash, a hop or a
 // powered float is the drawing's affine, which only moves the canvas (a CSS transform) and draws nothing. In a
 // frame of the shared loop the coat is painted there and then; outside one (a still picture, reduced motion, a body
 // whose mesh is not made yet) it waits its turn in soon(), so that a page of them does not pile into one frame
@@ -216,23 +217,40 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!el || !ctx) { hide(); return; }
     const mesh = coatMesh(c.body);
     ready.add(c.body);
-    const dpr = ratio(), box = coatBox(now.size, dpr, mesh.radius + REACH), pxPerUnit = (now.size * dpr) / 2;
+    const also = c.also ? { ...c.also, mesh: coatMesh(c.also.body) } : null;
+    if (also) ready.add(also.body);
+    // Stretched, a coat reaches as far as its stretch takes it: the square is made big enough for both.
+    const most = (w: Float64Array | undefined) => (w ? w.reduce((m, v) => Math.max(m, v), 1) : 1);
+    const radius = Math.max(mesh.radius * most(c.warp), also ? also.mesh.radius * most(also.warp) : 0);
+    const dpr = ratio(), box = coatBox(now.size, dpr, radius + REACH), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join();
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
-    const same = held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
+    const same = !c.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
       held.box.cx === box.cx && apart(held.rotation, c.rotation) * mesh.radius * (D / (D - mesh.radius)) * pxPerUnit < SAME_VIEW &&
       drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW;
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const image = renderCoat({ mesh, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: fieldFor(c.eyes, points, detail, perUnit) });
+      const field = fieldFor(c.eyes, points, detail, perUnit);
+      const frame = { rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const image = renderCoat({ ...frame, mesh, warp: c.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;
       if (el.width !== n || el.height !== n) { el.width = n; el.height = n; } else ctx.clearRect(0, 0, n, n);
       ctx.drawImage(image.canvas, image.x, image.y, n, n, 0, 0, n, n);
-      held = { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box };
+      if (also) {
+        // The other body's coat over it, on the same outline: where both are whole, a blend of the two.
+        const over = renderCoat({ ...frame, mesh: also.mesh, warp: also.warp });
+        if (over) {
+          ctx.globalAlpha = also.share;
+          ctx.drawImage(over.canvas, over.x, over.y, n, n, 0, 0, n, n);
+          ctx.globalAlpha = 1;
+        }
+      }
+      // (A stretched picture is never kept: the next frame's outline is another.)
+      held = c.warp ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box };
     }
     show(c, box, now.size);
   };
@@ -248,7 +266,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       if (!c || c.opacity <= OFF || !mightCoat()) { drop?.(); drop = null; hide(); return; }
       // When a lost context comes back the coat is painted again, moving or not.
       restored ??= onRestored(lost);
-      if (inFrame() && ready.has(c.body)) { drop?.(); drop = null; paint(); return; }
+      if (inFrame() && ready.has(c.body) && (!c.also || ready.has(c.also.body))) { drop?.(); drop = null; paint(); return; }
       later();
     },
     stop() {

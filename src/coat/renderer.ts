@@ -40,6 +40,8 @@ export interface CoatFrame {
   colour: Rgb;
   /** The eyes, for the pile to part round them; null when none shows. */
   eyes: EyeField | null;
+  /** In a change of shape, the coat stretched along rays onto the outline drawn (DrawnCoat.warp); unset on a body. */
+  warp?: Float64Array | null;
 }
 
 /** A drawn coat: the square `size` px a side at (x, y) in `canvas`, 2D canvas coordinates. Copy it at once: the next coat drawn takes its place. */
@@ -108,7 +110,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const u = {
     rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
-    eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'),
+    eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'), warpN: uniform('warpN'),
   };
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
@@ -137,6 +139,12 @@ function createRenderer(restored: () => void): Renderer | null {
   texture(1, 'dyeRamp', gl.TEXTURE_2D);
   gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, DYE_RAMP_SIZE, 1);
   clampLinear();
+  // 3 the warp: one float a ray, read exactly (texelFetch) and blended in the shader.
+  texture(3, 'warpRays', gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 1, 1, 0, gl.RED, gl.FLOAT, new Float32Array([1]));
+  gl.uniform1i(u.warpN, 0);
   // Last, so its unit stays active: the eyes change the most. Far from any eye until there are some.
   texture(2, 'eyeField', gl.TEXTURE_2D);
   clampLinear();
@@ -255,6 +263,13 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform4f(u.eyeMap, step / (x1 - x0), -step / (y1 - y0), (f.cx - f.half - x0) / (x1 - x0), (f.cy + f.half - y0) / (y1 - y0));
       gl.uniform1f(u.eyeRange, eyeRange);
     } else gl.uniform1f(u.eyeRange, 0);
+
+    if (f.warp && f.warp.length) {
+      gl.activeTexture(gl.TEXTURE3);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, f.warp.length, 1, 0, gl.RED, gl.FLOAT, Float32Array.from(f.warp));
+      gl.activeTexture(gl.TEXTURE2);
+      gl.uniform1i(u.warpN, f.warp.length);
+    } else gl.uniform1i(u.warpN, 0);
 
     const R = f.rotation;
     // Column by column, as GLSL reads a mat3. `view` is the same turn with y down, open-bot-avatar's way.

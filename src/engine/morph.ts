@@ -7,16 +7,14 @@
 // outline to fade. That is the morph, between any two bodies, however many pieces either has.
 
 import type { Body } from './body';
-import { smooth } from './ease';
 import type { Mat3 } from './math';
 import { silhouette } from './silhouette';
 
 /**
  * A change of shape caught part way: so much of one body, so much of another (the shares add up to 1).
- * A new change can start from one, so a change during a change carries on from the in-between. `coat` is how
- * much of the coat on `wears` showed when it was caught (see draw.ts), so the next change fades it from there.
+ * A new change can start from one, so a change during a change carries on from the in-between.
  */
-export interface Mix { parts: { body: Body; share: number }[]; wears: Body; coat?: number }
+export interface Mix { parts: { body: Body; share: number }[]; wears: Body }
 /** What a morph starts from: a body, or an earlier morph that was still going. */
 export type Source = Body | Mix;
 
@@ -24,13 +22,8 @@ export const isMix = (s: Source): s is Mix => 'parts' in s;
 /** The body a source's eyes are on. */
 export const leaf = (s: Source): Body => (isMix(s) ? s.wears : s);
 
-/** A coat fades out over this share of a morph's first half or a figure's way in, and back over a morph's last. */
+/** A coat fades out over this share of a loading figure's way in (a change of shape keeps it: see draw.ts). */
 export const COAT_FADE = 0.25;
-
-/** How much of the coat shows `k` of the way through a morph from `from`: the one on leaf(from) before half way, the new body's after. */
-export function coatShown(from: Source, k: number): number {
-  return k < 0.5 ? (isMix(from) ? from.coat ?? 0 : 1) * (1 - smooth(k / COAT_FADE)) : smooth((k - 1 + COAT_FADE) / COAT_FADE);
-}
 
 /** At most this many bodies in a mix; past that the one with the least share is let go. */
 const MOST = 5;
@@ -46,7 +39,7 @@ export function caught(a: Source, b: Body, k: number): Mix {
   while (parts.length > MOST) parts.splice(parts.reduce((least, p, i) => (p.share < parts[least].share ? i : least), 0), 1);
   const sum = parts.reduce((t, p) => t + p.share, 0);
   for (const p of parts) p.share /= sum;
-  return { parts, wears: k < 0.5 ? leaf(a) : b, coat: coatShown(a, k) };
+  return { parts, wears: k < 0.5 ? leaf(a) : b };
 }
 
 const TAU = 2 * Math.PI;

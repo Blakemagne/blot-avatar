@@ -341,38 +341,56 @@ test('the mesh, turned by the coat\'s rotation and drawn as it says, fills the b
   }
 });
 
-test('the coat fades out as a morph sets off and in as it lands, and as the body turns into a figure', () => {
-  const morph = (k) => drawAvatar(BODIES.blob, 'gray', still(0, 0, { body: BODIES.square, morph: { from: BODIES.blob, k } }), 96, { coat: true }).coat;
-  assert.equal(morph(0).body, BODIES.blob); assert.equal(morph(0).opacity, 1);
-  assert.equal(morph(0.1).body, BODIES.blob); assert.ok(morph(0.1).opacity > 0 && morph(0.1).opacity < 1);
-  assert.equal(morph(0.3).opacity, 0); assert.equal(morph(0.6).opacity, 0);
-  assert.equal(morph(0.9).body, BODIES.square); assert.ok(morph(0.9).opacity > 0 && morph(0.9).opacity < 1);
-  assert.equal(morph(1).opacity, 1);
+test('the coat stays on through a change of shape, stretched onto the outline drawn, and crosses over to the new body near half way', async () => {
+  const { radial } = await import('./morph.ts');
+  const { silhouette } = await import('./silhouette.ts');
+  const { COAT_SWAP, detail } = await import('./draw.ts');
+  const MID = 27.6, UNIT = 18;
+  const at = (k) => drawAvatar(BODIES.blob, 'gray', still(0, 0, { body: BODIES.square, morph: { from: BODIES.blob, k } }), 96, { coat: true });
+  for (let i = 0; i <= 40; i++) {
+    const k = i / 40, dr = at(k), c = dr.coat;
+    assert.equal(c.opacity, 1, `${k}: all of the coat shows`);
+    assert.equal(c.body, k < 0.5 ? BODIES.blob : BODIES.square, `${k}: the body it leaves, then the one it becomes`);
+    // Each coat, stretched by its warp, reaches exactly as far as the outline drawn along every ray.
+    const drawn = points(dr.body).map(([x, y]) => Math.hypot(x - MID, y - MID) / UNIT);
+    for (const [body, warp] of [[c.body, c.warp], ...(c.also ? [[c.also.body, c.also.warp]] : [])]) {
+      assert.equal(warp.length, drawn.length);
+      const own = radial(silhouette(body, rotation(still().pose), detail(96).rim), warp.length);
+      warp.forEach((w, j) => assert.ok(Math.abs(own[j] * w - drawn[j]) < 1e-3, `${k}, ray ${j}: ${own[j] * w} against ${drawn[j]}`));
+    }
+    // The other coat is laid over only near half way, at most half of it, and the two swap there without a jump.
+    const share = c.also?.share ?? 0;
+    if (Math.abs(k - 0.5) >= COAT_SWAP) assert.equal(share, 0, `${k}: one coat`);
+    assert.ok(share <= 0.5);
+  }
+  const before = at(0.4999).coat, after = at(0.5).coat;
+  assert.deepEqual([before.body, before.also.body, after.body, after.also.body], [BODIES.blob, BODIES.square, BODIES.square, BODIES.blob]);
+  assert.ok(Math.abs(before.also.share - 0.5) < 0.01 && Math.abs(after.also.share - 0.5) < 0.01);
+  // On a body there is nothing to stretch.
+  assert.equal(at(1).coat.warp?.every((w) => Math.abs(w - 1) < 1e-9) ?? true, true);
+  assert.equal(drawAvatar(BODIES.blob, 'gray', still(), 96, { coat: true }).coat.warp, undefined);
   const figure = (k) => drawAvatar(BODIES.blob, 'gray', still(0, 0, { figure: { form: 'ring', k, turn: 0, progress: 0 } }), 96, { coat: true }).coat.opacity;
   assert.equal(figure(0), 1);
   assert.ok(figure(0.1) > 0 && figure(0.1) < 1);
   assert.equal(figure(0.5), 0);
 });
 
-test('a morph that cuts into another fades the coat from what was showing, not from nothing', async () => {
+test('a change of shape that cuts into another keeps the coat on, on the body the eyes are on', async () => {
   const { Rig } = await import('../index.ts');
   const coatNow = (r) => drawAvatar(r.state.body, 'gray', r.state, 96, { coat: true }).coat;
-  // Caught late (the cloud's coat fading in), caught early (the blob's still on), and caught again straight after.
   for (const [at, then] of [[0.9, [BODIES.star]], [0.04, [BODIES.star]], [0.9, [BODIES.star, BODIES.square]]]) {
     const rig = new Rig({ body: BODIES.blob });
     rig.setBody(BODIES.cloud);
     while (rig.state.morph && rig.state.morph.k < at) rig.step(4);
     let before = coatNow(rig);
-    assert.ok(before.opacity > 0.3, `caught at ${at}: ${before.opacity}`);
     for (const body of then) {
       rig.setBody(body);
       rig.step(4);
       const after = coatNow(rig);
       assert.equal(after.body, before.body, `caught at ${at}: the coat stays on the body it was on`);
-      assert.ok(Math.abs(after.opacity - before.opacity) < 0.05, `caught at ${at}: ${before.opacity} then ${after.opacity}`);
+      assert.equal(after.opacity, 1);
       before = after;
     }
-    while (rig.state.morph) rig.step(16);
-    assert.equal(coatNow(rig).opacity, 1);
+    while (rig.state.morph) { rig.step(16); assert.equal(coatNow(rig).opacity, 1); }
   }
 });

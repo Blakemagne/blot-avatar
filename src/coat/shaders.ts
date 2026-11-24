@@ -44,6 +44,9 @@ uniform vec4 square;
 uniform float shell;
 uniform float strandWidth; // 1 at full detail; wider where fewer strands are drawn
 uniform int pass;
+// In a change of shape: how far to stretch the coat along each of warpN rays from the drawing's middle (none: 0).
+uniform highp sampler2D warpRays;
+uniform int warpN;
 out vec3 N, pilePosition, lean;
 out float tip, variation, across;
 ${passes}
@@ -105,6 +108,16 @@ void main() {
   // everything between the corners is drawn in it too.
   vec3 q = rotation * (FLIP * p / UNIT);
   float w = D - q.z, deep = square.w;
+  if (warpN > 0) {
+    // Stretched onto the outline drawn along its ray from the middle, as the outline itself was blended (morph.ts:
+    // rays clockwise from the right, y down), the stretch read between the two rays either side. Only x and y
+    // scale, so the depth and the perspective are the point's own.
+    float turn = atan(-q.y, q.x) * ${float(1 / (2 * Math.PI))};
+    float at = fract(turn) * float(warpN);
+    int i = int(at) % warpN;
+    float k = mix(texelFetch(warpRays, ivec2(i, 0), 0).r, texelFetch(warpRays, ivec2((i + 1) % warpN, 0), 0).r, at - floor(at));
+    q.xy *= k;
+  }
   gl_Position = vec4(
     (VIEW_UNIT * D * q.x + (MID - square.x) * w) / square.z,
     (VIEW_UNIT * D * q.y + (square.y - MID) * w) / square.z,
