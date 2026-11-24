@@ -8,11 +8,14 @@
 // whose mesh is not made yet) it waits its turn in soon(), so that a page of them does not pile into one frame
 // (making a body's mesh the first time is still one long task, which does hold up frames).
 // Until a coat is painted, and wherever none can be, the body path stays filled as it always was.
+// A coat that is faded right out but already names its next body (a loading figure's, or a morph's new body, in
+// the flat middle of the change) has that body's mesh made then, in soon(), so it is ready when its fur comes in.
 
 import type { Body } from '../engine/body';
 import { PILE_REACH, coatMesh, type CoatMesh } from '../engine/coat';
 import { VIEW, type Drawing, type DrawnCoat } from '../engine/draw';
 import type { Rgb } from '../engine/dye';
+import { FIGURE_REACH, type FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
 import { OVERDRAW, coatBox, type CoatBox } from '../still';
 import { inFrame, soon } from '../ticker';
@@ -48,6 +51,18 @@ const REACH = 1.25 * PILE_REACH;
 
 /** Bodies whose mesh is made (coatMesh keeps it): only those are painted in a frame. */
 const ready = new WeakSet<Body>();
+/** Bodies whose mesh is waiting in soon() to be made, ahead of their coat (see warm). */
+const warming = new WeakSet<Body>();
+
+/** Make `body`'s mesh soon, once, while its coat is not showing yet: so a frame can paint it as it comes in. */
+function warm(body: Body): void {
+  if (ready.has(body) || warming.has(body)) return;
+  warming.add(body);
+  soon(() => {
+    warming.delete(body);
+    if (coatable()) { coatMesh(body); ready.add(body); }
+  });
+}
 
 /** A device pixel ratio that can be used. */
 const ratio = (): number => (typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1);
@@ -94,8 +109,8 @@ function seenOn(el: Element): Rgb | null {
 /** The numbers in an eyes path (M and L with x, y pairs). */
 const numbersOf = (eyes: string): number[] => polygonsOf(eyes).flat();
 
-/** The furthest any point of the eyes has moved, drawing units; Infinity when they are not the same shape. */
-function drift(a: readonly number[], b: readonly number[]): number {
+/** The furthest any number has moved (any point of the eyes, any edge of a figure); Infinity when they are not the same shape. */
+function drift(a: ArrayLike<number>, b: ArrayLike<number>): number {
   if (a.length !== b.length) return Infinity;
   let most = 0;
   for (let i = 0; i < a.length; i++) most = Math.max(most, Math.abs(a[i] - b[i]));
@@ -126,6 +141,12 @@ function apart(a: ArrayLike<number>, b: ArrayLike<number>): number {
 
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 
+/** What kind of figure shape (none for a body): pictures of two kinds are never the same. */
+const kindOf = (s: FigureShape | undefined): string => (!s ? '' : s.kind === 'band' ? `band ${s.rays}` : 'balls');
+/** A figure's shape as numbers, body units: its band's edges, or where its balls are. */
+const numbersIn = (s: FigureShape | undefined): Float32Array => (!s ? NONE : s.kind === 'band' ? s.band : s.to);
+const NONE = new Float32Array(0);
+
 /**
  * A coat for the avatar whose body path is `body`. `canvasOf` gives the canvas to paint it in, the first time a
  * coat is painted and every time after: mount() makes it and puts it in place then; React's hook hands over the
@@ -139,7 +160,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
   /** Showing: the canvas on and the body path's fill turned down. */
   let on = false;
   /** What the canvas holds. */
-  let held: { mesh: CoatMesh; rotation: Float64Array; eyes: string; points: number[]; colour: string; box: CoatBox } | null = null;
+  let held: { mesh: CoatMesh; rotation: Float64Array; eyes: string; points: number[]; colour: string; box: CoatBox; shape: string; figure: Float32Array } | null = null;
   /** The styles last written, so that only what changed is written again. */
   let placed = '', moved = '', faded = '', filled = '';
   /** The body's colour: the last one that could be read. */
@@ -216,23 +237,25 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!el || !ctx) { hide(); return; }
     const mesh = coatMesh(c.body);
     ready.add(c.body);
-    const dpr = ratio(), box = coatBox(now.size, dpr, mesh.radius + REACH), pxPerUnit = (now.size * dpr) / 2;
+    // (A figure's mesh is moved about: its square is the furthest any figure goes.)
+    const dpr = ratio(), box = coatBox(now.size, dpr, (c.shape ? FIGURE_REACH : mesh.radius) + REACH), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join();
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
       held.box.cx === box.cx && apart(held.rotation, c.rotation) * mesh.radius * (D / (D - mesh.radius)) * pxPerUnit < SAME_VIEW &&
-      drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW;
+      drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW &&
+      held.shape === kindOf(c.shape) && drift(held.figure, numbersIn(c.shape)) * pxPerUnit < SAME_VIEW;
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const image = renderCoat({ mesh, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: fieldFor(c.eyes, points, detail, perUnit) });
+      const image = renderCoat({ mesh, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: fieldFor(c.eyes, points, detail, perUnit) });
       if (!image) { held = null; hide(); return; }
       const n = image.size;
       if (el.width !== n || el.height !== n) { el.width = n; el.height = n; } else ctx.clearRect(0, 0, n, n);
       ctx.drawImage(image.canvas, image.x, image.y, n, n, 0, 0, n, n);
-      held = { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box };
+      held = { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
     show(c, box, now.size);
   };
@@ -245,10 +268,16 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     draw(d, size, fill) {
       latest = { d, size, fill };
       const c = d.coat;
-      if (!c || c.opacity <= OFF || !mightCoat()) { drop?.(); drop = null; hide(); return; }
+      if (!c || c.opacity <= OFF || !mightCoat()) {
+        if (c && mightCoat()) warm(c.body);
+        drop?.(); drop = null; hide(); return;
+      }
       // When a lost context comes back the coat is painted again, moving or not.
       restored ??= onRestored(lost);
       if (inFrame() && ready.has(c.body)) { drop?.(); drop = null; paint(); return; }
+      // A body whose mesh is not made yet (a long frame skipped the faded-out middle where warm() makes it): the
+      // picture held is another body's fur, so it goes until soon() paints this one, and the flat drawing shows.
+      if (!ready.has(c.body)) hide();
       later();
     },
     stop() {

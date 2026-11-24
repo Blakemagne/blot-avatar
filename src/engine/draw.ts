@@ -5,7 +5,7 @@ import { antennaPieces, decalOutline } from './decals';
 import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
-import { discAt, figureParts, figureRadius } from './figures';
+import { REST, discAt, figureBody, figureParts, figureRadius, type FigureShape } from './figures';
 import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
 import { area, bounds, rotation, type Mat3 } from './math';
 import { COAT_FADE, coatShown, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
@@ -57,10 +57,16 @@ export interface DrawnCoat {
   /** The body the coat is of: coatMesh(body). Not always the body drawn: in a morph it is the one it leaves, then the one it becomes. */
   body: Body;
   /**
-   * 0..1: how much of the coat shows. 1 on a body; it eases to 0 as a morph sets off and back to 1 as it lands,
-   * and to 0 as the body turns into a loading figure (there is no 3D body under either to wear it).
+   * 0..1: how much of the coat shows. 1 on a body; it eases to 0 as a morph sets off and back to 1 as it lands.
+   * As the body turns into a loading figure it eases to 0 over the first quarter of the way, and the figure's own
+   * coat (`shape`) back to 1 over the last quarter.
    */
   opacity: number;
+  /**
+   * While the body is a loading figure (and `body` is that figure's, from figures.ts): how the figure's mesh is moved
+   * into this frame's shape. A renderer that ignores it draws the figure at rest.
+   */
+  shape?: FigureShape;
   /**
    * The pose's rotation, row by row (math.ts rotation): a body point p goes to p' = R p, body units, y up, z
    * toward the viewer. It is then drawn in perspective from a camera at z = D (6): with s = D / (D - p'z), at
@@ -236,13 +242,14 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  * Everything on screen for a state, as flat screen polygons (x right, y down, 1 unit = half the drawing box):
  * the body's path (pieces, and any holes wound the other way) and the two eye paths.
  */
-function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null } {
+function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; shape: FigureShape | null } {
   const body = state.body ?? given, d = detail(size);
   rotation(state.pose, R);
   const own = silhouette(body, R, d.rim);
   const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
   let outline: Float64Array[] = own, eyes: [Float64Array[], Float64Array[]];
   let wearer = body, fence: ArrayLike<number>[] = own;
+  let shape: FigureShape | null = null;
 
   if (!morph && !fig) eyes = eyesOn(body, state, size, own);
   else {
@@ -266,6 +273,14 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
     // (The figure's parts first: the spinner shapes the disc's own edge.)
     const parts = fig ? figureParts(fig, n, 2 / size, r) : null;
     outline = [polar(r)];
+    if (coat && parts) {
+      // The figure's coat follows the same numbers: the band between the hole and the outline, or the balls.
+      if (parts.hole) {
+        const band = new Float32Array(2 * n);
+        band.set(parts.hole, 0); band.set(r, n);
+        shape = { kind: 'band', rays: n, band };
+      } else if (parts.balls && parts.balls.length) shape = { kind: 'balls', from: REST[fig!.form]!, to: Float32Array.from(parts.balls) };
+    }
     if (parts) {
       outline.push(...parts.body);
       if (parts.marks.length) {
@@ -320,7 +335,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
     }
   }
   // The effects are placed against the body itself: not a figure's little ball going round it.
-  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline, affine, bare };
+  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline, affine, bare, shape };
 }
 
 const IDENTITY = [1, 0, 0, 1, 0, 0] as const;
@@ -329,16 +344,25 @@ const IDENTITY = [1, 0, 0, 1, 0, 0] as const;
  * Which body wears the coat, and how much of it shows. In a morph the outline is blended between two bodies:
  * near the start it is still the old one's and near the end already the new one's, so each wears its coat
  * there and neither does in the middle. A morph that set off from another fades from what that one showed.
+ * A loading figure goes the same way: the body's coat fades out over the first quarter, and from there on the
+ * coat is the figure's own (none shows until the last quarter, but a renderer can make its mesh meanwhile).
  */
-function coatOf(given: Body, state: RigState): { body: Body; opacity: number } {
+function coatOf(given: Body, state: RigState): { body: Body; opacity: number; figure: boolean } {
   const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
   let body = state.body ?? given, opacity = 1;
   if (morph) {
     if (morph.k < 0.5) body = leaf(morph.from);
     opacity = coatShown(morph.from, morph.k);
   }
+  if (fig && fig.k >= COAT_FADE) return { body: figureBody(fig.form), opacity: smooth((fig.k - 1 + COAT_FADE) / COAT_FADE), figure: true };
   if (fig) opacity *= 1 - smooth(fig.k / COAT_FADE);
-  return { body, opacity };
+  return { body, opacity, figure: false };
+}
+
+/** A figure's coat is turned by the figure itself, never by the pose: the spinner's fur goes round with its comet (clockwise as drawn). */
+function figureTurn(state: RigState): Mat3 {
+  const a = state.figure!.form === 'ring' ? -state.figure!.turn : 0, c = Math.cos(a), s = Math.sin(a);
+  return Float64Array.of(c, -s, 0, s, c, 0, 0, 0, 1);
 }
 
 /** The body as the effects see it this frame: its box, its middle, and (only if asked for) its reach from the middle. */
@@ -453,7 +477,7 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
  * With `coat`, the drawing also carries what a coat of fur needs (Drawing.coat); the rest is the same either way.
  */
 export function drawAvatar(body: Body, colour: string, state: RigState, size: number, opts?: { coat?: boolean }): Drawing {
-  const { body: outline, eyes, layers, shadow, opacity, frame, affine, bare } = compose(body, state, size, opts?.coat === true);
+  const { body: outline, eyes, layers, shadow, opacity, frame, affine, bare, shape } = compose(body, state, size, opts?.coat === true);
   const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
@@ -466,8 +490,12 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   // (A copy: the rig changes its own in place.)
   if (state.ultra) out.ultra = { amount: state.ultra.amount, phase: state.ultra.phase };
   if (bare) {
-    const [a, , , d, e, f] = affine;
-    out.coat = { ...coatOf(body, state), rotation: new Float64Array(R), affine: [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f], eyes: toPath(bare, UNIT, MID) };
+    const [a, , , d, e, f] = affine, { body: wears, opacity: shows, figure } = coatOf(body, state);
+    const move: DrawnCoat['affine'] = [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f];
+    // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
+    out.coat = figure
+      ? { body: wears, opacity: shows, rotation: figureTurn(state), affine: move, eyes: '', ...(shape ? { shape } : {}) }
+      : { body: wears, opacity: shows, rotation: new Float64Array(R), affine: move, eyes: toPath(bare, UNIT, MID) };
   }
   return out;
 }

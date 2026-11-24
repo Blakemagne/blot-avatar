@@ -376,3 +376,87 @@ test('a morph that cuts into another fades the coat from what was showing, not f
     assert.equal(coatNow(rig).opacity, 1);
   }
 });
+
+// A loading figure wears fur of its own: a mesh made once per figure (figures.ts), moved each frame into the flat
+// figure's shape by the numbers the flat figure is drawn from.
+const { FORMS, FIGURE_REACH, REST, figureBody } = await import('./figures.ts');
+const { bodyShapes } = await import('./draw.ts');
+const figured = (form, k, turn = 0, progress = 0) => still(0, 0, { figure: { form, k, turn, progress } });
+
+test('a figure: the body\'s coat fades out over the first quarter, the figure\'s own fades in over the last, with no eyes', () => {
+  for (const form of FORMS) {
+    const coat = (k) => drawAvatar(BODIES.blob, 'gray', figured(form, k, 1.1, 0.4), 96, { coat: true }).coat;
+    assert.equal(coat(0.1).body, BODIES.blob);
+    assert.equal(coat(0.1).shape, undefined);
+    assert.equal(coat(0.5).body, figureBody(form)); assert.equal(coat(0.5).opacity, 0);
+    assert.ok(coat(0.9).opacity > 0 && coat(0.9).opacity < 1, `${form}: ${coat(0.9).opacity}`);
+    const full = coat(1);
+    assert.equal(full.body, figureBody(form)); assert.equal(full.opacity, 1); assert.equal(full.eyes, '');
+    assert.equal(full.shape.kind, form === 'ring' || form === 'progress' ? 'band' : 'balls', form);
+    if (full.shape.kind === 'balls') assert.equal(full.shape.from, REST[form]);
+    // Turned with the spinner's comet (clockwise as drawn, so the other way in body units), never by the pose.
+    const turned = drawAvatar(BODIES.blob, 'gray', { ...figured(form, 1, 1.1, 0.4), pose: { yaw: deg(20), pitch: deg(10), roll: 0 } }, 96, { coat: true }).coat.rotation;
+    const a = form === 'ring' ? -1.1 : 0;
+    assert.deepEqual([...turned].map((v) => +v.toFixed(9)), [Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a), 0, 0, 0, 1].map((v) => +v.toFixed(9)), form);
+  }
+});
+
+test('a figure\'s body is made once: the same object every time, one tube for the ring and the progress ring, all within FIGURE_REACH', () => {
+  for (const form of FORMS) assert.equal(figureBody(form), figureBody(form));
+  assert.equal(figureBody('ring'), figureBody('progress'));
+  assert.equal(new Set(FORMS.map(figureBody)).size, 4);
+  for (const form of FORMS) assert.ok(coatMesh(figureBody(form)).radius <= FIGURE_REACH + 1e-9, form);
+  assert.ok(Math.abs(coatMesh(figureBody('orbit')).radius - FIGURE_REACH) < 1e-6);
+});
+
+test('a band follows the flat figure: at every ray, its inner edge is the hole\'s and its outer edge the outline\'s', () => {
+  for (const [form, turn, progress] of [['ring', 0.4, 0], ['ring', 4, 0], ['progress', 0, 0], ['progress', 0, 0.3], ['progress', 0, 1]]) {
+    for (const k of [0.8, 1]) {
+      for (const size of [96, 40, 22]) {
+        const state = figured(form, k, turn, progress), { band, rays: n } = drawAvatar(BODIES.blob, 'gray', state, size, { coat: true }).coat.shape;
+        const [outline, hole] = bodyShapes(BODIES.blob, state, size);
+        assert.equal(band.length, 2 * n);
+        assert.equal(outline.length, 2 * n); assert.equal(hole.length, 2 * n);
+        for (let j = 0; j < n; j++) {
+          // Ray i is at screen angle 2 pi i / n, clockwise as drawn.
+          const at = (p) => { const x = p[j * 2], y = p[j * 2 + 1]; return [((Math.round((Math.atan2(y, x) / (2 * Math.PI)) * n) % n) + n) % n, Math.hypot(x, y)]; };
+          const [io, ro] = at(outline), [ih, rh] = at(hole);
+          assert.ok(Math.abs(band[n + io] - ro) < 1e-5, `${form} ${k} ${size} outer ray ${io}: ${band[n + io]} ${ro}`);
+          assert.ok(Math.abs(band[ih] - rh) < 1e-5, `${form} ${k} ${size} inner ray ${ih}: ${band[ih]} ${rh}`);
+        }
+      }
+    }
+  }
+});
+
+test('balls follow the flat figure: each where its polygon is (y up) and as big', () => {
+  const centre = (p) => { let x = 0, y = 0; const m = p.length / 2; for (let i = 0; i < p.length; i += 2) { x += p[i]; y += p[i + 1]; } return [x / m, y / m, Math.hypot(p[0] - x / m, p[1] - y / m)]; };
+  for (const form of ['orbit', 'dots', 'radar']) {
+    for (const turn of [0, 1, 2.5, 4.4]) {
+      for (const k of [0.8, 1]) {
+        const state = figured(form, k, turn), { to, from } = drawAvatar(BODIES.blob, 'gray', state, 96, { coat: true }).coat.shape;
+        assert.equal(to.length, from.length, form);
+        const polys = bodyShapes(BODIES.blob, state, 96);
+        // orbit: the disc, then the ball going round; dots: the disc, the middle dot, then the left and the right;
+        // radar: the disc.
+        const balls = form === 'orbit' ? [polys[0], polys[1]] : form === 'dots' ? [polys[2], polys[1], polys[3]] : [polys[0]];
+        balls.forEach((p, b) => {
+          const [x, y, r] = centre(p);
+          assert.ok(Math.abs(to[b * 4] - x) < 1e-4 && Math.abs(to[b * 4 + 1] + y) < 1e-4 && to[b * 4 + 2] === 0, `${form} ${turn} ${k} ball ${b} at ${to[b * 4]},${to[b * 4 + 1]}: ${x},${-y}`);
+          // (A disc's polygon is made of rays of the outline it blends into: its radius only nearly that of the figure.)
+          assert.ok(Math.abs(to[b * 4 + 3] - r) < (b === 0 && form !== 'dots' ? 0.01 : 1e-4), `${form} ${turn} ${k} ball ${b} r ${to[b * 4 + 3]}: ${r}`);
+        });
+      }
+    }
+  }
+});
+
+test('a drawing asked for a coat is the same drawing during a figure too', () => {
+  for (const form of FORMS) {
+    for (const k of [0.1, 0.5, 0.9, 1]) {
+      const state = figured(form, k, 2, 0.6), plain = drawAvatar(BODIES.blob, '#FD690F', state, 96), coated = drawAvatar(BODIES.blob, '#FD690F', state, 96, { coat: true });
+      const { coat, ...rest } = coated;
+      assert.deepEqual(rest, plain, `${form} ${k}`);
+    }
+  }
+});

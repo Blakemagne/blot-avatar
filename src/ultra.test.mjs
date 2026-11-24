@@ -83,6 +83,38 @@ test('flat, the skin fades as one over the body with the rim under the rainbow; 
   assert.equal(skinMarkup({ ...d, ultra: undefined }, 'a', 96), '');
 });
 
+test('over a spinner\'s fur the blend is not stroked, so no tinted band lies over the page where its gap is; over a progress ring\'s, a body\'s or the balls\' it is', () => {
+  /** The blend's stroke width over a figure all the way in (or a body, with no form), at 96 px, fur all shown. */
+  const blend = (form, progress) => {
+    const rig = new Rig({ seed: 2, body: BODIES.blob });
+    rig.setUltra(true);
+    if (form) rig.setActivity('working', form);
+    if (progress !== undefined) rig.setProgress(progress);
+    for (let t = 0; t < 1600; t += 16) rig.step(16);
+    const d = drawAvatar(BODIES.blob, '#FD690F', rig.state, 96, { coat: true });
+    if (form) assert.equal(rig.state.figure?.k, 1, `${form} all the way in`);
+    const markup = parse(skinMarkup(d, 'a', 96, 1)).kids[1].attrs['stroke-width'];
+    const g = new El('g');
+    paintSkin(g, d, 96, 1, 'a');
+    assert.equal(g.children[1].getAttribute('stroke-width'), markup, 'the DOM and the markup agree');
+    return Number(markup);
+  };
+  const tint = Math.round(PILE_TINT * 1000) / 1000;
+  assert.equal(blend('ring'), 0);
+  for (const p of [0, 0.5, 1]) assert.equal(blend('progress', p), tint, `progress ${p}`);
+  for (const form of ['orbit', 'radar', 'dots', null]) assert.equal(blend(form), tint, String(form));
+  // A band that is closing: some of the stroke, no jump. And the figure gone, in the same group: all of it again.
+  const d = { body: 'M1 1L9 1L9 9Z', eyes: ['', ''], ultra: { amount: 1, phase: 0 } };
+  const band = (w) => ({ shape: { kind: 'band', rays: 2, band: Float32Array.of(0.5, 0.5, 0.5 + w, 0.9) } });
+  const half = Number(parse(skinMarkup({ ...d, coat: band(0.02) }, 'a', 96, 1)).kids[1].attrs['stroke-width']);
+  assert.ok(half > 0 && half < tint, `half closed: ${half}`);
+  const g = new El('g');
+  paintSkin(g, { ...d, coat: band(0) }, 96, 1, 'a');
+  assert.equal(g.children[1].getAttribute('stroke-width'), '0');
+  paintSkin(g, { ...d, coat: {} }, 96, 1, 'a');
+  assert.equal(Number(g.children[1].getAttribute('stroke-width')), tint);
+});
+
 test('while a coat fades, the blend and the glass cross-fade as the coat and the flat body do', () => {
   const d = { body: 'M1 1L9 1L9 9Z', eyes: ['', ''], ultra: { amount: 1, phase: 0 } };
   let last = null;

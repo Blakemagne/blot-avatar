@@ -243,7 +243,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
         live.shape();
       }
       if (changed('face')) live.face(opts.face);
-      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size', 'mark', 'ultra', 'personality')) live.doing();
+      if (changed('activity', 'form', 'progress', 'rests', 'shape', 'body', 'size', 'mark', 'ultra', 'personality')) live.doing();
       if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();

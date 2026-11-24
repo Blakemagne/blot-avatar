@@ -9,9 +9,10 @@
 import { COAT_UNIT, coatDetail, rootsIn, type CoatMesh } from '../engine/coat';
 import { VIEW_UNIT } from '../engine/draw';
 import { DYE_RAMP_SIZE, dyeRamp, type Rgb } from '../engine/dye';
+import type { FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
 import { EYE_REACH, type EyeField } from './mask';
-import { PASS, fragmentShader, vertexShader } from './shaders';
+import { FIGURE, MAX_BALLS, MAX_RAYS, PASS, fragmentShader, vertexShader } from './shaders';
 
 /** The largest picture, device pixels a side. A bigger avatar's is drawn at this and stretched. */
 export const MAX_PIXELS = 1024;
@@ -40,6 +41,8 @@ export interface CoatFrame {
   colour: Rgb;
   /** The eyes, for the pile to part round them; null when none shows. */
   eyes: EyeField | null;
+  /** A loading figure's shape this frame (Drawing.coat.shape): how its mesh is moved. None for a body. */
+  shape?: FigureShape;
 }
 
 /** A drawn coat: the square `size` px a side at (x, y) in `canvas`, 2D canvas coordinates. Copy it at once: the next coat drawn takes its place. */
@@ -109,6 +112,7 @@ function createRenderer(restored: () => void): Renderer | null {
     rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
     eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'),
+    figure: uniform('figure'), rays: uniform('rays'), balls: uniform('balls'), band: uniform('band'), restBall: uniform('restBall'), nowBall: uniform('nowBall'),
   };
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
@@ -223,6 +227,8 @@ function createRenderer(restored: () => void): Renderer | null {
   let dye = -1;
   let field: Uint8Array | null = null;
   const rotation = new Float32Array(9), view = new Float32Array(9);
+  /** A figure's shape as its uniforms take it (at most 312 floats a frame). */
+  const band = new Float32Array(2 * MAX_RAYS), rest = new Float32Array(4 * MAX_BALLS), now = new Float32Array(4 * MAX_BALLS);
   /** A byte of the eye field from 0 to 1 spans this many of open-bot-avatar's units. */
   const eyeRange = (2 * EYE_REACH) / (VIEW_UNIT * COAT_UNIT);
 
@@ -266,6 +272,27 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.uniform3fv(u.middle, geometry.middle);
     gl.uniform3fv(u.extent, geometry.extent);
     gl.uniform4f(u.square, f.cx, f.cy, f.half, geometry.deep);
+    const shape = f.shape;
+    if (!shape) gl.uniform1i(u.figure, FIGURE.none);
+    else if (shape.kind === 'band') {
+      // Inner radii from 0, outer ones from `rays`, packed with no gap: what the shader's edge() reads.
+      const n = Math.min(shape.rays, MAX_RAYS);
+      band.fill(0);
+      band.set(shape.band.subarray(0, n), 0);
+      band.set(shape.band.subarray(shape.rays, shape.rays + n), n);
+      gl.uniform1i(u.figure, FIGURE.band);
+      gl.uniform1i(u.rays, n);
+      gl.uniform4fv(u.band, band);
+    } else {
+      // (Unused balls are 1 big, so nothing divides by 0.)
+      const k = Math.min(shape.from.length, shape.to.length, 4 * MAX_BALLS);
+      rest.fill(1); rest.set(shape.from.subarray(0, k));
+      now.fill(1); now.set(shape.to.subarray(0, k));
+      gl.uniform1i(u.figure, FIGURE.balls);
+      gl.uniform1i(u.balls, k / 4);
+      gl.uniform4fv(u.restBall, rest);
+      gl.uniform4fv(u.nowBall, now);
+    }
 
     gl.viewport(0, 0, pixels, pixels);
     gl.scissor(0, 0, pixels, pixels);

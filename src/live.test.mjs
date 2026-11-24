@@ -367,3 +367,30 @@ test('under reduced motion a powered avatar\'s still is powered: the bands where
     a.detach();
   } finally { prefer(false); }
 });
+
+test('progress: the progress figure fills to the amount given, and a new amount moves it on without starting over', () => {
+  const props = { shape: 'blob', size: 72, activity: 'working', form: 'progress', progress: 0.4 };
+  const a = mounted(props);
+  see(a.el, true);
+  let now = 50000;
+  const run = (ms) => { for (const end = now + ms; now < end;) pump(now += 40); };
+  run(1600);
+  const at = a.live.rig.state.figure;
+  assert.equal(at?.form, 'progress');
+  assert.equal(at.k, 1, 'the figure is up');
+  assert.ok(Math.abs(at.progress - 0.4) < 0.01, `filled to 0.4, not ${at.progress}`);
+  const before = a.drawn.at(-1).body;
+  a.live.want({ ...props, progress: 0.9 });
+  a.live.doing();
+  run(40);
+  assert.equal(a.live.rig.state.figure.k, 1, 'a new amount does not take the figure down');
+  run(1200);
+  assert.ok(Math.abs(a.live.rig.state.figure.progress - 0.9) < 0.01, 'filled on to 0.9');
+  assert.notEqual(a.drawn.at(-1).body, before, 'and it is drawn fuller');
+  // Unset is 0: the empty track again.
+  a.live.want({ ...props, progress: undefined });
+  a.live.doing();
+  run(1200);
+  assert.equal(a.live.rig.state.figure.progress, 0);
+  a.detach();
+});

@@ -200,7 +200,7 @@ const narrow = matchMedia('(max-width: 720px)');
 /** The finish picked last, kept in this browser. */
 const MATERIAL_KEY = 'blot-avatar:material';
 const pg = {
-  key: 'body:blob', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null,
+  key: 'body:blob', color: DEFAULT_COLOUR, eyes: null as string | null, face: 'neutral', activity: 'idle', form: null as string | null, progress: 0,
   size: narrow.matches ? 150 : 180, follow: true, dir: 1, amount: 1, last: null as Move | null, mark: false, ultra: false, feel: { ...PERSONALITY } as Personality,
   material: readMaterial(stored.get(MATERIAL_KEY)) ?? 'flat' as Material,
 };
@@ -208,7 +208,7 @@ const pg = {
 const picked = new Map<string, string>();
 const options = (): MountOptions => ({
   shape: entry(pg.key).shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
-  form: BUSY.has(pg.activity) ? pg.form : null, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
+  form: BUSY.has(pg.activity) ? pg.form : null, progress: pg.progress, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
 // A link's query picks the avatar, its colour and what it is doing, once, as the page opens; then it is cleared,
@@ -275,10 +275,58 @@ const doing = (v: string): void => {
   pg.activity = v;
   formRow.hidden = !BUSY.has(pg.activity);
   faces();
+  climb(false);
   changed();
 };
+// How far, for the progress figure: while it shows, the page fills it on a loop (up over 4 s, full for 1.8 s, empty
+// for 0.6 s) so the ring is seen to move, as a page would move it with its work. Dragging the slider takes over;
+// picking the progress chip again starts the loop over. Under reduced motion no figure shows, so neither does the
+// slider. (Its readout is not read out as it changes: the loop changes it five times a second.)
+const progressRow = $('[data-progress-row]'), progressInput = $<HTMLInputElement>('[data-progress]'), progressOut = $('[data-progress-out]');
+/** Steps of 200 ms: from empty (step 0) up to full, then full, then empty again before step 0 comes round. */
+const CLIMB = 20, HOLD = 8, EMPTY = 2;
+let climbing = 0, climbAt = 0, takenOver = false;
+const showProgress = (v: number): void => {
+  pg.progress = v;
+  progressInput.value = String(v);
+  progressOut.textContent = String(v);
+};
+const climbStep = (): void => {
+  const n = climbAt;
+  climbAt = (climbAt + 1) % (CLIMB + 1 + HOLD + EMPTY);
+  showProgress(n <= CLIMB ? Math.round((n / CLIMB) * 100) / 100 : n <= CLIMB + HOLD ? 1 : 0);
+  changed();
+};
+/** Whether the page should be filling it now. */
+const climbs = (): boolean => BUSY.has(pg.activity) && pg.form === 'progress' && !takenOver && !document.hidden && !reducedMotion();
+const runClimb = (): void => {
+  const on = climbs();
+  if (on && !climbing) climbing = window.setInterval(climbStep, 200);
+  else if (!on && climbing) { clearInterval(climbing); climbing = 0; }
+};
+/** The progress figure was picked, or what it is doing changed: show the slider, and (`again`) fill from empty. */
+function climb(again: boolean): void {
+  const shown = BUSY.has(pg.activity) && pg.form === 'progress';
+  progressRow.hidden = !shown || reducedMotion();
+  if (again || !shown) {
+    // (Empty now, so the loop's next step is the first one up.)
+    takenOver = false; climbAt = 1;
+    if (climbing) { clearInterval(climbing); climbing = 0; }
+    showProgress(0);
+  }
+  runClimb();
+}
+progressInput.addEventListener('input', () => {
+  takenOver = true;
+  runClimb();
+  showProgress(Number(progressInput.value));
+  changed();
+});
+document.addEventListener('visibilitychange', runClimb);
+onMotion(() => climb(false));
 const syncDoing = chips($('[data-choice="activity"]'), ACTIVITIES, () => pg.activity, (v) => doing(v ?? 'idle'));
 formRow.hidden = !BUSY.has(pg.activity);
+climb(false);
 $('.stage-col').addEventListener('keydown', (e) => {
   const n = Number(e.key);
   if (e.ctrlKey || e.metaKey || e.altKey || !Number.isInteger(n) || n < 1 || n > ACTIVITIES.length) return;
@@ -288,7 +336,7 @@ $('.stage-col').addEventListener('keydown', (e) => {
   syncDoing();
   said(ACTIVITIES[n - 1]);
 });
-chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; changed(); });
+chips($('[data-choice="form"]'), [null, ...FORMS], () => pg.form, (v) => { pg.form = v; climb(v === 'progress'); changed(); });
 chips($('[data-choice="face"]'), FACE_NAMES, () => pg.face, (v) => { pg.face = v ?? 'neutral'; changed(); });
 
 // ---- Tabs and menus.
@@ -812,6 +860,7 @@ function writeCode(): void {
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
+  if (BUSY.has(pg.activity) && pg.form === 'progress') o.push(`progress: ${pg.progress}`);
   if (pg.follow) o.push('follow: true');
   if (pg.mark) o.push('mark: true');
   if (pg.ultra) o.push('ultra: true');

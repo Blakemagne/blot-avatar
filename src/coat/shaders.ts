@@ -9,14 +9,24 @@
 // result back to draw it with our rotation and perspective (math.ts): the coat lands on the SVG outline, eyes and
 // antennas exactly. Its eyes are not drawn here. Ours are paths over the coat, and the coat only parts its pile
 // round them, from a field of how far each pixel is from an eye (mask.ts).
+//
+// A loading figure's coat is a mesh made once (figures.ts: a tube, or balls) that the vertex shader moves into the
+// frame's shape (FigureShape): the tube's cross-section set per ray between the flat drawing's hole and outline,
+// or each ball moved and sized. The pile stays fixed to the mesh at rest, so it moves with the figure, and it
+// lies down where a piece gets thin.
 
 import { DYE_RAMP_RANGE } from '../engine/dye';
 import { COAT_UNIT } from '../engine/coat';
 import { VIEW, VIEW_UNIT } from '../engine/draw';
+import { TUBE_M, TUBE_R } from '../engine/figures';
 import { D } from '../engine/math';
 
 /** The values of the `pass` uniform. */
 export const PASS = { body: 0, shell: 1, strand: 2 } as const;
+/** The values of the `figure` uniform: a body's coat, a figure's band (the ring's tube), or its balls. */
+export const FIGURE = { none: 0, band: 1, balls: 2 } as const;
+/** Room in the uniforms: rays of a band (morph.ts's rays() is at most 144), and balls. */
+export const MAX_RAYS = 144, MAX_BALLS = 3;
 
 /** A number as a GLSL float literal. */
 const float = (n: number): string => (Number.isInteger(n) ? `${n}.` : `${n}`);
@@ -44,19 +54,66 @@ uniform vec4 square;
 uniform float shell;
 uniform float strandWidth; // 1 at full detail; wider where fewer strands are drawn
 uniform int pass;
+// A figure's shape (FIGURE): the band's inner radii then its outer ones, \`rays\` of each, four to a vec4; or each
+// ball at rest and now (x y z r). Body units, y up.
+uniform int figure, rays, balls;
+uniform vec4 band[${(2 * MAX_RAYS) / 4}];
+uniform vec4 restBall[${MAX_BALLS}], nowBall[${MAX_BALLS}];
 out vec3 N, pilePosition, lean;
-out float tip, variation, across;
+out float tip, variation, across, solid;
 ${passes}
 const vec3 FLIP = vec3(1., -1., 1.);
 const float UNIT = ${float(1 / COAT_UNIT)}, D = ${float(D)}, VIEW_UNIT = ${float(VIEW_UNIT)}, MID = ${float(VIEW / 2)};
+const float TUBE_M = ${float(TUBE_M)}, TUBE_R = ${float(TUBE_R)}, TAU = 6.283185307179586;
+
+float ray(int i) { return band[i >> 2][i & 3]; }
+/** The band's edge (inner at 0, outer at \`rays\`) at ray \`s\`, between the two rays either side. */
+float edge(float s, int at) {
+  int i = int(floor(s)) % rays;
+  return mix(ray(at + i), ray(at + (i + 1) % rays), fract(s));
+}
 
 void main() {
+  vec3 P = position, Nm = normal, rest = (position - middle) / extent;
+  // How much pile stands up (a piece that has gone thin lies flat), and whether there is any piece here at all.
+  float pile = 1.;
+  solid = 1.;
+  if (figure == ${FIGURE.band}) {
+    // The tube, its cross-section re-placed between the band's edges at the ray this point is seen along (screen
+    // angles run clockwise, ours anticlockwise): its middle halfway between them, as wide as they are apart, and
+    // no deeper than the tube is.
+    vec3 q = rotation * P;
+    float s = fract(-atan(q.y, q.x) / TAU) * float(rays);
+    float inner = edge(s, 0), outer = edge(s, rays);
+    float hw = max(0., .5 * (outer - inner)), hz = min(hw, TUBE_R);
+    vec2 u = normalize(P.xy);
+    P = vec3(u * (.5 * (inner + outer) + (dot(P.xy, u) - TUBE_M) * hw / TUBE_R), P.z * hz / TUBE_R);
+    vec2 outward = u * dot(Nm.xy, u);
+    Nm = normalize(vec3(outward * TUBE_R / max(hw, 1e-4) + Nm.xy - outward, Nm.z * TUBE_R / max(hz, 1e-4)));
+    pile = smoothstep(0., .6 * TUBE_R, hw);
+    rest = vec3(rest.xy, P.z / TUBE_R);
+    solid = hw;
+  } else if (figure == ${FIGURE.balls}) {
+    // Each ball moved and sized: the one this point is on at rest.
+    int k = 0;
+    float best = 1e9;
+    for (int i = 0; i < ${MAX_BALLS}; i++) {
+      if (i >= balls) break;
+      float d = length(P - restBall[i].xyz) - restBall[i].w;
+      if (d < best) { best = d; k = i; }
+    }
+    float scale = nowBall[k].w / restBall[k].w;
+    P = nowBall[k].xyz + (P - restBall[k].xyz) * scale;
+    rest = Nm;
+    pile = clamp(scale, 0., 1.);
+  }
   // Into open-bot-avatar's space: its units, y down.
-  vec3 n = normalize(FLIP * normal), p = FLIP * position * UNIT;
-  vec3 rounded = FLIP * (position - middle) / extent;
+  vec3 n = normalize(FLIP * Nm), p = FLIP * P * UNIT;
+  vec3 rounded = FLIP * rest;
   // Broadly bend the lighting normals across flat faces.
   vec3 shadingNormal = normalize(n + .78 * rounded);
-  pilePosition = p;
+  // (The pile is fixed to the mesh at rest, so it goes where a figure's piece goes.)
+  pilePosition = FLIP * position * UNIT;
   // Sweep across the visible surface. A downwards bias keeps the front from parting at a point.
   // Project without normalizing, so foreshortened locks get shorter continuously at a grazing angle.
   float wave = .21 * sin(dot(p, vec3(.11, .045, .08))) + .14 * sin(.13 * p.y - .07 * p.z);
@@ -68,11 +125,11 @@ void main() {
   variation = .5;
   across = 0.;
   if (pass == SHELL) {
-    p += n * shell * 1.10;
-    p += lean * (1.05 * shell);
+    p += n * shell * 1.10 * pile;
+    p += lean * (1.05 * shell * pile);
   }
   if (pass == STRAND) {
-    if (dot(normal, normalize(camera - position)) < ${float(BACK)}) {
+    if (pile < .05 || dot(Nm, normalize(camera - P)) < ${float(BACK)}) {
       // Outside the clip volume at every vertex: the whole strand is dropped.
       gl_Position = vec4(0., 0., 2., 1.);
       return;
@@ -86,11 +143,11 @@ void main() {
     float turn = flow + (seed.x - .5) * 2.6;
     vec3 comb = lean + .24 * (tangent * cos(turn) + bitangent * sin(turn));
     vec3 bend = cross(n, comb);
-    float len = mix(1.6, 3.8, seed.y);
+    float len = mix(1.6, 3.8, seed.y) * pile;
     vec3 direction = n * (.30 + .18 * tip) + comb * (.93 - .12 * tip) + bend * (seed.x - .5) * .45 * tip;
     pilePosition += comb * (.7 * len * tip);
-    p += n * .52;
-    float width = (.073 + .11 * seed.y) * strandWidth;
+    p += n * .52 * pile;
+    float width = (.073 + .11 * seed.y) * strandWidth * sqrt(pile);
     p += .065 * n + len * tip * direction;
     vec3 screenDir = view * (direction + .06 * comb);
     vec2 widthDir = normalize(vec2(-screenDir.y, screenDir.x) + vec2(.0001, 0));
@@ -126,7 +183,7 @@ uniform float shell;
 uniform vec4 eyeMap;
 uniform float eyeRange;
 in vec3 N, pilePosition, lean;
-in float tip, variation, across;
+in float tip, variation, across, solid;
 out vec4 result;
 ${passes}
 // Beyond this the eyes change nothing, open-bot-avatar units.
@@ -173,6 +230,8 @@ void main() {
   float sheen = .014 * wrap * wrap;
   float rimExposure = 1.;
 
+  // Where a figure's band has closed to nothing, its flattened tube leaves no sliver.
+  if (solid < .004) discard;
   // Pile gives way to the eyes, which are drawn over the coat.
   vec2 outward;
   float d = eyeDistance(outward);

@@ -47,6 +47,12 @@ export interface LiveProps {
   activity?: string;
   /** A loading figure the body turns into while it thinks or works (the engine's FORMS); none, and it is a body. */
   form?: string | null;
+  /**
+   * How far along the work is, 0..1 (unset is 0), for the progress figure (`form: 'progress'`): its arc grows
+   * from the top, clockwise, easing to each new amount. Change it as the work goes; nothing restarts. Under reduced
+   * motion no loading figure is shown, so neither is the amount: show it some other way there too.
+   */
+  progress?: number;
   /** A face by name (the engine's FACES), worn when idle. */
   face?: string;
   /** While idle it is at rest in the still's pose and does not tick (blot uses it for still avatars that come alive only while busy). */
@@ -92,7 +98,7 @@ export interface Live {
   shape(): void;
   /** The face changed. */
   face(name: string | undefined): void;
-  /** The activity, the form, `rests`, the shape, the size, the mark, the power or the personality changed. */
+  /** The activity, the form, the progress, `rests`, the shape, the size, the mark, the power or the personality changed. */
   doing(): void;
   /** A poke: a spin, a nod, a hop, in turn. Nothing under reduced motion. */
   poke(kind?: string): void;
@@ -221,6 +227,7 @@ export function createLive(p: LiveProps): Live {
    */
   const doing = (r: Rig) => {
     r.setActivity(props.activity ?? 'idle', props.form ?? null);
+    r.setProgress(props.progress ?? 0);
     r.rest(props.rests && !props.mark && !props.ultra ? stillState(props.shape, props.size).pose : null);
     r.setMark(!!props.mark);
     r.setUltra(!!props.ultra);
