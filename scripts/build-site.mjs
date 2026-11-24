@@ -5,7 +5,8 @@
 // Run through tsx (the npm scripts do), because the favicon and the studio's gallery thumbnails are drawn by the
 // engine itself. site:dev draws them once, at start: restart it to see an engine or gallery change in them.
 
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { watch } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,5 +91,23 @@ if (serve) {
   console.log(`demo on http://localhost:${port}`);
 } else {
   await esbuild.build(options);
+  await stamp();
   console.log(`built ${path.relative(root, out)}/`);
+}
+
+/**
+ * The page asks for its script and style by what is in them (`app.js?v=<hash>`). Pages lets a browser keep each
+ * file for ten minutes, and a reload fetches the page again but not what it loads: without this, a new page could
+ * run the old script for up to ten minutes after a deploy, and its new buttons would do nothing.
+ */
+async function stamp() {
+  const page = path.join(out, 'index.html');
+  let html = await readFile(page, 'utf8');
+  for (const [file, attr] of [['app.js', 'src'], ['style.css', 'href']]) {
+    const v = createHash('sha256').update(await readFile(path.join(out, file))).digest('hex').slice(0, 10);
+    const was = `${attr}="${file}"`;
+    if (!html.includes(was)) throw new Error(`build-site: index.html has no ${was} to stamp`);
+    html = html.replace(was, `${attr}="${file}?v=${v}"`);
+  }
+  await writeFile(page, html);
 }
