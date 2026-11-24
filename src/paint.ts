@@ -5,8 +5,12 @@
 import type { Drawing, DrawnFx } from './engine/draw';
 import type { FxRole } from './engine/fx';
 
-/** The colours a drawing is painted in. `accent` paints the effects; without one they are the body's colour. */
-export interface FxPaint { fill: string; eyeFill: string; accent?: string }
+/**
+ * The colours a drawing is painted in. `accent` paints the effects; without one they are the body's colour.
+ * Ultracode's effects take `rainbow` (its twinkles; the accent without one) and `halo` (not drawn without one), any
+ * CSS paint: a powered avatar's skin gives both (skinPaint in ultra.ts).
+ */
+export interface FxPaint { fill: string; eyeFill: string; accent?: string; rainbow?: string; halo?: string }
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -16,6 +20,9 @@ export function roleColour(role: FxRole, paint: FxPaint): string {
     case 'body': return paint.fill;
     case 'eye': return paint.eyeFill;
     case 'accent': return paint.accent ?? paint.fill;
+    case 'rainbow': return paint.rainbow ?? paint.accent ?? paint.fill;
+    case 'light': return '#FFFFFF';
+    case 'halo': return paint.halo ?? 'none';
     default: return '#000';
   }
 }

@@ -21,6 +21,7 @@ class El {
   getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; }
   removeAttribute(k) { this.attrs.delete(k); }
   appendChild(c) { c.parent = this; this.children.push(c); return c; }
+  insertBefore(c, ref) { c.remove(); c.parent = this; const i = this.children.indexOf(ref); if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
   remove() { if (this.parent) { this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; } }
   addEventListener(type, fn) { if (!this.on.has(type)) this.on.set(type, new Set()); this.on.get(type).add(fn); }
   removeEventListener(type, fn) { this.on.get(type)?.delete(fn); }
@@ -38,6 +39,7 @@ const { mount } = await import('./mount.ts');
 const { ticking } = await import('./ticker.ts');
 const { VIEW_BOX, colours } = await import('./engine/index.ts');
 const { OVERDRAW } = await import('./still.ts');
+const { RIM, ULTRA_INK } = await import('./ultra.ts');
 
 /** The body path and the two eye paths (between the effects' two groups). */
 const paths = (host) => host.children[0].children.filter((c) => c.tag === 'path');
@@ -268,4 +270,143 @@ test('the material switches on a mounted avatar, back and forth, and it is drawn
   assert.deepEqual(tree(host), tree(flat));
   a.destroy(); m.destroy();
   assert.deepEqual(host.children, []);
+});
+
+/** A tree with each skin's id written the same way, to compare two avatars' skins. */
+const sameIds = (t) => JSON.parse(JSON.stringify(t).replace(/blot-ultra-\d+/g, 'ULTRA'));
+
+test('ultracode: an avatar never powered keeps the DOM it always had, and ultra: false is no change', () => {
+  const plain = new El('div'), off = new El('div');
+  const a = mount(plain, { shape: 'heart', size: 72, mark: true, accent: '#7C5CFF' });
+  const b = mount(off, { shape: 'heart', size: 72, mark: true, accent: '#7C5CFF', ultra: false });
+  see(plain, true); see(off, true);
+  for (let t = 1000; t < 2500; t += 16) {
+    if (t === 1800) b.update({ ultra: false });
+    pump(t);
+    assert.deepEqual(tree(off), tree(plain), `at ${t} ms`);
+  }
+  assert.deepEqual(off.children[0].children.map((c) => c.tag), ['g', 'path', 'path', 'path', 'g'], 'no skin group');
+  a.destroy(); b.destroy();
+});
+
+test('ultracode: powering adds one skin group right after the body path, painted on every frame, and the eyes go to ink; off, it fades and the group is emptied', () => {
+  const host = new El('div');
+  const m = mount(host, { shape: 'blob', size: 72 });
+  see(host, true);
+  const svg = host.children[0], [back, body, left, right, front] = svg.children;
+  let t = 1000;
+  const run = (ms, each = () => {}) => { for (const end = t + ms; t < end; t += 16) { pump(t); each(); } };
+  run(200);
+  m.update({ ultra: true });
+  run(150);
+  assert.deepEqual(svg.children.map((c) => c.tag), ['g', 'path', 'path', 'path', 'g'], 'nothing yet while the star drops in');
+  assert.ok(front.children.some((p) => p.style.fill === '#FFFFFF'), 'the star, in white');
+  run(1500);
+  assert.deepEqual(svg.children.map((c) => c.tag), ['g', 'path', 'g', 'path', 'path', 'g'], 'one skin group, right after the body path');
+  const skin = svg.children[2], [defs, , rainbow, sheen] = skin.children, bands = defs.children[0], id = bands.getAttribute('id');
+  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path']);
+  assert.equal(skin.getAttribute('opacity'), '1');
+  assert.equal(rainbow.getAttribute('fill'), `url(#${id})`);
+  assert.deepEqual([rainbow.getAttribute('stroke'), rainbow.getAttribute('paint-order')], [RIM, 'stroke'], 'the rim, under the fill');
+  assert.deepEqual([left.style.fill, right.style.fill], [ULTRA_INK, ULTRA_INK]);
+  // Every frame the skin follows the body and the bands slide; a halo shows behind it, and twinkles in its rainbow
+  // in front.
+  let slid = 0, twinkled = 0, was = bands.getAttribute('gradientTransform');
+  const halo = `url(#${id.replace(/rainbow$/, 'halo')})`;
+  run(1700, () => {
+    assert.equal(rainbow.getAttribute('d'), body.getAttribute('d'));
+    assert.equal(sheen.getAttribute('d'), body.getAttribute('d'));
+    if (bands.getAttribute('gradientTransform') !== was) slid++;
+    was = bands.getAttribute('gradientTransform');
+    assert.ok(back.children.some((p) => p.style.fill === halo), 'the halo');
+    if (front.children.some((p) => p.style.fill === `url(#${id})`)) twinkled++;
+  });
+  assert.ok(slid > 100, `the bands slide: ${slid} frames`);
+  assert.ok(twinkled > 10, `twinkles: ${twinkled} frames`);
+  // Off: it fades, the group stays and is emptied, and the eyes are their own colour again.
+  m.update({ ultra: false });
+  run(300);
+  const k = Number(skin.getAttribute('opacity'));
+  assert.ok(k > 0 && k < 1, `fading: ${k}`);
+  run(700);
+  assert.equal(svg.children[2], skin, 'the group stays where it was');
+  assert.equal(skin.children.length, 0, 'emptied');
+  assert.equal(skin.getAttribute('opacity'), null);
+  const c = colours('#FD690F');
+  assert.deepEqual([left.style.fill, right.style.fill], [c.eyeFill, c.eyeFill]);
+  assert.ok(![...back.children, ...front.children].some((p) => /url/.test(p.style.fill)), 'no halo, no twinkle');
+  m.destroy();
+  assert.deepEqual(host.children, []);
+});
+
+test('ultracode: update({ ultra }) acts at once, and the same value again is no change', () => {
+  const host = new El('div');
+  const m = mount(host, { shape: 'blob', size: 72 });
+  const calls = [], was = m.live.doing;
+  m.live.doing = () => { calls.push('doing'); return was(); };
+  m.update({ ultra: true });
+  assert.deepEqual(calls, ['doing']);
+  m.update({ ultra: true });
+  assert.deepEqual(calls, ['doing'], 'the same again is no change');
+  see(host, true);
+  for (let t = 1000; t < 2000; t += 16) pump(t);
+  assert.equal(m.live.rig.state.ultra?.amount, 1, 'powered');
+  m.update({ ultra: false });
+  assert.deepEqual(calls, ['doing', 'doing']);
+  for (let t = 2000; t < 2700; t += 16) pump(t);
+  assert.equal(m.live.rig.state.ultra, undefined, 'and off');
+  m.destroy();
+});
+
+test('ultracode: under reduced motion the still is powered and nothing ticks; turning it off or on redraws it', () => {
+  prefer(true);
+  try {
+    const host = new El('div');
+    const m = mount(host, { shape: 'blob', size: 96, ultra: true });
+    see(host, true);
+    assert.deepEqual(ticking(), { count: 0, running: false });
+    const svg = host.children[0], skin = svg.children[2], [back, , , left, , front] = svg.children;
+    assert.deepEqual(svg.children.map((c) => c.tag), ['g', 'path', 'g', 'path', 'path', 'g']);
+    assert.equal(skin.getAttribute('opacity'), '1');
+    assert.equal(skin.children[0].children[0].getAttribute('gradientTransform'), 'translate(-13.2 6)', 'the bands where the study froze them');
+    assert.equal(left.style.fill, ULTRA_INK);
+    assert.deepEqual(back.children.map((p) => /-halo\)$/.test(p.style.fill)), [true], 'a halo');
+    assert.deepEqual(front.children.map((p) => p.style.fill), [skin.children[1].getAttribute('fill'), '#FFFFFF'], 'one twinkle, and its white core');
+    m.update({ ultra: false });
+    assert.equal(skin.children.length, 0);
+    assert.equal(left.style.fill, '#FFFFFF');
+    assert.equal(front.children.length, 0);
+    m.update({ ultra: true });
+    assert.equal(skin.children.length, 4);
+    assert.equal(left.style.fill, ULTRA_INK);
+    assert.deepEqual(ticking(), { count: 0, running: false });
+    m.destroy();
+  } finally { prefer(false); }
+});
+
+test('ultracode: fluffy where no coat can be drawn gets the flat skin, rim and all, frame by frame', () => {
+  const flat = new El('div'), fluffy = new El('div');
+  const a = mount(flat, { shape: 'heart', size: 72, ultra: true });
+  const b = mount(fluffy, { shape: 'heart', size: 72, ultra: true, material: 'fluffy' });
+  see(flat, true); see(fluffy, true);
+  for (let t = 1000; t < 2500; t += 16) {
+    pump(t);
+    assert.deepEqual(sameIds(tree(fluffy)), sameIds(tree(flat)), `at ${t} ms`);
+  }
+  const rainbow = fluffy.children[0].children[2].children[2];
+  assert.equal(rainbow.getAttribute('stroke'), RIM, 'the rim');
+  assert.ok(!rainbow.style.mixBlendMode, 'not blended');
+  a.destroy(); b.destroy();
+});
+
+test('ultracode\'s effects: twinkles in the rainbow (the accent without one), cores and the star in white, a halo only with a paint for it', async () => {
+  const { roleColour } = await import('./paint.ts');
+  const paint = { fill: '#FD690F', eyeFill: '#FFFFFF', accent: '#7C5CFF' };
+  assert.equal(roleColour('rainbow', paint), '#7C5CFF');
+  assert.equal(roleColour('rainbow', { fill: '#FD690F', eyeFill: '#FFFFFF' }), '#FD690F');
+  assert.equal(roleColour('rainbow', { ...paint, rainbow: 'url(#r)' }), 'url(#r)');
+  assert.equal(roleColour('light', paint), '#FFFFFF');
+  assert.equal(roleColour('halo', paint), 'none');
+  assert.equal(roleColour('halo', { ...paint, halo: 'url(#h)' }), 'url(#h)');
+  assert.equal(roleColour('shadow', paint), '#000');
 });

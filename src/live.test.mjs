@@ -326,3 +326,44 @@ test('a fluffy avatar is drawn with its coat and a flat one without, the rest th
   assert.equal(a.drawn.at(-1).coat, undefined, 'flat again at once');
   a.detach();
 });
+
+test('a resting avatar that is powered stays awake and ticks; turned off, it comes to rest again', () => {
+  const props = { shape: 'heart', size: 72, rests: true };
+  const a = mounted(props);
+  see(a.el, true);
+  assert.ok(a.live.rig.resting);
+  assert.deepEqual(ticking(), { count: 0, running: false });
+  a.live.want({ ...props, ultra: true }); a.live.doing();
+  assert.deepEqual(ticking(), { count: 1, running: true }, 'awake');
+  let now = 1000;
+  for (let i = 0; i < 300; i++) {
+    pump(now += 16);
+    assert.equal(ticking().count, 1, `still awake at ${now} ms`);
+  }
+  assert.equal(a.drawn.at(-1).ultra?.amount, 1, 'powered');
+  assert.ok(a.drawn.at(-1).effects.some((e) => e.role === 'halo'));
+  a.live.want(props); a.live.doing();
+  for (let i = 0; i < 3000 && ticking().count; i++) pump(now += 33);
+  assert.ok(a.live.rig.resting, 'at rest again');
+  assert.equal(a.drawn.at(-1).ultra, undefined);
+  assert.deepEqual(ticking(), { count: 0, running: false });
+  a.detach();
+});
+
+test('under reduced motion a powered avatar\'s still is powered: the bands where the study froze them, one twinkle lit, no star, no float', async () => {
+  const { CALM_ULTRA } = await import('./live.ts');
+  prefer(true);
+  try {
+    const a = mounted({ shape: 'blob', size: 96, ultra: true, mark: true });
+    see(a.el, true);
+    const fx = [{ kind: 'mark', u: 0, t: 0, dir: 1, amount: 1 }, { kind: 'ultra', u: 0, t: CALM_ULTRA.t, dir: 1, amount: 1 }];
+    const want = drawAvatar(bodyOf('blob'), 'gray', { ...FRONT, ultra: { amount: 1, phase: CALM_ULTRA.phase }, fx }, 96);
+    assert.deepEqual(a.drawn.at(-1), want);
+    assert.deepEqual(want.ultra, { amount: 1, phase: 0.3 });
+    // The halo, and one twinkle: its rainbow and its white core (and the mark's dot and its ring).
+    assert.deepEqual(want.effects.map((e) => e.role).sort(), ['accent', 'accent', 'halo', 'light', 'rainbow']);
+    assert.ok(!want.effects.some((e) => e.role === 'shadow'), 'no float, so no shadow');
+    assert.deepEqual(ticking(), { count: 0, running: false });
+    a.detach();
+  } finally { prefer(false); }
+});

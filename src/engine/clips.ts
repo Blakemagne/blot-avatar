@@ -13,7 +13,7 @@ import { PERSONALITY, TAU } from './feel';
 import type { Fx } from './fx';
 import { deg } from './math';
 import {
-  beats, body, byHand, cue, exclamation, eyes, flight, head, hold, hump, move, orbits, peak, poke, pulse, snapBack, sparks,
+  beats, body, byHand, cue, exclamation, eyes, fallingStar, flight, head, hold, hump, move, orbits, peak, poke, pulse, snapBack, sparks,
   sparksAllRound, speedLines, surge, toward, away, wave, wobble,
 } from './moves';
 
@@ -71,9 +71,9 @@ export interface Playing { readonly clip: Clip; at: number; u: number; readonly 
 /**
  * Where a clip plays in the rig's step. 'poke' and 'cue' are for anyone; the others are the rig's own: 'pop'
  * is emphasis(), 'blink' the blink, 'wait' the waiting nod, 'change' the eyes going to dots in a change of
- * shape, and 'mood' the jolt of a face coming on.
+ * shape, 'mood' the jolt of a face coming on, and 'power' the pickup as ultracode comes on (Rig.setUltra).
  */
-export type Lane = 'poke' | 'cue' | 'pop' | 'blink' | 'wait' | 'change' | 'mood';
+export type Lane = 'poke' | 'cue' | 'pop' | 'blink' | 'wait' | 'change' | 'mood' | 'power';
 
 export interface Clip {
   readonly lane: Lane;
@@ -138,6 +138,10 @@ export const DELIGHT_MS = 1000, JOLT_MS = 560, WINK_MS = 900, WIDE_MS = 1400, AL
   COMET_MS = 2300, RINGS_MS = 3600, ROCK_MS = 2000;
 /** A rock turns about a point this far below the body's middle (body units). */
 export const ROCK_BELOW = 0.75;
+/** Ultracode's pickup: the star dropping in and the squash as it lands, start to end, in ms. */
+export const PICKUP_MS = 700;
+/** The pickup's star shows until this far through it, in per cent: a pickup past it has no star left to drop. */
+export const PICKUP_STAR = 69;
 
 /**
  * The half-spin, 0 to 1 over the poke: a wind-up the other way (about 6 degrees), the turn itself at an
@@ -189,6 +193,7 @@ export const CLIPS: {
   readonly wink: Clip; readonly wide: Clip; readonly alert: Clip; readonly recoil: Clip; readonly lean: Clip; readonly tug: Clip;
   readonly settle: Clip; readonly flare: Clip; readonly float: Clip; readonly look: Clip; readonly exclaim: Clip; readonly burst: Clip;
   readonly comet: Clip; readonly rings: Clip; readonly rock: Clip;
+  readonly pickup: Clip;
 } = {
   // Half a turn. Past edge-on the far side of the body is the same body, so the turn carries on as the front
   // coming round from the other side: the yaw steps back by half a turn and ends where it began. The eyes shrink
@@ -396,6 +401,12 @@ export const CLIPS: {
   // A rock from side to side about a point below it, like a toy that will not fall over, dying away.
   rock: cue(ROCK_MS, { amountUpTo: 1 }, [
     body.rock(toward, 9, { below: ROCK_BELOW }).along(wobble(1.5, { dies: 1.6 }).fadeOut(85)),
+  ]),
+  // The rig's own: ultracode's pickup. A star drops in from up and to the right, and the body squashes from its
+  // feet as it lands, in by 150 ms and back by 300. (Last, so every clip before it keeps its place.)
+  pickup: move('power', PICKUP_MS, {}, [
+    body.squash(10).along(beats('1 by 21%, 0 by 43%')),
+    fallingStar().during(0, PICKUP_STAR),
   ]),
 };
 

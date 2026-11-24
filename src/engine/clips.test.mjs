@@ -65,7 +65,7 @@ test('a clip plays until u reaches 1, and the frame that reaches it is not appli
 
 test('the clips are listed in an order that is pinned: the pokes play in it and the golden frames depend on it', () => {
   assert.deepEqual(Object.keys(CLIPS), ['spin', 'nod', 'hop', 'pop', 'blink', 'waitNod', 'dots', 'shake', 'bounce', 'tilt', 'delight', 'kick',
-    'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'float', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock']);
+    'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'float', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock', 'pickup']);
   assert.deepEqual(POKES, ['spin', 'nod', 'hop']);
   assert.deepEqual(CUES, ['shake', 'bounce', 'tilt', 'delight', 'wink', 'wide', 'alert', 'recoil', 'lean', 'tug', 'settle', 'flare', 'float', 'look', 'exclaim', 'burst', 'comet', 'rings', 'rock']);
   assert.deepEqual(Object.values(CLIPS).slice(0, 12).map((c) => c.lane), ['poke', 'poke', 'poke', 'pop', 'blink', 'wait', 'change', 'cue', 'cue', 'cue', 'cue', 'mood']);

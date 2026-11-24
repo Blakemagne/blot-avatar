@@ -57,6 +57,12 @@ export interface LiveProps {
   clips?: Readonly<Record<string, Clip>>;
   /** A mark on its outline that it glances at: something is waiting for whoever is watching (Rig.setMark). */
   mark?: boolean;
+  /**
+   * Ultracode, a star's power, on until it is turned off (Rig.setUltra): a star drops in, and the body turns to
+   * rainbow glass (fur goes rainbow), floats, glows and twinkles. It never rests while powered. Under reduced
+   * motion its still is powered, with no star and no float.
+   */
+  ultra?: boolean;
   /** What it is like to move (the engine's Personality, each 0..1); left out, the engine's own feel. */
   personality?: Partial<Personality>;
   /**
@@ -86,7 +92,7 @@ export interface Live {
   shape(): void;
   /** The face changed. */
   face(name: string | undefined): void;
-  /** The activity, the form, `rests`, the shape or the size changed. */
+  /** The activity, the form, `rests`, the shape, the size, the mark, the power or the personality changed. */
   doing(): void;
   /** A poke: a spin, a nod, a hop, in turn. Nothing under reduced motion. */
   poke(kind?: string): void;
@@ -164,15 +170,25 @@ const COAT = { coat: true } as const;
 const FRONT: RigState = { pose: { yaw: 0, pitch: 0, roll: 0 }, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 
 /**
+ * A powered still: the rainbow's bands where the motion study froze them, and the moment of its twinkles when one
+ * of them, up and to the left, is lit by itself.
+ */
+export const CALM_ULTRA = { phase: 0.3, t: 1253 } as const;
+
+/**
  * The still picture for reduced motion: the still's pose (or the front), wearing what it is doing (a thinking
- * face, shut eyes asleep) or the face it was given, with its mark if it has one. Nothing moves, but it still says
- * what is going on.
+ * face, shut eyes asleep) or the face it was given, with its mark if it has one, and powered if it is. Nothing
+ * moves, but it still says what is going on.
  */
 function calmOf(base: RigState, q: LiveProps): RigState {
   const act = q.activity && q.activity !== 'idle' && Object.hasOwn(ACTIVITY_FACES, q.activity) ? q.activity as keyof typeof ACTIVITY_FACES : null;
   const face = act ? ACTIVITY_FACES[act] : q.face ? faceFor(q.face) : base.face;
   const s: RigState = { ...base, face, lid: act === 'sleeping' ? 0.1 : base.lid };
   if (q.mark) s.fx = [{ kind: 'mark', u: 0, t: 0, dir: 1, amount: 1 }];
+  if (q.ultra) {
+    s.ultra = { amount: 1, phase: CALM_ULTRA.phase };
+    s.fx = [...(s.fx ?? []), { kind: 'ultra', u: 0, t: CALM_ULTRA.t, dir: 1, amount: 1 }];
+  }
   return s;
 }
 
@@ -199,11 +215,15 @@ export function createLive(p: LiveProps): Live {
   let faced = false;
   /** The body and size the rig was last given. */
   let shown = { body: want.body, size: want.size };
-  /** What it is doing, and where it rests when it is doing nothing. */
+  /**
+   * What it is doing, and where it rests when it is doing nothing. (Not while it has a mark or is powered: then it
+   * stays awake.)
+   */
   const doing = (r: Rig) => {
     r.setActivity(props.activity ?? 'idle', props.form ?? null);
-    r.rest(props.rests && !props.mark ? stillState(props.shape, props.size).pose : null);
+    r.rest(props.rests && !props.mark && !props.ultra ? stillState(props.shape, props.size).pose : null);
     r.setMark(!!props.mark);
+    r.setUltra(!!props.ultra);
     r.setPersonality({ ...PERSONALITY, ...props.personality });
   };
 

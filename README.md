@@ -20,12 +20,13 @@ src/react.ts      useLiveAvatar: the same, as a React hook
 src/mount.ts      mount: the same, on any page
 src/still.ts      the still pictures and the svg box
 src/paint.ts      painting the effects into an svg (mount and the React hook)
+src/ultra.ts      ultracode's finish: the rainbow skin over the body, its paints, the eyes' ink (mount and the hook)
 src/coat/         the fluffy coat: its WebGL2 renderer and shaders, the eyes' mask, the canvas an avatar shows it on
 src/engine/outline/  avatars from definitions: the path parser, the rules, and the body made from an outline
 src/gallery.ts    23 ready-made avatars as definitions
 golden/           frozen hashes of every frame the rig draws
 site/             the demo page (built into _site/ for GitHub Pages); site/prompt.md is the design prompt for models
-scripts/          the demo page's build, and the coat's contact sheets (coat-sheet.mjs)
+scripts/          the demo page's build, and contact sheets: the coat's (coat-sheet.mjs) and ultracode's (ultra-sheet.mjs)
 ```
 
 ## Prove a change
@@ -38,6 +39,7 @@ scripts/          the demo page's build, and the coat's contact sheets (coat-she
 | `npm run site:dev` | the demo page on http://localhost:5300, rebuilt as you edit: judge a move or a shape by eye |
 | `npm run site` | the demo page built into `_site/`, a static folder GitHub Pages serves as it is |
 | `node scripts/coat-sheet.mjs [dir]` | the fluffy coat beside the flat body in headless Edge: contact sheets of bodies, sizes, colours and states, mount()'s DOM with a coat, a lost WebGL context, and the coat's timings (needs playwright-core: install it, or set `PLAYWRIGHT_CORE`) |
+| `node scripts/ultra-sheet.mjs [dir] [what]` | ultracode on mount()'s own avatars in headless Edge, on a clock of the page's own, so every sheet is the same on every run: the pickup a frame every 80 ms, powered and idle, power down, bodies, sizes and reduced motion, flat and fluffy, orange and black, on a light and a dark page; the DOM a powered avatar has; and the frame loop's time with 1 and 6 avatars, powered and not (`what`: a comma list of sheets, `facts`, `frames`; needs playwright-core, as above) |
 
 Node 22 or later.
 
@@ -225,12 +227,13 @@ The posture is thrown a little past where it is going and settles; the eyes ease
 - An activity change blinks, so the switch happens behind the blink.
 - `setActivity('thinking', 'dots')`: the body becomes the middle of three dots, with a pulse running along them.
 - `setMark(true)`: a dot on the outline, up and to the right, with a sonar ring, which the eyes glance at now and then. It means something is waiting for whoever is watching. A resting avatar with a mark keeps ticking.
+- `setUltra(true)`: ultracode, a star's power, on until `setUltra(false)`. A star drops in, the body squashes as it lands, then it turns to rainbow glass, floats, glows and twinkles (see "Ultracode" under "Use it on a page"). A powered avatar never rests.
 - `visit(body, stay)`: go to another shape for a moment and come back. A `setBody` meanwhile ends the visit.
 - Left alone, the eyes wander a little and the head goes with them, on the breath's clock, so an idle avatar is redrawn no more often. Watching the pointer, the wander stops (what it had wandered to is handed to the springs, so nothing jumps) and the body leans toward the pointer, more while it moves.
 
 ## Effects
 
-An effect is data: `{ kind, u, t, dir, amount }` (`fx.ts`). The rig and the clips push the ones that show into `Channels.fx`; `drawAvatar` places them against the body's outline for that frame and returns them as `effects: { layer, role, opacity, d }[]`. Paint each part in its role's colour: `body`, `eye`, `accent` (the renderer's accent colour, the body's colour if it has none) or `shadow`. `back` parts go before the body path, `front` parts after the eyes. `paintEffects(back, front, drawing, paint)` does it for an svg; `glowFilter` gives the CSS filter for `drawing.glow`.
+An effect is data: `{ kind, u, t, dir, amount }` (`fx.ts`). The rig and the clips push the ones that show into `Channels.fx`; `drawAvatar` places them against the body's outline for that frame and returns them as `effects: { layer, role, opacity, d }[]`. Paint each part in its role's colour: `body`, `eye`, `accent` (the renderer's accent colour, the body's colour if it has none) or `shadow`; ultracode's parts are `rainbow` (its rainbow; the accent without one), `light` (white) and `halo` (its halo; not drawn without one). `roleColour(role, paint)` gives each. `back` parts go before the body path, `front` parts after the eyes. `paintEffects(back, front, drawing, paint)` does it for an svg; `glowFilter` gives the CSS filter for `drawing.glow`.
 
 | kind | what | played by |
 |---|---|---|
@@ -242,6 +245,8 @@ An effect is data: `{ kind, u, t, dir, amount }` (`fx.ts`). The rig and the clip
 | `rings` | tilted rings, the far half behind the body, each with a light going round | `rings` |
 | `streaks` | speed lines off the trailing edge | `comet` |
 | `zzz` | Zs rising | sleeping |
+| `ultra` | a halo behind the body, and five twinkles round it, each with a white core, flashing in turn | `setUltra` |
+| `star` | a star dropping in from up and to the right onto the head | the pickup, as the power comes on |
 
 A body off the ground also gets a `shadow` part under it. Effects never touch the body or eye paths.
 
@@ -314,17 +319,18 @@ The format is open-bot-avatar's, so a definition made for it works here too, and
 
 From `@blot/avatar`:
 
-- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right], effects?, glow? }`: three path strings in the box `VIEW_BOX`, and the effects as more. `effectShapes`, `paintEffects`, `glowFilter`, `FX_KINDS`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`. `drawAvatar(..., { coat: true })` adds `coat`, what a fluffy coat is drawn from; its parts are `coatMesh`, `coatDetail` and `dyeRamp`; `coatable()` says whether this page can draw one (it sets up WebGL2 the first time).
-- **The rig.** `new Rig({ seed, body, pose, rest, clips, personality })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `visit(body, stay)`, `setActivity(activity, form)`, `setMark`, `setPersonality`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `MANNERS`, `mannerFor`, `PERSONALITY`, `ACTIVITY_FACES`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
-- **Clips.** `CLIPS`, `POKES`, `CUES`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
+- **Drawing.** `drawAvatar(body, colour, state, size)` gives `{ body, eyes: [left, right], effects?, glow?, ultra? }`: three path strings in the box `VIEW_BOX`, the effects as more, and while powered how much power there is and where the rainbow's bands are. `effectShapes`, `paintEffects`, `glowFilter`, `FX_KINDS`. `BODIES`, `bodyFor(shape)`, `bodyOf(shape)` (the blob for an unknown id), `FACES`, `FACE_NAMES`, `colours(c)`, `portraitFor(shape)`, `stillState(shape, size)` and `svgBox(size)`. `drawAvatar(..., { coat: true })` adds `coat`, what a fluffy coat is drawn from; its parts are `coatMesh`, `coatDetail` and `dyeRamp`; `coatable()` says whether this page can draw one (it sets up WebGL2 the first time).
+- **The rig.** `new Rig({ seed, body, pose, rest, clips, personality })` moves a state. Call `step(dtMs)` each frame; it returns true when the picture changed. `look(x, y)`, `stop()`, `poke(kind?)`, `play(name, { dir, amount })`, `blink()`, `emphasis(amount)`, `setFace`, `setBody` (it morphs), `visit(body, stay)`, `setActivity(activity, form)`, `setMark`, `setUltra` (with `ULTRA_WAIT`, `ULTRA_IN`, `ULTRA_OUT`, `ULTRA_CYCLE`), `setPersonality`, `setLevel`, `setProgress`, `rest(pose)`, `mirror`, `pause`. `MANNERS`, `mannerFor`, `PERSONALITY`, `ACTIVITY_FACES`. `state` is what `drawAvatar` draws; `still` and `resting` say whether it needs a frame.
+- **Clips.** `CLIPS`, `POKES`, `CUES`, `PICKUP_MS`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
-- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `personality`, `accent` (the effects' colour) and `material` (`'flat'` or `'fluffy'`, the `Material` type).
+- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `mark`, `ultra`, `personality`, `accent` (the effects' colour) and `material` (`'flat'` or `'fluffy'`, the `Material` type).
+- **Ultracode.** `skinMarkup(drawing, id, size, fur?)`, the skin as SVG markup with no DOM; `paintSkin(group, drawing, size, fur, id)`, the same written into an svg group frame by frame, `fur` being `furShown(showing, drawing)`, how much of a coat of fur shows (0 for none); `skinPaint(id)`, the effects' `rainbow` and `halo` paints; `ultraId()`; `eyeInk(eyeFill, k)`; `ULTRA_PALETTE`, `ULTRA_INK`, `ULTRA_LAVENDER`.
 - **Definitions.** A `Shape` is a body's id or an `AvatarDefinition`. `validateAvatar`, `outlineBody`, `GALLERY`, `galleryAvatar`, `galleryColour`, `parsePath`, `flattenPath`, `serializePath`, `PathError`, `EYE_W`, `EYE_H`, `BOX_SCALE`. A body's `eyes.cx` moves the pair off the middle of the face.
 
 From `@blot/avatar/moves`: everything for writing a move in plain words (see "Add an animation"): `cue`, `poke`, `head`, `body`, `eyes`, `antennas`, `toward`, `away`, the shapes (`beats`, `hold`, `peak`, `flight`, `hump`, `wave`, `wobble`, `surge`, `snapBack`), the effects (`sparks`, `sparksAllRound`, `exclamation`, `pulse`, `orbits`, `speedLines`), `byHand`, and the types `Shape`, `Line`, `Side`, `MoveOptions`.
 
-From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, coat, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box. For `material: 'fluffy'`, draw two svgs of the same box with `<canvas ref={coat} aria-hidden style={{ position: 'absolute', display: 'none' }} />` between them (hidden from the first paint, so it never takes room; the coat shows it when it paints): the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. Render the canvas whenever the material is fluffy. Without it, or without WebGL2, the body is flat.
+From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, fx, coat, skin, first, reduced, live }`. Put `host` on a span and the three `paths` on the svg's paths. For a body with antennas or decals, put `layers[0]` on an empty `<g>` before the body path and `layers[1]` on one after it. For the effects, put `fx[0]` on an empty `<g>` before everything and `fx[1]` on one after the eyes, and pass `fxPaint: { fill, eyeFill, accent }`. Give the svg `overflow: visible` (as `mount` does): a "!" and sleep's Zs reach above the drawing box. For `material: 'fluffy'`, draw two svgs of the same box with `<canvas ref={coat} aria-hidden style={{ position: 'absolute', display: 'none' }} />` between them (hidden from the first paint, so it never takes room; the coat shows it when it paints): the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. Render the canvas whenever the material is fluffy. Without it, or without WebGL2, the body is flat. For `ultra`, put `skin` on an empty `<g>` right after the body path (before `layers[1]` and the eyes) and pass `fxPaint`: the hook paints the rainbow there, the halo and the twinkles in `fx`, and an inline fill on the eye paths while powered. Over a coat, put no filter, no opacity under 1 and no transform on the second svg: the rainbow blends with the fur through it.
 
 ### The frame loop's rules
 
@@ -332,6 +338,7 @@ From `@blot/avatar/react`: `useLiveAvatar(props)` gives `{ host, paths, layers, 
 - An avatar is drawn only while it is on screen and the tab is showing.
 - Under reduced motion nothing ticks. An avatar shows its still picture, wearing what it is doing (a thinking face, shut eyes asleep) or the face it was given, with its mark if it has one; `poke`, `play` and `visit` do nothing.
 - An avatar at rest unsubscribes and costs nothing until something wakes it.
+- A powered avatar (ultracode) never rests: it is drawn on every frame while it is on screen and the tab shows, as a moving one is, because its bands, its float and its twinkles never stop. Under reduced motion it is a powered still, and ticks no more than any other.
 - One under 48 px (`SMALL`) is drawn at most 30 times a second.
 - Only one of 64 px (`LARGE`) and up takes a full look. A small one turns at most `SMALL_LOOK` of the way. `mount()` leaves whether it can be poked to you (`pokeable`); blot makes only avatars of 64 px and up pokeable.
 - A fluffy coat adds no frames. It is painted in the frame its avatar is drawn in, and only when the pose, the eyes, the colour or the size changed: a breath, a squash or a hop moves the picture it has. A coat drawn outside a frame (a still picture, reduced motion, the first coat of a body, whose mesh took from about 25 to 150 ms to make in Edge on a desktop PC, and holds up the frames for that long) waits in one queue, `soon`, which runs one a task, under reduced motion too.
@@ -405,6 +412,32 @@ What it costs, measured in headless Edge on one desktop PC (an NVIDIA GTX 1060),
 - **At rest**, nothing is painted and nothing ticks.
 
 The GPU's time and the browser's compositing are not in those numbers. The demo page keeps its thumbnails flat: a coat for each of its 38 avatars would make 38 meshes, about 3 s of work in all (measured in Node on the same PC).
+
+### Ultracode
+
+`ultra: true` (on `mount` or `useLiveAvatar`; `Rig.setUltra` underneath) is a star's power, on until it is turned off; `update({ ultra })` switches it. A star drops in from up and to the right and the body squashes as it lands; then the body turns to rainbow glass, floats, glows and twinkles. Its shape, its face and its idle life stay its own. Turned off, it fades back to its own colour and comes down: a quiet fade, no flourish. (The look is the motion study's, MIT, Nick Vasilescu and Blakemagne.)
+
+```ts
+const bot = mount(el, { shape: 'heart', size: 96, ultra: true });
+bot.update({ ultra: false });
+```
+
+- **Timing.** The star falls for about 480 ms. The power waits 220 ms (`ULTRA_WAIT`) while the star drops, and comes in over 450 ms (`ULTRA_IN`); turned off, it goes over 550 ms (`ULTRA_OUT`); turned on again before it has gone, it comes back from where it is, with no second star. Turned off and on again during the pickup, the pickup plays on while its star still falls, and a new one starts once it has fallen; turned off before a frame of it was drawn (off screen, under reduced motion), nothing of it is left to play. The rainbow's bands go once round in about 4.2 s (`ULTRA_CYCLE`). There is no timer.
+- **Flat.** A skin goes over the body path (`src/ultra.ts`): the rainbow (the study's Prism palette, `ULTRA_PALETTE`), a glassy sheen (a white glare up and to the left, a faint dark band inside the edge), and a thin, nearly white rim stroked under the rainbow's fill, so that only the outline of the whole shape shows, with no seams where the body's pieces overlap. The skin cross-fades from the body's own colour, so every colour, black too, powers up the same. The eyes go to a dark ink (`ULTRA_INK`), which shows on every band, and back.
+- **Fluffy.** The fur goes rainbow and keeps its pile. The coat is dyed toward lavender (`ULTRA_LAVENDER`) as the power comes on, light enough for a dark Bot's fur to take colour, and the rainbow is laid over it with `mix-blend-mode: color`, with no rim and the sheen at 0.6. The rainbow reaches half the pile's reach past the outline (`PILE_TINT` in `src/ultra.ts`), so the pile there is rainbow too; the tips of the few longest hairs, past that, stay lavender. (A wider reach also tints the page between the hairs, which showed as a bright band on a light page.) The coat is painted again only while the power comes or goes, never for the bands or the float. Nothing between the skin and the coat's canvas may isolate the blend: `mount` takes the glow's filter off while a coat shows, and in React the second svg takes no filter, no opacity under 1 and no transform. While a coat fades (a change of shape, a loading figure), the blended rainbow and the flat skin (glass, rim and all) cross-fade as the fur and the flat body do (`furShown`); wherever no coat can be painted, the skin is the flat one.
+- **The halo and the twinkles** are the drawing's effects (`ultra` in the table above), painted with the skin's own gradients (`skinPaint`): five twinkles at fixed places round the outline, each in the rainbow's colour where it sits, with a white core. The star and the cores are white, so on a light page they barely show.
+- **Reduced motion.** The still is powered: the bands where the study froze them, the sheen, the rim, the halo, and one twinkle lit, up and to the left (at 128 px and up two more show, faintly, at about a sixth). No star, no float, nothing ticks.
+- **Small sizes.** No rule of its own. Under 48 px it is drawn at most 30 times a second like any other, the rim keeps a line about 1 px wide, and a twinkle whose rays would be under 1.5 px is not drawn: at 22 px it reads as a rainbow marble with a halo.
+- **Stills.** `drawAvatar` on a powered state gives `Drawing.ultra`. `skinMarkup(drawing, id, size)` is the skin as SVG markup with no DOM, to put right after the body path; fill the eyes with `eyeInk(eyeFill, drawing.ultra.amount)` and paint the effects with `skinPaint(id)`. `mount` and the hook write the same skin through `paintSkin`, so a still and a live avatar cannot drift apart. Ids must be unique on the page (`ultraId()`).
+
+What it costs, measured in headless Edge on one desktop PC (an NVIDIA GTX 1060): main-thread time a frame in the shared loop, at 96 px, idle (not following the pointer), the mean of about 240 frames, lowest and highest of five runs (it swings with load; the frames kept to 57 to 60 a second):
+
+| | one, not powered | one, powered | six, not powered | six, powered |
+|---|---|---|---|---|
+| flat | 0.3 to 0.5 ms | 0.7 to 1.4 ms | 0.8 to 1.6 ms | 2.2 to 3.9 ms |
+| fluffy | 0.5 to 0.7 ms | 0.9 to 1.7 ms | 1.8 to 2.4 ms | 4.2 to 6.9 ms |
+
+A powered avatar is drawn on every frame (an idle one is drawn on about two frames in three), and each drawing has more in it: the halo, the twinkles and the skin's two paths. The coats were painted as often powered as not, about 20 times a second each (for the idle life's glances): with the power all the way on, the bands and the float paint no fur. The GPU's time and the browser's compositing (the blend over the fur among them) are not in these numbers. Each powered avatar adds its own; a page that powers many at once pays for each.
 
 ## What stays rig machinery, and why
 
