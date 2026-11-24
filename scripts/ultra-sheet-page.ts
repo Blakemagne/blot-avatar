@@ -252,9 +252,10 @@ w.facts = async () => {
   const facts = hosts.map((host, i) => {
     const svgs = [...host.querySelectorAll(':scope > svg')], top = svgs.at(-1)!;
     const skin = [...top.children].find((g) => g.tagName === 'g' && g.querySelector('linearGradient')) ?? null;
-    // (The skin's paths: the rainbow blended into fur, the flat rainbow, the sheen. The rainbow shown is the one drawn.)
+    // (The skin's paths: the rainbow blended into fur, the flat rainbow, the glass's sheen, the fur's. The rainbow
+    // and the sheen shown are the ones drawn.)
     const paths = skin ? [...skin.children].slice(1) as SVGPathElement[] : [];
-    const rainbow = paths.slice(0, 2).find((p) => p.getAttribute('d')), sheen = paths[2];
+    const rainbow = paths.slice(0, 2).find((p) => p.getAttribute('d')), sheen = paths.slice(2, 4).find((p) => p.getAttribute('d'));
     const halo = [...host.querySelectorAll('path')].find((p) => /-halo/.test(p.style.fill)) ?? null;
     const id = /#([^")]+)/.exec(halo?.style.fill ?? '')?.[1];
     const eye = top.querySelectorAll(':scope > path')[1] as SVGPathElement;

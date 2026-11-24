@@ -111,7 +111,7 @@ test('ultra: the skin ref is painted while powered and the eyes go to ink from f
   const props = { shape: 'blob', size: 72, fxPaint, ultra: true }, { r, a } = mounted(props);
   drawAfter(a, 1500);
   const skin = a.skin.current;
-  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path']);
+  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path', 'path']);
   assert.equal(skin.getAttribute('opacity'), '1');
   assert.deepEqual([a.paths[1].current.style.fill, a.paths[2].current.style.fill], [ULTRA_INK, ULTRA_INK]);
   assert.ok(a.fx[0].current.children.some((p) => /-halo\)$/.test(p.style.fill)), 'the halo, in the skin\'s own paint');

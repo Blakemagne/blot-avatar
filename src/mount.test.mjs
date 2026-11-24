@@ -304,7 +304,7 @@ test('ultracode: powering adds one skin group right after the body path, painted
   run(1500);
   assert.deepEqual(svg.children.map((c) => c.tag), ['g', 'path', 'g', 'path', 'path', 'g'], 'one skin group, right after the body path');
   const skin = svg.children[2], [defs, , rainbow, sheen] = skin.children, bands = defs.children[0], id = bands.getAttribute('id');
-  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path']);
+  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path', 'path']);
   assert.equal(skin.getAttribute('opacity'), '1');
   assert.equal(rainbow.getAttribute('fill'), `url(#${id})`);
   assert.deepEqual([rainbow.getAttribute('stroke'), rainbow.getAttribute('paint-order')], [RIM, 'stroke'], 'the rim, under the fill');
@@ -377,7 +377,7 @@ test('ultracode: under reduced motion the still is powered and nothing ticks; tu
     assert.equal(left.style.fill, '#FFFFFF');
     assert.equal(front.children.length, 0);
     m.update({ ultra: true });
-    assert.equal(skin.children.length, 4);
+    assert.equal(skin.children.length, 5);
     assert.equal(left.style.fill, ULTRA_INK);
     assert.deepEqual(ticking(), { count: 0, running: false });
     m.destroy();

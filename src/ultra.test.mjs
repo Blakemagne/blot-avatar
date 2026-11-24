@@ -68,18 +68,20 @@ test('the skin as markup and as DOM are the same skin, flat and over fur, frame 
 
 test('flat, the skin fades as one over the body with the rim under the rainbow; over fur there is no rim, the rainbow blends out over the pile, and each path fades by itself', () => {
   const d = { body: 'M1 1L9 1L9 9Z', eyes: ['', ''], ultra: { amount: 0.4, phase: 0 } };
-  const flat = parse(skinMarkup(d, 'a', 96)), [defs, blend, rainbow, sheen] = flat.kids;
+  const flat = parse(skinMarkup(d, 'a', 96)), [defs, blend, rainbow, sheen, furSheen] = flat.kids;
   assert.equal(flat.attrs.opacity, '0.4');
-  assert.deepEqual(defs.kids.map((k) => [k.tag, k.attrs.id]), [['linearGradient', 'a-rainbow'], ['radialGradient', 'a-sheen'], ['radialGradient', 'a-halo']]);
+  assert.deepEqual(defs.kids.map((k) => [k.tag, k.attrs.id]), [['linearGradient', 'a-rainbow'], ['radialGradient', 'a-sheen'], ['radialGradient', 'a-halo'], ['radialGradient', 'a-fur-sheen']]);
   assert.equal(blend.attrs.d, undefined, 'no fur, no blend');
   // (The rim fades by the power once more, inside a group already faded by it.)
   assert.deepEqual(rainbow.attrs, { fill: 'url(#a-rainbow)', 'stroke-linejoin': 'round', 'paint-order': 'stroke', d: d.body, stroke: RIM, 'stroke-width': String(Math.round(rimWidth(96) * 1000) / 1000), 'stroke-opacity': '0.4' });
   assert.deepEqual(sheen.attrs, { fill: 'url(#a-sheen)', d: d.body });
-  const fur = parse(skinMarkup(d, 'a', 96, 1)), [, b, r, s] = fur.kids;
+  assert.equal(furSheen.attrs.d, undefined, 'no fur, no fur sheen');
+  const fur = parse(skinMarkup(d, 'a', 96, 1)), [, b, r, gs, s] = fur.kids;
   assert.equal(fur.attrs.opacity, undefined, 'a group that is not opaque would keep the blend from the coat');
   assert.deepEqual([b.attrs.d, b.attrs.opacity, b.attrs.style, b.attrs.stroke, Number(b.attrs['stroke-width'])], [d.body, '0.4', 'mix-blend-mode:color;', 'url(#a-rainbow)', Math.round(PILE_TINT * 1000) / 1000]);
   assert.equal(r.attrs.d, undefined, 'all fur: no glass');
-  assert.equal(s.attrs.opacity, '0.24');
+  assert.equal(gs.attrs.d, undefined, "all fur: no glass sheen, whose edge would draw a ring inside the pile");
+  assert.deepEqual([s.attrs.fill, s.attrs.opacity], ['url(#a-fur-sheen)', '0.24']);
   assert.equal(skinMarkup({ ...d, ultra: undefined }, 'a', 96), '');
 });
 
@@ -87,15 +89,16 @@ test('while a coat fades, the blend and the glass cross-fade as the coat and the
   const d = { body: 'M1 1L9 1L9 9Z', eyes: ['', ''], ultra: { amount: 1, phase: 0 } };
   let last = null;
   for (let i = 0; i <= 20; i++) {
-    const f = i / 20, [, b, r, s] = parse(skinMarkup(d, 'a', 96, f)).kids;
+    const f = i / 20, [, b, r, gs, fs] = parse(skinMarkup(d, 'a', 96, f)).kids;
     const blend = b.attrs.d ? Number(b.attrs.opacity) : 0, glass = r.attrs.d ? Number(r.attrs.opacity ?? 1) : 0;
+    const sheen = (gs.attrs.d ? Number(gs.attrs.opacity ?? 1) : 0) + (fs.attrs.d ? Number(fs.attrs.opacity ?? 1) : 0);
     assert.ok(Math.abs(blend + glass - 1) < 0.002, `${f}: ${blend} blended, ${glass} glass`);
     assert.ok(Math.abs(blend - f) < 0.002, `${f}: the blend is the fur's share`);
     if (last) {
       assert.ok(Math.abs(blend - last.blend) <= 0.051 && Math.abs(glass - last.glass) <= 0.051, `${f}: no jump`);
-      assert.ok(Math.abs(Number(s.attrs.opacity ?? 1) - last.sheen) <= 0.03, `${f}: the sheen fades too`);
+      assert.ok(Math.abs(sheen - last.sheen) <= 0.03, `${f}: the sheen fades too`);
     }
-    last = { blend, glass, sheen: Number(s.attrs.opacity ?? 1) };
+    last = { blend, glass, sheen };
   }
 });
 

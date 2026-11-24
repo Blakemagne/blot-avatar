@@ -40,6 +40,12 @@ export const SHEEN_STOPS: readonly (readonly [number, string, number])[] = [
 /** Over a coat of fur the sheen is this much fainter: the fur has its own light. */
 export const SHEEN_ON_FUR = 0.6;
 /**
+ * The sheen over fur: only its glare, gone well inside the edge. The glass's dark band and bright edge end at the
+ * body path, but the pile stands out past it, so over fur they drew a pale ring inside the coat, where the path
+ * ends and the fur goes on.
+ */
+export const FUR_SHEEN_STOPS: readonly (readonly [number, string, number])[] = [[0, '#ffffff', 0.86], [0.35, '#ffffff', 0.13], [0.6, '#ffffff', 0]];
+/**
  * Over fur the blended rainbow is stroked this wide too (drawing units: the pile's reach, PILE_REACH, so half of it
  * out past the outline), so the pile standing out there takes the rainbow as well as the fur inside it. The blend
  * tints the page in the gaps between the hairs too: twice as wide, that showed as a bright band past the tips on a
@@ -64,11 +70,11 @@ const stops = (list: readonly (readonly [number, string, number])[]): Node[] =>
   list.map(([at, colour, alpha]) => ({ tag: 'stop', attrs: { offset: num(at), 'stop-color': colour, 'stop-opacity': num(alpha) } }));
 
 /** The paint servers a skin brings, by its id: the rainbow (its twinkles use it too), the sheen, the halo. */
-const ids = (id: string) => ({ rainbow: `${id}-rainbow`, sheen: `${id}-sheen`, halo: `${id}-halo` });
+const ids = (id: string) => ({ rainbow: `${id}-rainbow`, sheen: `${id}-sheen`, halo: `${id}-halo`, furSheen: `${id}-fur-sheen` });
 
 /**
  * A skin's parts before a frame's own attributes: its paint servers, the rainbow blended into fur, the flat rainbow
- * (and its rim), and the sheen.
+ * (and its rim), the glass's sheen, and the fur's.
  */
 function skinTree(id: string): Node[] {
   const at = ids(id), [x1, y1, x2, y2] = RAINBOW_LINE;
@@ -79,10 +85,12 @@ function skinTree(id: string): Node[] {
       { tag: 'linearGradient', attrs: { id: at.rainbow, gradientUnits: 'userSpaceOnUse', x1: num(x1), y1: num(y1), x2: num(x2), y2: num(y2), spreadMethod: 'repeat' }, kids: bands },
       { tag: 'radialGradient', attrs: { id: at.sheen, cx: num(SHEEN.cx), cy: num(SHEEN.cy), r: num(SHEEN.r), fx: num(SHEEN.fx), fy: num(SHEEN.fy) }, kids: stops(SHEEN_STOPS) },
       { tag: 'radialGradient', attrs: { id: at.halo }, kids: stops(HALO_STOPS) },
+      { tag: 'radialGradient', attrs: { id: at.furSheen, cx: num(SHEEN.cx), cy: num(SHEEN.cy), r: num(SHEEN.r), fx: num(SHEEN.fx), fy: num(SHEEN.fy) }, kids: stops(FUR_SHEEN_STOPS) },
     ] },
     { tag: 'path', attrs: { fill: `url(#${at.rainbow})`, stroke: `url(#${at.rainbow})`, 'stroke-width': num(PILE_TINT), 'stroke-linejoin': 'round' } },
     { tag: 'path', attrs: { fill: `url(#${at.rainbow})`, 'stroke-linejoin': 'round', 'paint-order': 'stroke' } },
     { tag: 'path', attrs: { fill: `url(#${at.sheen})` } },
+    { tag: 'path', attrs: { fill: `url(#${at.furSheen})` } },
   ];
 }
 
@@ -91,15 +99,15 @@ export const rimWidth = (size: number): number => Math.max(RIM_WIDTH, (RIM_PX * 
 
 /**
  * What a frame writes, element by element: the group, the rainbow's gradient, the blended rainbow's path, the flat
- * rainbow's path, the sheen's path. `fur` is how much of a coat of fur shows through the body path (furShown).
+ * rainbow's path, the glass's sheen, the fur's sheen. `fur` is how much of a coat of fur shows through the body path (furShown).
  * Flat (no fur), the group fades as a whole over the body's own colour, and the rim is stroked under the rainbow,
  * faded by the power once more: it comes in with the glass, not as a grey ring round a body that is still mostly its
  * own colour. Over fur, the rainbow tints the fur under it (mix-blend-mode color), stroked out over the pile, and
  * the flat rainbow (glass, with its rim) covers only the share the flat body does, so the two cross-fade as the
- * coat and the flat body do. Then each path fades by itself: a group that is not opaque would keep the blend from
+ * coat and the flat body do, and so do the glass's sheen and the fur's. Then each path fades by itself: a group that is not opaque would keep the blend from
  * reaching the coat. A path with no share is not drawn (no `d`).
  */
-function frameOf(d: Drawing, size: number, fur: number): [Frame, Frame, Frame, Frame, Frame] {
+function frameOf(d: Drawing, size: number, fur: number): [Frame, Frame, Frame, Frame, Frame, Frame] {
   const u = d.ultra!, k = Math.min(1, Math.max(0, u.amount)), [x1, y1, x2, y2] = RAINBOW_LINE;
   const f = Math.min(1, Math.max(0, fur)), on = f > 0, glass = on ? 1 - f : 1;
   return [
@@ -107,7 +115,8 @@ function frameOf(d: Drawing, size: number, fur: number): [Frame, Frame, Frame, F
     { gradientTransform: `translate(${num((x1 - x2) * u.phase)} ${num((y1 - y2) * u.phase)})` },
     { d: on ? d.body : null, opacity: on ? num(k * f) : null, 'mix-blend-mode': on ? 'color' : null },
     { d: glass > 0 ? d.body : null, opacity: on ? num(k * glass) : null, stroke: RIM, 'stroke-width': num(rimWidth(size)), 'stroke-opacity': num(k) },
-    { d: d.body, opacity: on ? num(k * (SHEEN_ON_FUR * f + glass)) : null },
+    { d: glass > 0 ? d.body : null, opacity: on ? num(k * glass) : null },
+    { d: on ? d.body : null, opacity: on ? num(k * SHEEN_ON_FUR * f) : null },
   ];
 }
 
