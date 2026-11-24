@@ -9,6 +9,7 @@ import type { Drawing } from './engine/draw';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { bodyOf } from './still';
 import { onMotion, reducedMotion } from './ticker';
+import { eyeInk, furShown, paintSkin, skinPaint, ultraId } from './ultra';
 
 // The return type is inferred, not written: React 18's types give useRef<T>(null) a RefObject<T> and React 19's a
 // RefObject<T | null>, and each version's `ref` takes only its own. Inferred, the refs fit whichever is installed.
@@ -25,6 +26,11 @@ import { onMotion, reducedMotion } from './ticker';
  * the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. The
  * canvas is placed and shown when a coat is painted; until then, and where none can be, the body is flat.
  * Without the canvas (render it whenever the material is fluffy) it is flat too.
+ * For `ultra`, put `skin` on an empty <g> right after the body path (before `layers[1]`) and pass `fxPaint`: the
+ * frame loop paints the rainbow, its sheen and its rim there, its halo and twinkles in `fx`, and the eyes go
+ * toward dark ink (an inline fill on the eye paths while powered, taken off after). Over a coat the rainbow tints
+ * the fur by blending with it: put no filter, opacity under 1 or transform on the second svg, or the blend stops
+ * there.
  */
 export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint }) {
   const host = useRef<HTMLSpanElement>(null);
@@ -37,6 +43,10 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   paint.current = p.paint;
   const back = useRef<SVGGElement>(null);
   const front = useRef<SVGGElement>(null);
+  const skin = useRef<SVGGElement>(null);
+  /** Ultracode: the id of the skin's paint servers once it is painted, and the power the eyes were last inked for. */
+  const skinId = useRef<string | null>(null);
+  const inked = useRef(0);
   const coat = useRef<HTMLCanvasElement>(null);
   /** The coat, while the material is fluffy. */
   const layer = useRef<CoatLayer | null>(null);
@@ -63,13 +73,31 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     if (low && low !== top) low.style.filter = glow;
     if (coat.current) coat.current.style.filter = glow;
   };
+  /**
+   * Ultracode: the skin over the body path (blended into as much of a coat as shows), and the eyes toward ink.
+   * Nothing is written for an avatar that has never been powered.
+   */
+  const powered = (d: Drawing) => {
+    const g = skin.current;
+    if (g && (d.ultra || skinId.current)) paintSkin(g, d, size.current, furShown(!!layer.current?.showing, d), skinId.current ??= ultraId());
+    // (With no skin the body keeps its own colour, and inked eyes could vanish on it: they are not inked. Nor
+    // without the eyes' own colour; but ink already on them is always taken off.)
+    const k = g ? d.ultra?.amount ?? 0 : 0, own = fxPaint.current?.eyeFill;
+    if (k === inked.current || (k > 0 && !own)) return;
+    inked.current = k;
+    const fill = k > 0 ? eyeInk(own!, k) : '';
+    for (const e of [left.current, right.current]) if (e) e.style.fill = fill;
+  };
+  /** The effects' colours: a powered avatar's twinkles and halo take its skin's rainbow and halo. */
+  const withSkin = (c: FxPaint): FxPaint => (skinId.current ? { ...c, ...skinPaint(skinId.current) } : c);
   // The coat first, so that the first picture is drawn with it.
   useEffect(() => {
     const el = coat.current;
     if (el) { el.style.position = 'absolute'; el.style.display = 'none'; }
     // (motion() draws again at once, as mount() does on a new material; before attach it does nothing.)
     if (p.material !== 'fluffy' || !body.current || !el) { live.motion(); return; }
-    const l = coatLayer(body.current, () => coat.current);
+    // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
+    const l = coatLayer(body.current, () => coat.current, () => { if (last.current) powered(last.current); });
     layer.current = l;
     live.motion();
     return () => { l.stop(); layer.current = null; };
@@ -83,8 +111,10 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     writeLayers(under.current, over.current, d, paint.current);
     const c = fxPaint.current;
     layer.current?.draw(d, size.current, c?.fill);
+    // (After the coat: the skin is blended into it only while it shows.)
+    powered(d);
     if (c) {
-      paintEffects(back.current, front.current, d, c);
+      paintEffects(back.current, front.current, d, withSkin(c));
       glowed(d, c);
     }
   }) : undefined), []);
@@ -93,13 +123,15 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   useEffect(() => live.shape(), [shape, p.body, p.size]);
   useEffect(() => live.face(p.face), [p.face]);
   // (The body stands for the shape: a definition written inline is a new object every render, its body is not.)
-  useEffect(() => live.doing(), [p.activity, p.form, p.rests, shape, p.body, p.size, p.mark, JSON.stringify(p.personality ?? null)]);
-  // New colours repaint the effects already drawn (a still avatar may not draw again for a long time).
+  useEffect(() => live.doing(), [p.activity, p.form, p.rests, shape, p.body, p.size, p.mark, p.ultra, JSON.stringify(p.personality ?? null)]);
+  // New colours repaint the effects already drawn (a still avatar may not draw again for a long time), and the eyes
+  // of a powered one.
   useEffect(() => {
     const d = last.current, c = fxPaint.current;
     if (!d || !c) return;
-    paintEffects(back.current, front.current, d, c);
+    paintEffects(back.current, front.current, d, withSkin(c));
     glowed(d, c);
+    if (inked.current > 0) { inked.current = -1; powered(d); }
   }, [p.fxPaint?.fill, p.fxPaint?.eyeFill, p.fxPaint?.accent]);
   // ... and, after every render, the coat is handed the drawing again: a new fill on the body path, or in fxPaint,
   // reaches a still coat. (It paints nothing when nothing it is drawn from changed.)
@@ -113,5 +145,5 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     if (d) writeLayers(under.current, over.current, d, paint.current);
   }, [JSON.stringify(p.paint ?? null)]);
 
-  return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, coat, first: live.first, reduced, live };
+  return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, skin, coat, first: live.first, reduced, live };
 }

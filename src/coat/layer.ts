@@ -1,11 +1,12 @@
 // One avatar's coat: a canvas under its body path, painted by the shared renderer and moved with the drawing.
 // mount() and React's useLiveAvatar both use it.
 //
-// The picture is drawn again only when the body turns, the eyes change, or the colour, size or body does. A
-// breath, a squash or a hop is the drawing's affine, which only moves the canvas (a CSS transform) and draws
-// nothing. In a frame of the shared loop the coat is painted there and then; outside one (a still picture,
-// reduced motion, a body whose mesh is not made yet) it waits its turn in soon(), so that a page of them does not
-// pile into one frame (making a body's mesh the first time is still one long task, which does hold up frames).
+// The picture is drawn again only when the body turns, the eyes change, or the colour, size or body does (and
+// while ultracode's power comes or goes, which dyes the coat toward lavender). A breath, a squash, a hop or a
+// powered float is the drawing's affine, which only moves the canvas (a CSS transform) and draws nothing. In a
+// frame of the shared loop the coat is painted there and then; outside one (a still picture, reduced motion, a body
+// whose mesh is not made yet) it waits its turn in soon(), so that a page of them does not pile into one frame
+// (making a body's mesh the first time is still one long task, which does hold up frames).
 // Until a coat is painted, and wherever none can be, the body path stays filled as it always was.
 
 import type { Body } from '../engine/body';
@@ -15,6 +16,7 @@ import type { Rgb } from '../engine/dye';
 import { D } from '../engine/math';
 import { OVERDRAW, coatBox, type CoatBox } from '../still';
 import { inFrame, soon } from '../ticker';
+import { dyeAt } from '../ultra';
 import { eyeField, polygonsOf, type EyeField } from './mask';
 import { coatable, mightCoat, onRestored, renderCoat } from './renderer';
 
@@ -127,9 +129,10 @@ const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 /**
  * A coat for the avatar whose body path is `body`. `canvasOf` gives the canvas to paint it in, the first time a
  * coat is painted and every time after: mount() makes it and puts it in place then; React's hook hands over the
- * one on its `coat` ref. The canvas is placed absolutely in the slot, as the svg is.
+ * one on its `coat` ref. The canvas is placed absolutely in the slot, as the svg is. `shown` is told whenever the
+ * coat starts or stops showing, which can be outside a frame (a powered skin over it is then painted again).
  */
-export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null): CoatLayer {
+export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void): CoatLayer {
   let latest: { d: Drawing; size: number; fill?: string } | null = null;
   let drop: (() => void) | null = null;
   let canvas: HTMLCanvasElement | null = null;
@@ -163,6 +166,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (canvas) canvas.style.display = 'none';
     body.style.fillOpacity = '';
     filled = '';
+    shown?.();
   };
 
   /** The body's colour as bytes: a hex colour as given; anything else (a name, a var()) as the page paints the body. */
@@ -192,7 +196,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const o = c.opacity, fade = o >= 0.5 ? '' : String(round3(2 * o)), fill = o <= 0.5 ? '' : String(round3(2 * (1 - o)));
     if (fade !== faded) { faded = fade; el.style.opacity = fade; }
     if (fill !== filled) { filled = fill; body.style.fillOpacity = fill; }
-    if (!on) { on = true; el.style.display = ''; }
+    if (!on) { on = true; el.style.display = ''; shown?.(); }
   };
 
   const paint = () => {
@@ -213,7 +217,8 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const mesh = coatMesh(c.body);
     ready.add(c.body);
     const dpr = ratio(), box = coatBox(now.size, dpr, mesh.radius + REACH), pxPerUnit = (now.size * dpr) / 2;
-    const rgb = colourOf(now.fill), key = rgb.join();
+    // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
+    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join();
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&

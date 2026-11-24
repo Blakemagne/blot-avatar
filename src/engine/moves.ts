@@ -440,6 +440,8 @@ export const pulse = (): Effect => new Effect('pulse', false);
 export const orbits = (): Effect => new Effect('rings', false, true);
 /** Speed lines streaming off behind it, away from the move's side. */
 export const speedLines = (): Effect => new Effect('streaks', true);
+/** A pale star dropping in from up and to the right into the top of the head (ultracode's pickup). */
+export const fallingStar = (): Effect => new Effect('star', false);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The way out: a line written in the channels' own arithmetic, for a move that is not a size times a shape (the

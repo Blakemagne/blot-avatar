@@ -8,17 +8,19 @@
 
 import { clamp01, smooth } from './ease';
 
-export type FxKind = 'mark' | 'bang' | 'spray' | 'burst' | 'rings' | 'pulse' | 'streaks' | 'zzz';
-export const FX_KINDS: readonly FxKind[] = ['mark', 'bang', 'spray', 'burst', 'rings', 'pulse', 'streaks', 'zzz'];
+export type FxKind = 'mark' | 'bang' | 'spray' | 'burst' | 'rings' | 'pulse' | 'streaks' | 'zzz' | 'ultra' | 'star';
+export const FX_KINDS: readonly FxKind[] = ['mark', 'bang', 'spray', 'burst', 'rings', 'pulse', 'streaks', 'zzz', 'ultra', 'star'];
 
 /** One effect on screen. `u` is how far through a one-shot it is (0..1); `t` the ms of a loop; `dir` +1 or -1; `amount` how much of it shows (0..1). */
 export interface Fx { kind: FxKind; u: number; t: number; dir: number; amount: number }
 
 /**
  * Who paints a part: 'body' in the body's colour, 'eye' in the eyes', 'accent' in the renderer's accent colour
- * (the body's colour unless it is given one), 'shadow' in a dark shade.
+ * (the body's colour unless it is given one), 'shadow' in a dark shade. Ultracode's: 'rainbow' in the rainbow
+ * the body is filled with (the accent, for a renderer that has none), 'light' in white, 'halo' in a glow that
+ * fades out from the middle of the part's own box (not drawn at all, for a renderer that has none).
  */
-export type FxRole = 'body' | 'eye' | 'accent' | 'shadow';
+export type FxRole = 'body' | 'eye' | 'accent' | 'shadow' | 'rainbow' | 'light' | 'halo';
 
 /** A part of an effect: flat polygons in body units (x right, y down), painted in one colour and opacity, behind the body or in front of it. */
 export interface FxPart { layer: 'back' | 'front'; role: FxRole; opacity: number; polys: Float64Array[] }
@@ -81,6 +83,57 @@ function streak(x: number, y: number, len: number, half: number, dir: number): F
 
 /** Half the drawing box, in body units (draw.ts VIEW / 2 / UNIT): sparks are kept inside it. */
 const BOX = 55.2 / 2 / 18;
+
+/**
+ * A four-point star of rays r long at (x, y), its sides curved in: from each tip to the next by way of a point
+ * near the middle (the motion study's sparkle, its four rays made equal). m points to each side.
+ */
+export function sparkle(x: number, y: number, r: number, m = 6): Float64Array {
+  const out = new Float64Array(4 * m * 2), c = 0.08 * Math.SQRT2;
+  let k = 0;
+  for (let q = 0; q < 4; q++) {
+    // From the tip at a to the tip a quarter turn on, pulled toward the point c out at the angle between them.
+    const a = -Math.PI / 2 + (q * Math.PI) / 2, b = a + Math.PI / 2, h = a + Math.PI / 4;
+    const ax = Math.cos(a), ay = Math.sin(a), bx = Math.cos(b), by = Math.sin(b), hx = c * Math.cos(h), hy = c * Math.sin(h);
+    for (let i = 0; i < m; i++) {
+      const t = i / m, s = 1 - t;
+      out[k++] = x + r * (s * s * ax + 2 * s * t * hx + t * t * bx);
+      out[k++] = y + r * (s * s * ay + 2 * s * t * hy + t * t * by);
+    }
+  }
+  return out;
+}
+
+/**
+ * How far from the middle of the drawing box (each way) an effect of ultracode reaches at most: as far as the
+ * others are held to, give or take (an svg with overflow visible shows the rest).
+ */
+export const ULTRA_BOUND = BOX + 0.14;
+/** (x, y) moved toward the middle of the drawing box, if need be, so a thing r across each way from it stays inside ULTRA_BOUND. */
+function within(x: number, y: number, r: number): [number, number] {
+  const far = Math.max(Math.abs(x), Math.abs(y)), most = ULTRA_BOUND - r;
+  return far > most && far > 0 ? [(x * most) / far, (y * most) / far] : [x, y];
+}
+
+/**
+ * Ultracode's twinkles: each lives TWINKLE_MS, one after another TWINKLE_STAGGER of a life apart, and flashes
+ * at the middle of its life (sin(pi life) ** 5). They sit at fixed angles round the body (radians, ray 0 to the
+ * right, turning clockwise as drawn: upper right, left, upper left, lower right, below and left), each at a share
+ * of the outline's reach there, drifting TWINKLE_DRIFT body units out over its life. Their rays are TWINKLE_RAY
+ * long (the odd ones TWINKLE_SMALL), with a white core TWINKLE_CORE long. One with rays under TWINKLE_PX
+ * pixels is not drawn. (The motion study's numbers, in body units.)
+ */
+export const TWINKLE_MS = 5000 / 3, TWINKLE_STAGGER = 0.374, TWINKLE_DRIFT = 0.12, TWINKLE_RAY = 0.14, TWINKLE_SMALL = 0.1, TWINKLE_CORE = 0.066, TWINKLE_PX = 1.5;
+export const TWINKLE_ANGLES = [-1, 2.68, -2.45, 0.56, 1.84], TWINKLE_OUT = [0.97, 1.08, 1.2];
+/** The halo round a powered body: HALO times the outline's half extent, held inside ULTRA_BOUND. */
+export const HALO = 1.6;
+/**
+ * The star that drops in as ultracode comes on: from STAR_FROM (body units right of the middle, and above the
+ * top of the outline) into the top of the outline, STAR_INTO of the way from its top to its middle. It gets
+ * there STAR_LANDS of the way through, its rays STAR_RAY long at first and STAR_SHRINK less by then, and fades
+ * out from STAR_FADES of the way through.
+ */
+export const STAR_FROM = [0.59, 0.34], STAR_INTO = 0.2, STAR_LANDS = 0.875, STAR_RAY = 0.18, STAR_SHRINK = 0.6, STAR_FADES = 2 / 3;
 
 /** Where the mark sits: up and to the right, on the outline. */
 export const MARK_ANGLE = (-50 * Math.PI) / 180;
@@ -212,6 +265,38 @@ export function fxParts(fx: Fx, f: FxFrame, px: number): FxPart[] {
         lines.push(streak(edge, y, len, Math.max(px / 2, 0.035), fx.dir));
       }
       parts.push({ layer: 'back', role: 'accent', opacity: 0.65 * env, polys: lines });
+      break;
+    }
+    case 'ultra': {
+      // Ultracode: a halo behind the body, and twinkles round it, each with a white core, flashing in turn.
+      const k = clamp01(fx.amount);
+      if (k <= 0) break;
+      const half = Math.max(f.x1 - f.x0, f.y1 - f.y0) / 2, r = Math.min(HALO * half, ULTRA_BOUND - Math.max(Math.abs(f.cx), Math.abs(f.cy)));
+      if (r > 0) parts.push({ layer: 'back', role: 'halo', opacity: k, polys: [disc(f.cx, f.cy, r, 40)] });
+      const reach = f.reach(), n = reach.length;
+      for (let i = 0; i < TWINKLE_ANGLES.length; i++) {
+        const life = frac(fx.t / TWINKLE_MS + i * TWINKLE_STAGGER), flash = Math.sin(Math.PI * life) ** 5;
+        const ray = (i % 2 ? TWINKLE_SMALL : TWINKLE_RAY) * flash;
+        if (ray < TWINKLE_PX * px) continue;
+        const a = TWINKLE_ANGLES[i], j = Math.round((((a / TAU) % 1) + 1) % 1 * n) % n;
+        const far = reach[j] * TWINKLE_OUT[i % 3] + TWINKLE_DRIFT * life;
+        const [x, y] = within(f.cx + far * Math.cos(a), f.cy + far * Math.sin(a), ray);
+        parts.push(
+          { layer: 'front', role: 'rainbow', opacity: k * flash, polys: [sparkle(x, y, ray)] },
+          { layer: 'front', role: 'light', opacity: k * flash, polys: [sparkle(x, y, TWINKLE_CORE * flash)] },
+        );
+      }
+      break;
+    }
+    case 'star': {
+      // A pale star dropping in from up and to the right into the top of the head, shrinking as it goes, and
+      // fading as it sinks in.
+      const go = smooth(u / STAR_LANDS), fade = 1 - smooth((u - STAR_FADES) / (1 - STAR_FADES));
+      if (fade <= 0) break;
+      const ray = STAR_RAY * (1 - STAR_SHRINK * go);
+      const x0 = f.cx + STAR_FROM[0], y0 = f.y0 - STAR_FROM[1], x1 = f.cx, y1 = f.y0 + STAR_INTO * (f.cy - f.y0);
+      const [x, y] = within(x0 + (x1 - x0) * go, y0 + (y1 - y0) * go, ray);
+      parts.push({ layer: 'front', role: 'light', opacity: fade, polys: [sparkle(x, y, Math.max(ray, dot(0)))] });
       break;
     }
     case 'zzz': {

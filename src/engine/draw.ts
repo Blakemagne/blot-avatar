@@ -39,6 +39,12 @@ export interface Drawing {
   layers?: Layer[];
   /** What a renderer needs to draw a coat of fur for this frame; only when drawAvatar is asked for it. */
   coat?: DrawnCoat;
+  /**
+   * Ultracode, only while any of it shows (RigState.ultra): how much of its finish to paint over the body path
+   * (0..1), and how far the rainbow's bands have slid round their cycle (0..1). The engine draws no gradient:
+   * the renderer paints the rainbow, its sheen and its rim over `body`. Its halo and twinkles are in `effects`.
+   */
+  ultra?: { amount: number; phase: number };
 }
 
 /**
@@ -457,6 +463,8 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   const parts = shadow || state.fx?.length ? effectsOf(state, frame, size, shadow, opacity) : null;
   if (parts && parts.length) out.effects = parts.filter((p) => p.opacity > 0.004 && p.polys.length).map((p) => ({ layer: p.layer, role: p.role, opacity: Math.round(p.opacity * 1000) / 1000, d: toPath(p.polys, UNIT, MID) }));
   if (state.glow) out.glow = state.glow;
+  // (A copy: the rig changes its own in place.)
+  if (state.ultra) out.ultra = { amount: state.ultra.amount, phase: state.ultra.phase };
   if (bare) {
     const [a, , , d, e, f] = affine;
     out.coat = { ...coatOf(body, state), rotation: new Float64Array(R), affine: [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f], eyes: toPath(bare, UNIT, MID) };

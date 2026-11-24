@@ -2,12 +2,13 @@
 // until destroy(). It is the same controller React's useLiveAvatar runs, called in the same order.
 
 import { coatLayer, type CoatLayer } from './coat/layer';
-import { VIEW_BOX, colours } from './engine/draw';
+import { VIEW_BOX, colours, type Drawing } from './engine/draw';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { svgBox, type Shape } from './still';
 import { onMotion, reducedMotion } from './ticker';
+import { eyeInk, furShown, paintSkin, skinPaint, ultraId } from './ultra';
 
 export interface MountOptions extends LiveProps {
   /** '#rrggbb' or any CSS colour (default '#FD690F'). The eyes are drawn in a colour that stands out on it. */
@@ -83,6 +84,22 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   };
   // The effects: what is behind the body, and what is in front of it.
   const back = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, front = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement;
+  // Ultracode's skin: a group right after the body path, put in the first time a drawing is powered (so an avatar
+  // never powered stays the svg it always was), painted on every frame after, and emptied when the power is gone.
+  let skin: { g: SVGGElement; id: string } | null = null, inked = 0;
+  /** The skin over the body path (blended into as much of a coat as shows), and the eyes toward ink with the power. */
+  const powered = (d: Drawing) => {
+    if (!skin && !d.ultra) return;
+    if (!skin) {
+      skin = { g: host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, id: ultraId() };
+      svg.insertBefore(skin.g, grouped ? over : paths[1]);
+    }
+    paintSkin(skin.g, d, opts.size, furShown(!!coat?.showing, d), skin.id);
+    const k = d.ultra?.amount ?? 0;
+    if (k !== inked) { inked = k; paths[1].style.fill = paths[2].style.fill = eyeInk(colour().eyeFill, k); }
+  };
+  /** The effects' colours: a powered avatar's twinkles and halo take its skin's rainbow and halo. */
+  const fxPaint = (c: FxPaint): FxPaint => (skin ? { ...c, ...skinPaint(skin.id) } : c);
   const boxed = (size: number) => {
     const b = svgBox(size);
     for (const s of split ? [split.below, svg] : [svg]) {
@@ -119,7 +136,8 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   };
   /** Wear the material asked for: a fluffy one gets its coat; a flat one is one svg again. */
   const material = () => {
-    if (opts.material === 'fluffy') { coat ??= coatLayer(paths[0], canvasOf); return; }
+    // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
+    if (opts.material === 'fluffy') { coat ??= coatLayer(paths[0], canvasOf, () => powered(last)); return; }
     coat?.stop();
     coat = null;
     if (!split) return;
@@ -143,8 +161,8 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   const paint = () => {
     const c = colour();
     paths[0].style.fill = c.fill;
-    paths[1].style.fill = paths[2].style.fill = c.eyeFill;
-    paintEffects(back, front, last, c);
+    paths[1].style.fill = paths[2].style.fill = eyeInk(c.eyeFill, inked);
+    paintEffects(back, front, last, fxPaint(c));
     // (A coat at rest is not drawn again by itself: it is told the new colour.)
     coat?.draw(last, opts.size, c.fill);
   };
@@ -170,7 +188,9 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     layered(d);
     const c = colour();
     coat?.draw(d, opts.size, c.fill);
-    paintEffects(back, front, d, c);
+    // (After the coat: the skin is blended into it only while it shows.)
+    powered(d);
+    paintEffects(back, front, d, fxPaint(c));
     glowed(glowFilter(d, opts.size, c));
   });
   live.motion();
@@ -223,7 +243,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
         live.shape();
       }
       if (changed('face')) live.face(opts.face);
-      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size', 'mark', 'personality')) live.doing();
+      if (changed('activity', 'form', 'rests', 'shape', 'body', 'size', 'mark', 'ultra', 'personality')) live.doing();
       if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();

@@ -76,3 +76,71 @@ test('the documented React markup hides the coat\'s canvas from the first paint'
   }
   assert.match(readFileSync(new URL('./react.ts', import.meta.url), 'utf8'), /style=\{\{ position: 'absolute', display: 'none' \}\}/);
 });
+
+/** Just enough SVG for a group the hook paints into. */
+class G {
+  constructor(tag = 'g') { this.tag = tag; this.style = {}; this.attrs = new Map(); this.children = []; this.parent = null; this.ownerDocument = { createElementNS: (_, t) => new G(t) }; }
+  setAttribute(k, v) { this.attrs.set(k, String(v)); }
+  getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; }
+  removeAttribute(k) { this.attrs.delete(k); }
+  appendChild(c) { c.parent = this; this.children.push(c); return c; }
+  remove() { if (this.parent) { this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; } }
+}
+
+test('ultra: the skin ref is painted while powered and the eyes go to ink from fxPaint; off, it is emptied and the eyes are given back; never powered, nothing is touched', async () => {
+  const { ULTRA_INK } = await import('./ultra.ts');
+  const fxPaint = { fill: '#FD690F', eyeFill: '#FFFFFF' };
+  const mounted = (props) => {
+    const r = renderer(useLiveAvatar), a = r.render(props);
+    a.host.current = element();
+    for (const p of a.paths) p.current = element();
+    a.skin.current = new G();
+    a.fx[0].current = new G(); a.fx[1].current = new G();
+    r.commit();
+    return { r, a };
+  };
+  const drawAfter = (a, ms) => { for (let t = 0; t < ms; t += 16) a.live.rig.step(16); a.live.motion(); };
+
+  const plain = mounted({ shape: 'blob', size: 72, fxPaint });
+  drawAfter(plain.a, 1500);
+  assert.equal(plain.a.skin.current.children.length, 0);
+  assert.deepEqual(plain.a.skin.current.attrs.size, 0);
+  assert.deepEqual([plain.a.paths[1].current.style.fill, plain.a.paths[2].current.style.fill], [undefined, undefined], 'the eyes keep the markup\'s colour');
+  plain.r.unmount();
+
+  const props = { shape: 'blob', size: 72, fxPaint, ultra: true }, { r, a } = mounted(props);
+  drawAfter(a, 1500);
+  const skin = a.skin.current;
+  assert.deepEqual(skin.children.map((c) => c.tag), ['defs', 'path', 'path', 'path']);
+  assert.equal(skin.getAttribute('opacity'), '1');
+  assert.deepEqual([a.paths[1].current.style.fill, a.paths[2].current.style.fill], [ULTRA_INK, ULTRA_INK]);
+  assert.ok(a.fx[0].current.children.some((p) => /-halo\)$/.test(p.style.fill)), 'the halo, in the skin\'s own paint');
+  // Turned off: the hook re-renders with it off, and after the fade the skin is empty and the eyes are the markup's.
+  r.render({ ...props, ultra: false });
+  r.commit();
+  drawAfter(a, 700);
+  assert.equal(skin.children.length, 0);
+  assert.deepEqual([a.paths[1].current.style.fill, a.paths[2].current.style.fill], ['', '']);
+  r.unmount();
+
+  // Powered with no skin <g> (markup from before ultra): the body keeps its colour, so the eyes keep theirs.
+  const bare = renderer(useLiveAvatar), b = bare.render({ ...props, fxPaint: { fill: '#111111', eyeFill: '#FFFFFF' } });
+  b.host.current = element();
+  for (const p of b.paths) p.current = element();
+  bare.commit();
+  drawAfter(b, 1500);
+  assert.ok(b.live.rig.state.ultra, 'powered');
+  assert.deepEqual([b.paths[1].current.style.fill, b.paths[2].current.style.fill], [undefined, undefined], 'no skin, no ink');
+  bare.unmount();
+
+  // fxPaint taken away while powered, then turned off: the ink still comes off the eyes.
+  const gone = mounted(props);
+  drawAfter(gone.a, 1500);
+  assert.equal(gone.a.paths[1].current.style.fill, ULTRA_INK);
+  gone.r.render({ ...props, fxPaint: undefined }); gone.r.commit();
+  gone.r.render({ ...props, fxPaint: undefined, ultra: false }); gone.r.commit();
+  drawAfter(gone.a, 1500);
+  assert.equal(gone.a.skin.current.children.length, 0);
+  assert.deepEqual([gone.a.paths[1].current.style.fill, gone.a.paths[2].current.style.fill], ['', '']);
+  gone.r.unmount();
+});

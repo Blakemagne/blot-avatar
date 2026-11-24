@@ -21,7 +21,7 @@
 // slowly from side to side; speaking bobs with each syllable. Left idle, it breathes.
 
 import type { Body } from './body';
-import { BLINK_MS, CLIPS, PERSONALITY, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Personality, type Playing, type View } from './clips';
+import { BLINK_MS, CLIPS, PERSONALITY, PICKUP_STAR, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Personality, type Playing, type View } from './clips';
 import { inOut, smooth, track } from './ease';
 import { ACTIVITY_FACES, FACES, FACE_KEYS, MANNER_KEYS, PLAIN, faceFor, mannerFor, mixFace, type Face, type Manner } from './faces';
 import { FORMS, type Figure, type Form } from './figures';
@@ -68,8 +68,13 @@ export interface RigState {
   lids?: [number, number];
   /** 0..1: a glow, for a renderer that draws one. */
   glow?: number;
-  /** The effects showing (fx.ts): a mark, a "!", Zs, sparks, rings, a pulse, speed lines. */
+  /** The effects showing (fx.ts): a mark, a "!", Zs, sparks, rings, a pulse, speed lines, ultracode's twinkles and star. */
   fx?: Fx[] | null;
+  /**
+   * Ultracode (Rig.setUltra), only while any of it shows: how much (0..1), and how far the rainbow's bands have
+   * slid round their cycle (0..1). The rig changes it in place.
+   */
+  ultra?: { amount: number; phase: number };
 }
 
 export { BLINK_MS, HOP_DOWN, HOP_HEIGHT, HOP_UP, NOD, NOD_SQUASH, POKES, POKE_MS, POP, POP_MS, type PokeKind } from './clips';
@@ -200,6 +205,12 @@ export const HOVER = 0.12, HOVER_BOB = 0.25, HOVER_MS = 2600;
 export const GLANCE_MS = 3400;
 /** A visit to another shape (Rig.visit) stays this long by default before it changes back. */
 export const VISIT_MS = 900;
+/**
+ * Ultracode: turned on from nothing, the power waits ULTRA_WAIT ms (the star is dropping in) and eases in over
+ * ULTRA_IN; turned off, it eases out from wherever it is over ULTRA_OUT; turned on again before it is all gone,
+ * it eases back in from there over ULTRA_IN. The rainbow's bands go once round in ULTRA_CYCLE ms.
+ */
+export const ULTRA_WAIT = 220, ULTRA_IN = 450, ULTRA_OUT = 550, ULTRA_CYCLE = 1000 / 0.24;
 
 /** A smooth wander that never repeats: three waves of unrelated lengths, -1..1. */
 export function wander(t: number, ms: number): number {
@@ -344,6 +355,12 @@ export class Rig {
   private markOn = false; private markK = new Spring(GATE_RATE); private markAt = 0;
   /** How far it floats (Personality.float, eased so a change does not jump). */
   private hover = new Spring(GATE_RATE / 3);
+  /**
+   * Ultracode: whether it is wanted; how much shows, where that easing started, how long ago and after what wait;
+   * the clock its twinkles and bands keep; what the state is given; and the pickup that is playing.
+   */
+  private ultraOn = false; private ultraK = 0; private ultraFrom = 0; private ultraAt = 0; private ultraWait = 0;
+  private ultraT = 0; private power = { amount: 0, phase: 0 }; private powering: Playing | null = null;
   /** A visit to another shape: the body to go back to, how long it has been, and how long it stays. */
   private visiting: { back: Body; at: number; stay: number } | null = null;
   private flipFrom = 1; private flipTo = 1; private flipAt = FLIP_MS;
@@ -479,6 +496,29 @@ export class Rig {
 
   /** A mark on its outline, up and to the right, that it glances at now and then: something waits for whoever is watching. */
   setMark(on: boolean): void { this.markOn = !!on; }
+
+  /**
+   * Ultracode, a star's power, on until it is turned off. From nothing a star drops in, the body squashes as it
+   * lands, and the power comes on: the body is filled with a rainbow whose bands slide round (RigState.ultra,
+   * for a renderer to paint), a halo and twinkles show round it, and it floats. Turned off, it all fades.
+   */
+  setUltra(on: boolean): void {
+    const want = !!on;
+    if (want === this.ultraOn) return;
+    this.ultraOn = want;
+    this.ultraFrom = this.ultraK;
+    if (want && this.ultraK === 0) {
+      // (A pickup still playing from a moment ago plays on while its star still falls, and the power keeps its
+      // time: no further on than the end of the wait, or it would come on at once. One past its star starts again.)
+      if (!this.powering || this.powering.at >= (PICKUP_STAR / 100) * this.powering.ms) this.powering = start(CLIPS.pickup);
+      this.ultraAt = Math.min(this.powering.at, ULTRA_WAIT); this.ultraWait = ULTRA_WAIT;
+    } else {
+      this.ultraAt = 0; this.ultraWait = 0;
+      // Off before a frame of the pickup was played (a rig not stepped: off screen, or under reduced motion), there
+      // is nothing to play out: it would drop a star with no power after it.
+      if (!want && this.ultraK === 0 && this.powering?.at === 0) this.powering = null;
+    }
+  }
 
   /**
    * Go to another shape for a moment and come back: the change of shape there, `stay` ms (VISIT_MS) as that
@@ -943,8 +983,8 @@ export class Rig {
       if (asleep > 0.02) o.fx.push({ kind: 'zzz', u: 0, t: this.sleepAt, dir: 1, amount: asleep });
     } else this.sleepAt = 0;
 
-    // A body that floats hovers off the ground, bobbing. (Worked out 30 times a second.)
-    this.hover.to = this.idle && !home ? this.feel.float : 0;
+    // A body that floats hovers off the ground, bobbing. (Worked out 30 times a second.) Powered, every body floats.
+    this.hover.to = this.idle && !home ? (this.ultraOn ? Math.max(this.feel.float, 1) : this.feel.float) : 0;
     this.hover.step(dt);
     if (this.hover.x > 0) {
       const tq = Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP;
@@ -961,6 +1001,24 @@ export class Rig {
       o.fx.push({ kind: 'mark', u: 0, t: this.markAt, dir: 1, amount: k });
     } else this.markAt = 0;
 
+    // Ultracode: the power eases in once the star has dropped in, or out, from wherever it is. While any of it
+    // shows, its clock runs: the bands slide round, and the halo and the twinkles show.
+    if (this.ultraOn || this.ultraK > 0) {
+      this.ultraAt += dtMs;
+      const from = this.ultraFrom, q = this.ultraOn ? smooth((this.ultraAt - this.ultraWait) / ULTRA_IN) : smooth(this.ultraAt / ULTRA_OUT);
+      this.ultraK = this.ultraOn ? (q >= 1 ? 1 : from + (1 - from) * q) : from * (1 - q);
+    }
+    if (this.ultraK > 0) {
+      this.ultraT += dtMs;
+      const pw = this.power;
+      pw.amount = this.ultraK; pw.phase = (this.ultraT % ULTRA_CYCLE) / ULTRA_CYCLE;
+      s.ultra = pw;
+      o.fx.push({ kind: 'ultra', u: 0, t: this.ultraT, dir: 1, amount: this.ultraK });
+    } else {
+      this.ultraT = 0;
+      if (s.ultra) delete s.ultra;
+    }
+
     // Idle or not, it breathes: a little taller and back, slowly. (Not with idle off: then a rig left alone
     // is still. And not as a loading figure: a ring stays round.) A lively face breathes quicker, a sleeper slower and deeper.
     if (this.idle) {
@@ -970,6 +1028,8 @@ export class Rig {
     // The pop, then the cues, in the order the clips are listed.
     this.popping = advance(this.popping, dtMs, o, v);
     for (let i = 0; i < this.cueing.length; i++) this.cueing[i] = advance(this.cueing[i], dtMs, o, v);
+    // And ultracode's pickup.
+    this.powering = advance(this.powering, dtMs, o, v);
 
     if (this.flipAt < FLIP_MS) {
       this.flipAt = Math.min(FLIP_MS, this.flipAt + dtMs);
@@ -1057,7 +1117,8 @@ export class Rig {
       && this.figK === 0 && !this.nodding && this.level.still && this.activity === 'idle' && this.wait.x === 0 && this.talk.x === 0
       && this.tilt.still && this.squash.still && this.dip.still && !this.anyCue()
       && !this.kicking && this.mannerAt >= this.mannerMs && this.sleep.x === 0 && !this.markOn && this.markK.x === 0 && !this.visiting && this.leanGate.still
-      && this.antL.still && this.antR.still && !this.glide;
+      && this.antL.still && this.antR.still && !this.glide
+      && !this.ultraOn && this.ultraK === 0 && !this.powering;
   }
 
   /** True once it has come to rest (see `rest`): a still picture that no step will change until it is woken, poked or changed. */
