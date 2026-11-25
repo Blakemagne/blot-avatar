@@ -22,7 +22,10 @@ export const isMix = (s: Source): s is Mix => 'parts' in s;
 /** The body a source's eyes are on. */
 export const leaf = (s: Source): Body => (isMix(s) ? s.wears : s);
 
-/** A coat fades out over this share of a loading figure's way in (a change of shape keeps it: see draw.ts). */
+/**
+ * A loading figure's two coats change over this share at each end of its way: the body's fades out over the first,
+ * the figure's own in over the last (a change of shape keeps its coat on: see draw.ts).
+ */
 export const COAT_FADE = 0.25;
 
 /** At most this many bodies in a mix; past that the one with the least share is let go. */
