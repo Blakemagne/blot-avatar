@@ -94,18 +94,36 @@ function skinTree(id: string): Node[] {
   ];
 }
 
+/**
+ * A band figure's thinnest part this thin (body units) or more keeps the blend's whole stroke: half the progress
+ * ring's thinnest track (figures.ts THIN), so only the spinner, whose gap closes to nothing, loses it.
+ */
+const BAND_OPEN = 0.04;
+/** How much of the blend's stroke a coat keeps, 0..1: all of it, but for a band figure whose band closes somewhere. */
+function openness(d: Drawing): number {
+  const s = d.coat?.shape;
+  if (s?.kind !== 'band') return 1;
+  let thinnest = Infinity;
+  for (let i = 0, n = s.rays; i < n; i++) thinnest = Math.min(thinnest, s.band[n + i] - s.band[i]);
+  const t = Math.min(1, Math.max(0, thinnest / BAND_OPEN));
+  return t * t * (3 - 2 * t);
+}
+
 /** The rim's width in drawing units on an avatar of `size` px. */
 export const rimWidth = (size: number): number => Math.max(RIM_WIDTH, (RIM_PX * SLOT) / Math.max(1, size));
 
 /**
  * What a frame writes, element by element: the group, the rainbow's gradient, the blended rainbow's path, the flat
- * rainbow's path, the glass's sheen, the fur's sheen. `fur` is how much of a coat of fur shows through the body path (furShown).
+ * rainbow's path, the glass's sheen, the fur's sheen. `fur` is how much of a coat of fur shows through the body
+ * path (furShown).
  * Flat (no fur), the group fades as a whole over the body's own colour, and the rim is stroked under the rainbow,
  * faded by the power once more: it comes in with the glass, not as a grey ring round a body that is still mostly its
  * own colour. Over fur, the rainbow tints the fur under it (mix-blend-mode color), stroked out over the pile, and
  * the flat rainbow (glass, with its rim) covers only the share the flat body does, so the two cross-fade as the
- * coat and the flat body do, and so do the glass's sheen and the fur's. Then each path fades by itself: a group that is not opaque would keep the blend from
- * reaching the coat. A path with no share is not drawn (no `d`).
+ * coat and the flat body do, and so do the glass's sheen and the fur's. Then each path fades by itself: a group
+ * that is not opaque would keep the blend from reaching the coat. A path with no share is not drawn (no `d`). Over
+ * a band figure's fur the blend's stroke narrows to nothing as the band's thinnest part closes (the spinner's gap):
+ * stroked there, it would lay a tinted band over the bare page where there is no fur.
  */
 function frameOf(d: Drawing, size: number, fur: number): [Frame, Frame, Frame, Frame, Frame, Frame] {
   const u = d.ultra!, k = Math.min(1, Math.max(0, u.amount)), [x1, y1, x2, y2] = RAINBOW_LINE;
@@ -113,7 +131,7 @@ function frameOf(d: Drawing, size: number, fur: number): [Frame, Frame, Frame, F
   return [
     { opacity: on ? null : num(k) },
     { gradientTransform: `translate(${num((x1 - x2) * u.phase)} ${num((y1 - y2) * u.phase)})` },
-    { d: on ? d.body : null, opacity: on ? num(k * f) : null, 'mix-blend-mode': on ? 'color' : null },
+    { d: on ? d.body : null, opacity: on ? num(k * f) : null, 'mix-blend-mode': on ? 'color' : null, 'stroke-width': num(on ? PILE_TINT * openness(d) : PILE_TINT) },
     { d: glass > 0 ? d.body : null, opacity: on ? num(k * glass) : null, stroke: RIM, 'stroke-width': num(rimWidth(size)), 'stroke-opacity': num(k) },
     { d: glass > 0 ? d.body : null, opacity: on ? num(k * glass) : null },
     { d: on ? d.body : null, opacity: on ? num(k * SHEEN_ON_FUR * f) : null },

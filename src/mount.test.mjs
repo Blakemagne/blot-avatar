@@ -98,6 +98,11 @@ test('update() acts only on what changed, in React\'s order', () => {
   assert.deepEqual(calls, ['follow', 'shape', 'doing']);
   assert.ok(m.live.rig.state.morph, 'a new shape morphs');
   calls.length = 0;
+  m.update({ progress: 0.5 });
+  assert.deepEqual(calls, ['doing'], 'a new progress is told to the rig');
+  calls.length = 0;
+  m.update({ progress: 0.5 });
+  assert.deepEqual(calls, []);
   m.update({ color: '#000000' });
   assert.deepEqual(calls, [], 'a colour only repaints');
   assert.equal(paths(host)[0].style.fill, '#000000');

@@ -4,7 +4,7 @@
 export * from './engine/index';
 export { ACTIVITIES, POKES, type Activity, type PokeKind } from './engine/rig';
 export { FACE_NAMES } from './engine/faces';
-export { FORMS, type Form } from './engine/figures';
+export { FORMS, type FigureShape, type Form } from './engine/figures';
 export { SAME_BODY, bodyId } from './engine/bodies/index';
 export { portraitFor } from './engine/bodies/portraits';
 export { CLIPS, CUES, PERSONALITY, PICKUP_MS, advance, checkClips, start, type Channels, type Clip, type Cue, type Lane, type Personality, type Playing, type View } from './engine/clips';

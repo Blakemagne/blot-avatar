@@ -339,15 +339,11 @@ pre code { font-size: inherit; }
 .move-said:empty { padding-bottom: 0; }
 #lane-own .code-panel { margin-top: 12px; }
 
-/* ---- Use it: one way at a time, and what it promises */
+/* ---- Use it: one way at a time, and its sizes */
 
 .use { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
 .code-panel.flat { border-radius: 0 0 var(--radius) var(--radius); }
-.rules { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
-.rules ul { margin: 8px 0 0; padding-left: 20px; }
-.rules li { margin: 6px 0; color: var(--muted); font-size: 15px; }
-.rules strong { color: var(--ink); }
-.sizes-row { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sizes-row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
 .sizes-row .seg { margin: 0 0 10px; }
 .small-seg { flex-wrap: nowrap; overflow-x: auto; }
 .small-seg button { font-size: 13px; padding: 0 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }

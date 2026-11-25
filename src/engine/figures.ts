@@ -4,6 +4,7 @@
 // blends into a disc (see morph.ts), and this file adds the rest: a hole wound the other way so the disc
 // becomes a ring, a second ball in the body colour, or a mark in the eye colour.
 
+import type { Body, Piece } from './body';
 import { smooth } from './ease';
 import { polar } from './morph';
 
@@ -50,10 +51,11 @@ const frac = (x: number): number => x - Math.floor(x);
  * a bit the progress ring's track was a faint grey line on a 22 px avatar). `rim`
  * is the disc's own outline, n distances from the middle: the spinner draws it in to shape its comet.
  */
-export function figureParts(fig: Figure, n: number, px: number, rim?: Float64Array): { body: Float64Array[]; marks: Float64Array[] } {
+export function figureParts(fig: Figure, n: number, px: number, rim?: Float64Array): { body: Float64Array[]; marks: Float64Array[]; hole?: Float64Array; balls?: number[] } {
   const g = grown(fig.k), R = RADIUS[fig.form];
   const body: Float64Array[] = [], marks: Float64Array[] = [];
   if (g <= 0) return { body, marks };
+  // (Besides the polygons, the numbers they are drawn from, for a coat: the hole's n radii, or the balls.)
   const thin = Math.max(THIN, 2 * px);
   if (fig.form === 'ring' || fig.form === 'progress') {
     const r = new Float64Array(n), p = fig.progress;
@@ -83,19 +85,26 @@ export function figureParts(fig: Figure, n: number, px: number, rim?: Float64Arr
       r[i] = g * (R - thick);
     }
     body.push(polar(r, true));
-  } else if (fig.form === 'dots') {
+    return { body, marks, hole: r };
+  }
+  // The balls, x y z r each in body units (y up), in the order of REST.
+  const balls: number[] = [];
+  if (fig.form === 'dots') {
     // Three dots: the body is the middle one, and the other two bud out of its sides. A pulse runs along them.
-    const m = Math.max(12, n >> 1);
-    body.push(polar(new Float64Array(m).fill(R * dotPulse(fig.turn, 1))));
+    const m = Math.max(12, n >> 1), mid = R * dotPulse(fig.turn, 1);
+    body.push(polar(new Float64Array(m).fill(mid)));
     for (const side of [-1, 1]) {
-      const r = Math.max(DOTS.r * g, 1.2 * px * g) * dotPulse(fig.turn, side < 0 ? 0 : 2);
-      body.push(polar(new Float64Array(m).fill(r), false, side * (R * 0.5 + (DOTS.at - R * 0.5) * g), 0));
+      const r = Math.max(DOTS.r * g, 1.2 * px * g) * dotPulse(fig.turn, side < 0 ? 0 : 2), x = side * (R * 0.5 + (DOTS.at - R * 0.5) * g);
+      body.push(polar(new Float64Array(m).fill(r), false, x, 0));
+      balls.push(x, 0, 0, r);
+      if (side < 0) balls.push(0, 0, 0, mid);
     }
   } else if (fig.form === 'orbit') {
     // A small ball that buds out of the body and circles it.
-    const at = 0.25 + (ORBIT.at - 0.25) * g, r = ORBIT.r * g;
-    const m = Math.max(12, n >> 1), ball = new Float64Array(m).fill(Math.max(r, 1.2 * px * g));
+    const at = 0.25 + (ORBIT.at - 0.25) * g, r = Math.max(ORBIT.r * g, 1.2 * px * g);
+    const m = Math.max(12, n >> 1), ball = new Float64Array(m).fill(r);
     body.push(polar(ball, false, at * Math.cos(fig.turn), at * Math.sin(fig.turn)));
+    balls.push(0, 0, 0, R, at * Math.cos(fig.turn), -at * Math.sin(fig.turn), 0, r);
   } else {
     // Radar: a scope drawn on the disc in the eye colour: a range ring, and a sweep going round.
     const reach = R - 0.13, wide = 0.62 * g, steps = Math.max(4, Math.ceil((wide / TAU) * n));
@@ -108,6 +117,55 @@ export function figureParts(fig: Figure, n: number, px: number, rim?: Float64Arr
     // The ring is wound as the sweep is, and its inside the other way, so the sweep shows across it.
     const line = Math.max(0.055, 1.1 * px), at = reach * g;
     marks.push(polar(new Float64Array(n).fill(at)), polar(new Float64Array(n).fill(at - line), true), sweep);
+    balls.push(0, 0, 0, R);
   }
-  return { body, marks };
+  return { body, marks, balls };
+}
+
+// A figure's own coat of fur. Each figure is a body of sphere-hull pieces made once (a tube of capsules for the
+// ring and the progress ring, balls for the others), so its coat is the same fur as any body's. A frame moves that
+// mesh into the figure's shape (FigureShape) without making it again: the coat's vertex shader does it.
+
+/** The tube at rest: its centreline's radius, its capsules' radius (the comet's THICK / 2), and how many capsules. */
+export const TUBE_M = 0.75, TUBE_R = THICK / 2, TUBE_SEGS = 24;
+
+/** The balls at rest, x y z r each in body units (y up): what the figure's mesh is made of, in figureParts' order. */
+export const REST: Readonly<Partial<Record<Form, Float32Array>>> = {
+  orbit: Float32Array.of(0, 0, 0, RADIUS.orbit, ORBIT.at, 0, 0, ORBIT.r),
+  dots: Float32Array.of(-DOTS.at, 0, 0, DOTS.r, 0, 0, 0, RADIUS.dots, DOTS.at, 0, 0, DOTS.r),
+  radar: Float32Array.of(0, 0, 0, RADIUS.radar),
+};
+
+/** The furthest any figure reaches from the middle, body units: the orbiting ball at the end of its path. */
+export const FIGURE_REACH = ORBIT.at + ORBIT.r;
+
+/**
+ * How a figure's mesh is moved for one frame. `band` (the ring and the progress ring): for each of `rays` rays of
+ * the flat drawing (screen angles, clockwise from +x, as figureParts draws them), the band's inner radius, then
+ * after all of those its outer radius. `balls` (the others): each ball of the mesh at rest (`from`, REST), and
+ * where it is now (`to`), x y z r each, body units, y up.
+ */
+export type FigureShape =
+  | { kind: 'band'; rays: number; band: Float32Array }
+  | { kind: 'balls'; from: Float32Array; to: Float32Array };
+
+const figureBodies = new Map<Form, Body>();
+/** A figure as a body, for its coat: the same object every time, so its mesh is made once (the ring and the progress ring share one). */
+export function figureBody(form: Form): Body {
+  const key: Form = form === 'progress' ? 'ring' : form;
+  let b = figureBodies.get(key);
+  if (!b) {
+    const rest = REST[key], pieces: Piece[] = [];
+    if (rest) for (let i = 0; i < rest.length; i += 4) pieces.push([[rest[i], rest[i + 1], rest[i + 2], rest[i + 3]]]);
+    else {
+      for (let i = 0; i < TUBE_SEGS; i++) {
+        const a = (i * TAU) / TUBE_SEGS, c = ((i + 1) * TAU) / TUBE_SEGS;
+        pieces.push([[TUBE_M * Math.cos(a), TUBE_M * Math.sin(a), 0, TUBE_R], [TUBE_M * Math.cos(c), TUBE_M * Math.sin(c), 0, TUBE_R]]);
+      }
+    }
+    // (A figure has no face: its eyes are never drawn from this.)
+    b = { id: key === 'ring' ? 'figure-tube' : `figure-${key}`, pieces, eyes: { x: 0, y: 0, w: 0, h: 0, slideX: 0, slideY: 0 } };
+    figureBodies.set(key, b);
+  }
+  return b;
 }

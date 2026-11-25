@@ -144,3 +144,19 @@ test('ultra: the skin ref is painted while powered and the eyes go to ink from f
   assert.deepEqual([gone.a.paths[1].current.style.fill, gone.a.paths[2].current.style.fill], ['', '']);
   gone.r.unmount();
 });
+
+test('progress: a new amount reaches the rig on the next commit, and the progress figure fills to it', () => {
+  const r = renderer(useLiveAvatar), props = { shape: 'blob', size: 72, activity: 'working', form: 'progress', progress: 0.3 };
+  const a = r.render(props);
+  a.host.current = element();
+  for (const p of a.paths) p.current = element();
+  r.commit();
+  const run = (ms) => { for (let t = 0; t < ms; t += 16) a.live.rig.step(16); };
+  run(1600);
+  assert.ok(Math.abs(a.live.rig.state.figure.progress - 0.3) < 0.01);
+  r.render({ ...props, progress: 0.8 });
+  r.commit();
+  run(1200);
+  assert.ok(Math.abs(a.live.rig.state.figure.progress - 0.8) < 0.01, 'filled on to 0.8');
+  r.unmount();
+});

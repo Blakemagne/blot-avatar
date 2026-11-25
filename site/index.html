@@ -47,6 +47,9 @@
             <span class="sub-label" id="form-label">turns into</span>
             <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
           </div>
+          <div class="sub" data-progress-row hidden>
+            <label class="range">how far <input type="range" min="0" max="1" step="0.05" value="0" data-progress autocomplete="off"><output data-progress-out aria-live="off">0</output></label>
+          </div>
           <div class="actions">
             <div class="menu" data-menu="export">
               <button type="button" class="button small" aria-expanded="false">export</button>
@@ -285,21 +288,10 @@ export function Avatar({ size = 72 }) {
 }</code></pre>
           </div>
         </div>
-        <div class="rules">
-          <h2>what it promises</h2>
-          <ul>
-            <li><strong>one frame loop</strong> for every avatar on a page.</li>
-            <li><strong>nothing drawn that nobody sees:</strong> off screen, in a hidden tab or at rest, an avatar costs nothing.</li>
-            <li><strong>reduced motion respected:</strong> a still picture, and moves do nothing.</li>
-            <li><strong>deterministic:</strong> the same seed and steps draw the same paths, bit for bit.</li>
-            <li><strong>paths, not pixels:</strong> flat, it is three SVG paths a frame, coloured with any CSS.</li>
-            <li><strong>fur if you ask:</strong> <code>material: 'fluffy'</code> adds a WebGL2 coat under the eyes; without WebGL2 it is flat.</li>
-          </ul>
-          <div class="sizes-row">
-            <div class="seg small-seg" role="group" aria-label="size" data-sizes></div>
-            <div class="size-stage" data-size-stage><div data-avatar="size"></div></div>
-            <p class="sub-label" data-size-note></p>
-          </div>
+        <div class="sizes-row">
+          <div class="seg small-seg" role="group" aria-label="size" data-sizes></div>
+          <div class="size-stage" data-size-stage><div data-avatar="size"></div></div>
+          <p class="sub-label" data-size-note></p>
         </div>
       </div>
     </section>
