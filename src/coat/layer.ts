@@ -11,13 +11,14 @@
 // (making a body's mesh the first time is still one long task, which does hold up frames).
 // Until a coat is painted, and wherever none can be, the body path stays filled as it always was.
 // A coat that is faded right out but already names its next body (a loading figure's, in the flat middle of its
-// way in or out) has that body's mesh made then, in soon(), so it is ready when its fur comes in. Near half way
-// through a change of shape the other body's coat (DrawnCoat.also) is laid over in a frame only once its mesh is
-// made: until then the body it leaves shows alone, and soon() makes that mesh and paints the two.
+// way in or out) has that body's mesh made then, in soon(), so it is ready when its fur comes in. A change of shape
+// names its other body (DrawnCoat.also) from the start, and that mesh is made then too. Near half way the two
+// coats are painted together, each at its share, once both meshes are made: until then the one that is made shows
+// alone, whole, and soon() makes the other and paints the two.
 
 import type { Body } from '../engine/body';
 import { PILE_REACH, coatMesh, type CoatMesh } from '../engine/coat';
-import { VIEW, type Drawing, type DrawnCoat } from '../engine/draw';
+import { VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
 import type { Rgb } from '../engine/dye';
 import { FIGURE_REACH, type FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
@@ -52,6 +53,31 @@ const SAME_VIEW = 0.25;
 const SAME_EYES = 0.5;
 /** How far a coat reaches past its mesh, body units: the pile and the strands' tips. */
 const REACH = 1.25 * PILE_REACH;
+
+/**
+ * How far from the middle a coat of `mesh` can be drawn, as the radius of a sphere at the middle that covers it
+ * (what coatBox takes). Stretched (DrawnCoat.warp, stretched()), a point is moved out by no more than the outline
+ * moved at either ray either side of it, so no further than at rest by more than the outline grew anywhere; and it
+ * lies past the outline drawn by no more than its pile, CoatWarp.past and how much further one of those rays meets
+ * its own outline than the other. The square is the smaller of the two.
+ */
+export function reachOf(mesh: CoatMesh, warp: CoatWarp | undefined): number {
+  const r = mesh.radius + REACH;
+  if (!warp) return r;
+  const { own, reach } = warp, n = own.length;
+  let most = 0, grow = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    most = Math.max(most, Math.max(reach[i], reach[j]) + Math.abs(own[i] - own[j]));
+    grow = Math.max(grow, reach[i] - own[i]);
+  }
+  // (On screen, a sphere of radius r is r D / sqrt(D^2 - r^2) across, and one p across is p D / sqrt(D^2 + p^2) in
+  // space. The pile on screen: its length, made larger by the perspective at its nearest and by how far that moves
+  // a point already this far out.)
+  const rest = (r * D) / Math.sqrt(D * D - r * r), past = most + warp.past + (REACH * (D + most + warp.past)) / (D - r);
+  const out = Math.min(past, rest + grow);
+  return (out * D) / Math.sqrt(D * D + out * out);
+}
 
 /** Bodies whose mesh is made (coatMesh keeps it): only those are painted in a frame. */
 const ready = new WeakSet<Body>();
@@ -239,22 +265,24 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     }
     const ctx = el?.getContext('2d');
     if (!el || !ctx) { hide(); return; }
-    const mesh = coatMesh(c.body);
-    ready.add(c.body);
-    // The other body's coat, near half way through a change of shape. In a frame, only once its mesh is made: until
-    // then this one shows alone, and the mesh is made in soon() (see draw), which paints both.
-    const also = c.also && (ready.has(c.also.body) || !inFrame()) ? { ...c.also, mesh: coatMesh(c.also.body) } : null;
+    // In a change of shape near half way, the two bodies' coats: in a frame, each only once its mesh is made. With one
+    // of the two made, that one shows alone, whole, and soon() makes the other's mesh and paints both (see draw).
+    const crossing = !!c.also && c.also.share > OFF;
+    const base = ready.has(c.body) || !inFrame() ? { body: c.body, warp: c.warp } : crossing && ready.has(c.also!.body) ? c.also! : null;
+    if (!base) { hide(); return; }
+    const mesh = coatMesh(base.body);
+    ready.add(base.body);
+    const also = crossing && base.body === c.body && (ready.has(c.also!.body) || !inFrame()) ? { ...c.also!, mesh: coatMesh(c.also!.body) } : null;
     if (also) ready.add(also.body);
     // Stretched, a coat reaches as far as its stretch takes it: the square is made big enough for both. (A figure's
     // mesh is moved about: its square is the furthest any figure goes.)
-    const most = (w: Float64Array | undefined) => (w ? w.reduce((m, v) => Math.max(m, v), 1) : 1);
-    const radius = c.shape ? FIGURE_REACH : Math.max(mesh.radius * most(c.warp), also ? also.mesh.radius * most(also.warp) : 0);
-    const dpr = ratio(), box = coatBox(now.size, dpr, radius + REACH), pxPerUnit = (now.size * dpr) / 2;
+    const radius = c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
+    const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join();
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
-    const same = !c.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
+    const same = !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
       held.box.cx === box.cx && apart(held.rotation, c.rotation) * mesh.radius * (D / (D - mesh.radius)) * pxPerUnit < SAME_VIEW &&
       drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW &&
       held.shape === kindOf(c.shape) && drift(held.figure, numbersIn(c.shape)) * pxPerUnit < SAME_VIEW;
@@ -263,22 +291,29 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
       const field = fieldFor(c.eyes, points, detail, perUnit);
       const frame = { shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
-      const image = renderCoat({ ...frame, mesh, warp: c.warp });
+      const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;
       if (el.width !== n || el.height !== n) { el.width = n; el.height = n; } else ctx.clearRect(0, 0, n, n);
       ctx.drawImage(image.canvas, image.x, image.y, n, n, 0, 0, n, n);
       if (also) {
-        // The other body's coat over it, on the same outline: where both are whole, a blend of the two.
+        // The other body's coat with it, on the same outline. Where both have fur, this one at 1 - share and that one
+        // at share; where only one has, that one whole (the other's own at twice its share, so whole at half way): the
+        // same picture on both sides of half way, where the two swap places, and no fur seen through.
+        // (After the first is copied out: the renderer draws every picture on one canvas.)
         const over = renderCoat({ ...frame, mesh: also.mesh, warp: also.warp });
-        if (over) {
-          ctx.globalAlpha = also.share;
-          ctx.drawImage(over.canvas, over.x, over.y, n, n, 0, 0, n, n);
-          ctx.globalAlpha = 1;
-        }
+        if (!over) { held = null; hide(); return; }
+        ctx.globalAlpha = also.share;
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.drawImage(over.canvas, over.x, over.y, n, n, 0, 0, n, n);
+        ctx.globalAlpha = Math.min(1, 2 * also.share);
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.drawImage(over.canvas, over.x, over.y, n, n, 0, 0, n, n);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
       }
       // (A stretched picture is never kept: the next frame's outline is another.)
-      held = c.warp ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
+      held = base.warp ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
     show(c, box, now.size);
   };
@@ -297,16 +332,17 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       }
       // When a lost context comes back the coat is painted again, moving or not.
       restored ??= onRestored(lost);
-      if (inFrame() && ready.has(c.body)) {
+      const crossing = !!c.also && c.also.share > OFF;
+      if (inFrame() && (ready.has(c.body) || (crossing && ready.has(c.also!.body)))) {
         paint();
-        // (The other body's coat in a change of shape, whose mesh is not made yet: soon() makes it and paints both.)
-        if (c.also && !ready.has(c.also.body)) later();
-        else { drop?.(); drop = null; }
+        // A coat that shows but whose mesh is not made yet waits for soon(), which makes it and paints both. The other
+        // body in a change of shape has its mesh made ahead of its coat, as soon as the change names it.
+        if (!ready.has(c.body) || (crossing && !ready.has(c.also!.body))) later();
+        else { drop?.(); drop = null; if (c.also && !ready.has(c.also.body)) warm(c.also.body); }
         return;
       }
-      // A body whose mesh is not made yet (a long frame skipped the faded-out middle where warm() makes it, or a
-      // change of shape's whole cross-over): the picture held is another body's fur, so it goes until soon() paints
-      // this one, and the flat drawing shows.
+      // A body whose mesh is not made yet (a long frame skipped the faded-out middle where warm() makes it): the
+      // picture held is another body's fur, so it goes until soon() paints this one, and the flat drawing shows.
       if (!ready.has(c.body)) hide();
       later();
     },

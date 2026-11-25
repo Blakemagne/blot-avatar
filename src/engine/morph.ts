@@ -7,14 +7,17 @@
 // outline to fade. That is the morph, between any two bodies, however many pieces either has.
 
 import type { Body } from './body';
+import { smooth } from './ease';
 import type { Mat3 } from './math';
 import { silhouette } from './silhouette';
 
 /**
  * A change of shape caught part way: so much of one body, so much of another (the shares add up to 1).
- * A new change can start from one, so a change during a change carries on from the in-between.
+ * A new change can start from one, so a change during a change carries on from the in-between. `also` is the other
+ * body's coat that was laid over the one on `wears` when it was caught near half way (see coatsAt), so the next
+ * change fades it out from there instead of dropping it.
  */
-export interface Mix { parts: { body: Body; share: number }[]; wears: Body }
+export interface Mix { parts: { body: Body; share: number }[]; wears: Body; also?: { body: Body; share: number } }
 /** What a morph starts from: a body, or an earlier morph that was still going. */
 export type Source = Body | Mix;
 
@@ -27,6 +30,23 @@ export const leaf = (s: Source): Body => (isMix(s) ? s.wears : s);
  * the figure's own in over the last (a change of shape keeps its coat on: see draw.ts).
  */
 export const COAT_FADE = 0.25;
+
+/** Either side of half way through a change of shape, over this share of it, the two bodies' coats cross over. */
+export const COAT_SWAP = 0.15;
+
+/**
+ * The coats `k` of the way through a change of shape from `from` to `to`: the one worn (the body the eyes are on),
+ * and the other laid over it at `share`. That is the arriving body before half way and the leaving one after, at
+ * 0.5 at half way (where the two swap places) and 0 further than COAT_SWAP from it. A change that cut into one
+ * caught near half way fades the coat that was laid over then out over its own first COAT_SWAP.
+ */
+export function coatsAt(from: Source, to: Body, k: number): { wears: Body; other: Body; share: number } {
+  const old = leaf(from);
+  if (isMix(from) && from.also && from.also.share > 0 && k < COAT_SWAP) return { wears: old, other: from.also.body, share: from.also.share * (1 - smooth(k / COAT_SWAP)) };
+  const wears = k < 0.5 ? old : to, other = k < 0.5 ? to : old;
+  const share = other === wears ? 0 : 0.5 * (k < 0.5 ? smooth((k - 0.5 + COAT_SWAP) / COAT_SWAP) : 1 - smooth((k - 0.5) / COAT_SWAP));
+  return { wears, other, share };
+}
 
 /** At most this many bodies in a mix; past that the one with the least share is let go. */
 const MOST = 5;
@@ -42,7 +62,8 @@ export function caught(a: Source, b: Body, k: number): Mix {
   while (parts.length > MOST) parts.splice(parts.reduce((least, p, i) => (p.share < parts[least].share ? i : least), 0), 1);
   const sum = parts.reduce((t, p) => t + p.share, 0);
   for (const p of parts) p.share /= sum;
-  return { parts, wears: k < 0.5 ? leaf(a) : b };
+  const coats = coatsAt(a, b, k);
+  return coats.share > 0 ? { parts, wears: coats.wears, also: { body: coats.other, share: coats.share } } : { parts, wears: coats.wears };
 }
 
 const TAU = 2 * Math.PI;

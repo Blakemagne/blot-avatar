@@ -40,10 +40,12 @@ export const SHEEN_STOPS: readonly (readonly [number, string, number])[] = [
 /** Over a coat of fur the sheen is this much fainter: the fur has its own light. */
 export const SHEEN_ON_FUR = 0.6;
 /**
- * The sheen over fur: only its glare, gone well inside the edge. The glass's dark band and bright edge end at the
- * body path, but the pile stands out past it, so over fur they drew a pale ring inside the coat, where the path
- * ends and the fur goes on.
+ * The sheen over fur: only a glare, round, and gone well inside the edge on every side. The glass's dark band and
+ * bright edge end at the body path, but the pile stands out past it, so over fur they drew a pale ring inside the
+ * coat, where the path ends and the fur goes on; and the glass's glare, drawn toward its corner, still reached the
+ * path at the upper left, where it ended as a pale arc.
  */
+export const FUR_SHEEN = { cx: 0.42, cy: 0.38, r: 0.34 } as const;
 export const FUR_SHEEN_STOPS: readonly (readonly [number, string, number])[] = [[0, '#ffffff', 0.86], [0.35, '#ffffff', 0.13], [0.6, '#ffffff', 0]];
 /**
  * Over fur the blended rainbow is stroked this wide too (drawing units: the pile's reach, PILE_REACH, so half of it
@@ -85,7 +87,7 @@ function skinTree(id: string): Node[] {
       { tag: 'linearGradient', attrs: { id: at.rainbow, gradientUnits: 'userSpaceOnUse', x1: num(x1), y1: num(y1), x2: num(x2), y2: num(y2), spreadMethod: 'repeat' }, kids: bands },
       { tag: 'radialGradient', attrs: { id: at.sheen, cx: num(SHEEN.cx), cy: num(SHEEN.cy), r: num(SHEEN.r), fx: num(SHEEN.fx), fy: num(SHEEN.fy) }, kids: stops(SHEEN_STOPS) },
       { tag: 'radialGradient', attrs: { id: at.halo }, kids: stops(HALO_STOPS) },
-      { tag: 'radialGradient', attrs: { id: at.furSheen, cx: num(SHEEN.cx), cy: num(SHEEN.cy), r: num(SHEEN.r), fx: num(SHEEN.fx), fy: num(SHEEN.fy) }, kids: stops(FUR_SHEEN_STOPS) },
+      { tag: 'radialGradient', attrs: { id: at.furSheen, cx: num(FUR_SHEEN.cx), cy: num(FUR_SHEEN.cy), r: num(FUR_SHEEN.r) }, kids: stops(FUR_SHEEN_STOPS) },
     ] },
     { tag: 'path', attrs: { fill: `url(#${at.rainbow})`, stroke: `url(#${at.rainbow})`, 'stroke-width': num(PILE_TINT), 'stroke-linejoin': 'round' } },
     { tag: 'path', attrs: { fill: `url(#${at.rainbow})`, 'stroke-linejoin': 'round', 'paint-order': 'stroke' } },

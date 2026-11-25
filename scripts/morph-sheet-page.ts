@@ -36,7 +36,7 @@ const nameOf = (s: Shape) => (typeof s === 'string' ? s : s.id);
 /** The changes of shape drawn: from, to, powered. */
 const PAIRS: [Shape, Shape, boolean][] = [
   ['blob', 'star', false], ['star', 'heart', false], ['heart', 'cloud', false], ['blob', 'house', false],
-  [gallery('mug'), gallery('lightbulb'), false], ['blob', 'house', true],
+  [gallery('mug'), gallery('lightbulb'), false], [gallery('bunny'), gallery('sprout'), false], [gallery('barbell'), 'blob', false], ['blob', 'house', true],
 ];
 /** How far into the change each cell is, ms on the page's clock (the change takes MORPH_MS, 400). */
 const INTO = Array.from({ length: 14 }, (_, i) => i * 32);

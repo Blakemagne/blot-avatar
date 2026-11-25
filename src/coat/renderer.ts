@@ -7,7 +7,7 @@
 // their avatars keep drawing, so a page of avatars only pays for drawing, and a small one draws less of each.
 
 import { COAT_UNIT, coatDetail, rootsIn, type CoatMesh } from '../engine/coat';
-import { VIEW_UNIT } from '../engine/draw';
+import { VIEW_UNIT, type CoatWarp } from '../engine/draw';
 import { DYE_RAMP_SIZE, dyeRamp, type Rgb } from '../engine/dye';
 import type { FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
@@ -42,7 +42,7 @@ export interface CoatFrame {
   /** The eyes, for the pile to part round them; null when none shows. */
   eyes: EyeField | null;
   /** In a change of shape, the coat stretched along rays onto the outline drawn (DrawnCoat.warp); unset on a body. */
-  warp?: Float64Array | null;
+  warp?: CoatWarp | null;
   /** A loading figure's shape this frame (Drawing.coat.shape): how its mesh is moved. None for a body. */
   shape?: FigureShape;
 }
@@ -113,7 +113,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const u = {
     rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
-    eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'), warpN: uniform('warpN'),
+    eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'), warpN: uniform('warpN'), warpPress: uniform('warpPress'),
     figure: uniform('figure'), rays: uniform('rays'), balls: uniform('balls'), band: uniform('band'), restBall: uniform('restBall'), nowBall: uniform('nowBall'),
   };
   gl.enable(gl.DEPTH_TEST);
@@ -143,11 +143,11 @@ function createRenderer(restored: () => void): Renderer | null {
   texture(1, 'dyeRamp', gl.TEXTURE_2D);
   gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, DYE_RAMP_SIZE, 1);
   clampLinear();
-  // 3 the warp: one float a ray, read exactly (texelFetch) and blended in the shader.
+  // 3 the warp: two floats a ray (the body's own reach, the outline's), read exactly (texelFetch) and blended in the shader.
   texture(3, 'warpRays', gl.TEXTURE_2D);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 1, 1, 0, gl.RED, gl.FLOAT, new Float32Array([1]));
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, 1, 1, 0, gl.RG, gl.FLOAT, new Float32Array([1, 1]));
   gl.uniform1i(u.warpN, 0);
   // Last, so its unit stays active: the eyes change the most. Far from any eye until there are some.
   texture(2, 'eyeField', gl.TEXTURE_2D);
@@ -270,11 +270,14 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform1f(u.eyeRange, eyeRange);
     } else gl.uniform1f(u.eyeRange, 0);
 
-    if (f.warp && f.warp.length) {
+    if (f.warp && f.warp.own.length) {
+      const { own, reach } = f.warp, n = own.length, rays = new Float32Array(2 * n);
+      for (let i = 0; i < n; i++) { rays[2 * i] = own[i]; rays[2 * i + 1] = reach[i]; }
       gl.activeTexture(gl.TEXTURE3);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, f.warp.length, 1, 0, gl.RED, gl.FLOAT, Float32Array.from(f.warp));
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, n, 1, 0, gl.RG, gl.FLOAT, rays);
       gl.activeTexture(gl.TEXTURE2);
-      gl.uniform1i(u.warpN, f.warp.length);
+      gl.uniform1i(u.warpN, n);
+      gl.uniform1f(u.warpPress, f.warp.press);
     } else gl.uniform1i(u.warpN, 0);
 
     const R = f.rotation;

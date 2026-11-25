@@ -54,9 +54,12 @@ uniform vec4 square;
 uniform float shell;
 uniform float strandWidth; // 1 at full detail; wider where fewer strands are drawn
 uniform int pass;
-// In a change of shape: how far to stretch the coat along each of warpN rays from the drawing's middle (none: 0).
+// In a change of shape: along each of warpN rays from the drawing's middle, how far the coat's own body reaches
+// and how far the outline drawn does (r, g), drawing units (none: 0).
 uniform highp sampler2D warpRays;
 uniform int warpN;
+// How far the edges of thin pieces the outline drawn cuts off are pressed onto it (CoatWarp.press).
+uniform float warpPress;
 // A figure's shape (FIGURE): the band's inner radii then its outer ones, \`rays\` of each, four to a vec4; or each
 // ball at rest and now (x y z r). Body units, y up.
 uniform int figure, rays, balls;
@@ -166,14 +169,27 @@ void main() {
   vec3 q = rotation * (FLIP * p / UNIT);
   float w = D - q.z, deep = square.w;
   if (warpN > 0) {
-    // Stretched onto the outline drawn along its ray from the middle, as the outline itself was blended (morph.ts:
-    // rays clockwise from the right, y down), the stretch read between the two rays either side. Only x and y
-    // scale, so the depth and the perspective are the point's own.
-    float turn = atan(-q.y, q.x) * ${float(1 / (2 * Math.PI))};
-    float at = fract(turn) * float(warpN);
-    int i = int(at) % warpN;
-    float k = mix(texelFetch(warpRays, ivec2(i, 0), 0).r, texelFetch(warpRays, ivec2((i + 1) % warpN, 0), 0).r, at - floor(at));
-    q.xy *= k;
+    // Stretched onto the outline drawn along rays from the middle, as the outline itself was blended (morph.ts: rays
+    // clockwise from the right, y down), read between the two rays either side (draw.ts, stretched): the surface
+    // point under it is moved, and the pile on it goes with it, as it stands, so no hair is drawn out. Only x and y
+    // move, so the depth and the perspective are the point's own.
+    vec3 root = rotation * P;
+    float rho = D * length(root.xy) / (D - root.z);
+    if (rho > 1e-6) {
+      float turn = atan(-root.y, root.x) * ${float(1 / (2 * Math.PI))};
+      float at = fract(turn) * float(warpN), t = at - floor(at);
+      int i = int(at) % warpN;
+      vec2 r0 = texelFetch(warpRays, ivec2(i, 0), 0).rg, r1 = texelFetch(warpRays, ivec2((i + 1) % warpN, 0), 0).rg;
+      vec2 r = mix(r0, r1, t);
+      float to;
+      if (rho <= r.x) to = rho * r.y / r.x;
+      else {
+        float b = max(r0.x, r1.x), far = r0.x >= r1.x ? r0.y : r1.y;
+        float top = r.y + (1. - warpPress) * max(0., min(far - r.y, b - r.x));
+        to = rho <= b ? r.y + (top - r.y) * (rho - r.x) / (b - r.x) : top + rho - b;
+      }
+      q.xy += (to - rho) * normalize(root.xy) * w / D;
+    }
   }
   gl_Position = vec4(
     (VIEW_UNIT * D * q.x + (MID - square.x) * w) / square.z,

@@ -1,7 +1,8 @@
 // Contact sheets of changes of shape on mount()'s own avatars, drawn by headless Edge: blob to star, star to heart,
-// heart to cloud, blob to house, a gallery pair (mug to lightbulb) and a powered blob to house, every 32 ms across
-// the change at 240 px (fluffy) and 96 px (flat, fluffy, fluffy black), and a powered fluffy avatar close up at
-// 640 px; on a light and a dark page. The page runs its own clock, so every sheet is the same on every run.
+// heart to cloud, blob to house, gallery pairs (mug to lightbulb, and bodies with thin parts: bunny to sprout,
+// barbell to blob) and a powered blob to house, every 32 ms across the change at 240 px (fluffy) and 96 px (flat,
+// fluffy, fluffy black), and a powered fluffy avatar close up at 640 px; on a light and a dark page. The page runs
+// its own clock, so every sheet is the same on every run.
 //   node scripts/morph-sheet.mjs [out-dir] [what]   (out-dir: morph-sheets in the system's temp folder; what: a
 //   comma list of sheet names to do only those; unset, all of them)
 // Needs Microsoft Edge, and playwright-core, which is not a dependency of this package: install it, or point

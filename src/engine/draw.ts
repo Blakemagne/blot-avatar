@@ -8,7 +8,7 @@ import { FACES, eyeOutline, type Face } from './faces';
 import { REST, discAt, figureBody, figureParts, figureRadius, type FigureShape } from './figures';
 import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
 import { area, bounds, rotation, type Mat3 } from './math';
-import { COAT_FADE, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
+import { COAT_FADE, COAT_SWAP, coatsAt, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
 import type { RigState } from './rig';
 import { silhouette, toPath } from './silhouette';
 
@@ -48,6 +48,35 @@ export interface Drawing {
 }
 
 /**
+ * A coat stretched onto the outline drawn in a change of shape (DrawnCoat.warp): two distances a ray; `past`, how
+ * far the body's own outline goes past the further of the two rays either side at most (a renderer sizes its
+ * picture by it); and `press`, 0..1, how far the edges of thin pieces that the outline drawn cuts off are pressed
+ * onto it (see stretched()): none at the body's own end of the change, all of them a little way from it.
+ */
+export interface CoatWarp { own: Float64Array; reach: Float64Array; past: number; press: number }
+
+/**
+ * Where a coat stretched onto a changing outline draws a point `rho` from the middle (projected, drawing units),
+ * `t` of the way from one ray to the next, where the coat's own body reaches `own0` and `own1` and the outline drawn
+ * `reach0` and `reach1` (`a` and `at` between the two). Inside its own outline it is stretched in proportion, onto the
+ * outline drawn there. Between that and the further of the two rays (`b`) lies the edge of a thin piece the nearer
+ * ray misses, an ear or a leaf, which the outline drawn (straight from ray to ray) cuts off: `press` of the way it is
+ * pressed onto the outline (and it never goes out past the further ray). Past both, the pile is only moved, so the
+ * fur keeps its length. So nothing is flung out past the outline, and at rest (`press` 0) nothing moves. The vertex
+ * shader moves each point of the surface so, and the pile on it with it, as it stands (coat/shaders.ts).
+ */
+export function stretched(rho: number, own0: number, own1: number, reach0: number, reach1: number, t: number, press: number): number {
+  const a = own0 + (own1 - own0) * t, at = reach0 + (reach1 - reach0) * t;
+  if (rho <= a) return (rho * at) / a;
+  const b = Math.max(own0, own1), far = own0 >= own1 ? reach0 : reach1;
+  const top = at + (1 - press) * Math.max(0, Math.min(far - at, b - a));
+  return rho <= b ? at + ((top - at) * (rho - a)) / (b - a) : top + rho - b;
+}
+
+/** Over this share of a change of shape from its body's own end, the edges of a coat's thin pieces are pressed onto the outline. */
+const PRESS = 0.15;
+
+/**
  * A coat for one frame (see coat.ts for the mesh). The coat's image depends on `rotation` and on the eyes it
  * clears round, and nothing else: draw it in the drawing's own units, then place it with `affine`, the same 2D
  * move the body, eyes and layers have had. Paint order: the layers behind, the coat, the body path, the layers
@@ -64,18 +93,22 @@ export interface DrawnCoat {
   opacity: number;
   /**
    * In a change of shape, the outline drawn is a blend of two bodies' that is neither one's, so the coat of `body`
-   * is stretched onto it along rays from the middle of the drawing. warp[i] is how far the outline drawn reaches
-   * along ray i over how far `body`'s own does (n rays as morph.ts counts them: clockwise from the right as drawn,
-   * y down). A point of the coat at angle θ from the middle, before `affine`, is drawn that many times further out,
-   * the warp read between the two rays either side. Unset on a body and on a figure's own coat.
+   * is stretched onto it along rays from the middle of the drawing (n rays as morph.ts counts them: clockwise from
+   * the right as drawn, y down). `own[i]` is how far `body`'s own outline reaches along ray i and `reach[i]` how far
+   * the outline drawn does, both read between the two rays either side of a point. A point of the coat, before
+   * `affine`, is drawn where stretched() puts it. Unset on a body and on a figure's own coat.
    */
-  warp?: Float64Array;
+  warp?: CoatWarp;
   /**
-   * Half way through a change of shape the coat goes over from the body it leaves to the one it becomes. Near
-   * there, that other body's coat, stretched onto the same outline by its own `warp`, is laid over this one at
-   * `share` (0.5 at half way, where the two swap places), so the fur never changes from one frame to the next.
+   * In a change of shape, the other body's coat (the one it becomes before half way, the one it leaves after),
+   * stretched onto the same outline by its own `warp`. Near half way the two cross over: where both have fur the
+   * picture is this coat at 1 - `share` and the other at `share` (0.5 at half way, where the two swap places, and 0
+   * further than COAT_SWAP from it), and where only the other has, that at twice its share, so the fur never changes
+   * from one frame to the next. It is named all through the change,
+   * at share 0 too, so a renderer can make its mesh before it is needed. (A change that cut into one near half way
+   * has, over its first COAT_SWAP, the coat that was laid over then, fading out: see coatsAt.)
    */
-  also?: { body: Body; warp: Float64Array; share: number };
+  also?: { body: Body; warp: CoatWarp; share: number };
   /**
    * While the body is a loading figure (and `body` is that figure's, from figures.ts): how the figure's mesh is moved
    * into this frame's shape. A renderer that ignores it draws the figure at rest.
@@ -357,19 +390,16 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
 
 const IDENTITY = [1, 0, 0, 1, 0, 0] as const;
 
-/** Either side of half way through a change of shape, over this share of it, the two bodies' coats cross over. */
-export const COAT_SWAP = 0.15;
-/** A coat is stretched onto a changing outline by no less and no more than this along any ray. */
-const WARP_MIN = 0.25, WARP_MOST = 4;
+export { COAT_SWAP };
 
 /**
  * Which body wears the coat, and how much of it shows, for a drawing whose outline is `reach` (rays; null on a
  * body). In a change of shape the coat stays on: it is the body it leaves until half way and the one it becomes
- * after, each stretched onto the blended outline (DrawnCoat.warp), the two crossing over near half way. A loading
- * figure has nothing of the body under it to wear the body's coat, so that fades out over the first quarter of the
- * way in (stretched as ever, if the shape is changing too), and from there on the coat is the figure's own, whatever
- * shape the body under the figure is changing to (none shows until the last quarter, but a renderer can make its
- * mesh meanwhile). Coming out goes back the same way, onto the body (or the change of shape) under it.
+ * after, each stretched onto the blended outline (DrawnCoat.warp), the two crossing over near half way (coatsAt). A
+ * loading figure has nothing of the body under it to wear the body's coat, so that fades out over the first quarter
+ * of the way in (stretched as ever, if the shape is changing too), and from there on the coat is the figure's own,
+ * whatever shape the body under the figure is changing to (none shows until the last quarter, but a renderer can
+ * make its mesh meanwhile). Coming out goes back the same way, onto the body (or the change of shape) under it.
  * (Call it after compose(), for this pose's R.)
  */
 function coatOf(given: Body, state: RigState, size: number, reach: Float64Array | null): Pick<DrawnCoat, 'body' | 'opacity' | 'warp' | 'also'> & { figure: boolean } {
@@ -378,16 +408,22 @@ function coatOf(given: Body, state: RigState, size: number, reach: Float64Array 
   const drawn = state.body ?? given;
   const opacity = fig ? 1 - smooth(fig.k / COAT_FADE) : 1;
   if (!morph || !reach) return { body: drawn, opacity, figure: false };
-  const k = morph.k, old = leaf(morph.from), rim = detail(size).rim, n = reach.length;
-  const warpOf = (b: Body): Float64Array => {
-    const own = radial(silhouette(b, R, rim), n), w = new Float64Array(n);
-    for (let i = 0; i < n; i++) w[i] = Math.min(WARP_MOST, Math.max(WARP_MIN, reach[i] / own[i]));
-    return w;
+  const rim = detail(size).rim, n = reach.length, { wears, other, share } = coatsAt(morph.from, drawn, morph.k);
+  const old = leaf(morph.from), k = morph.k;
+  const warpOf = (b: Body): CoatWarp => {
+    const polys = silhouette(b, R, rim), own = radial(polys, n);
+    const press = b === drawn ? smooth((1 - k) / PRESS) : b === old ? smooth(k / PRESS) : 1;
+    let past = 0;
+    for (const p of polys) {
+      for (let j = 0; j < p.length; j += 2) {
+        const i = Math.floor((((Math.atan2(p[j + 1], p[j]) / (2 * Math.PI)) * n) % n + n) % n) % n;
+        past = Math.max(past, Math.hypot(p[j], p[j + 1]) - Math.max(own[i], own[(i + 1) % n]));
+      }
+    }
+    return { own, reach, past, press };
   };
-  const body = k < 0.5 ? old : drawn, other = k < 0.5 ? drawn : old;
-  const share = 0.5 * (k < 0.5 ? smooth((k - 0.5 + COAT_SWAP) / COAT_SWAP) : 1 - smooth((k - 0.5) / COAT_SWAP));
-  const out: Pick<DrawnCoat, 'body' | 'opacity' | 'warp' | 'also'> & { figure: boolean } = { body, opacity, warp: warpOf(body), figure: false };
-  if (other !== body && share > 0.004) out.also = { body: other, warp: warpOf(other), share };
+  const out: Pick<DrawnCoat, 'body' | 'opacity' | 'warp' | 'also'> & { figure: boolean } = { body: wears, opacity, warp: warpOf(wears), figure: false };
+  if (other !== wears) out.also = { body: other, warp: warpOf(other), share };
   return out;
 }
 

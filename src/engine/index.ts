@@ -9,7 +9,7 @@ export { surfaceAt } from './field';
 export { barWidth, eyePolys, type Trim } from './eyes';
 export { BLINK_HEIGHT, FACES, eyeOutline, type Face, type FaceName } from './faces';
 export { BLINK_MS, LOOK_PITCH, LOOK_YAW, Rig, ULTRA_CYCLE, ULTRA_IN, ULTRA_OUT, ULTRA_WAIT, random, type RigOptions, type RigState } from './rig';
-export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, VIEW_UNIT, colours, detail, drawAvatar, effectShapes, eyeShapes, layerShapes, type Drawing, type DrawnCoat, type DrawnFx, type Layer } from './draw';
+export { EYE_RIM, THIN_PX, VIEW, VIEW_BOX, VIEW_UNIT, colours, detail, drawAvatar, effectShapes, eyeShapes, layerShapes, type CoatWarp, type Drawing, type DrawnCoat, type DrawnFx, type Layer } from './draw';
 export { COAT_UNIT, PILE_REACH, ROOT_PASSES, STRAND_MAX, STRAND_MIN, coatDetail, coatMesh, rootsIn, type CoatMesh } from './coat';
 export { DYE_RAMP_RANGE, DYE_RAMP_SIZE, dyeRamp, type Rgb } from './dye';
 export { BODIES, bodyFor } from './bodies/index';

@@ -351,14 +351,19 @@ test('the coat stays on through a change of shape, stretched onto the outline dr
     const k = i / 40, dr = at(k), c = dr.coat;
     assert.equal(c.opacity, 1, `${k}: all of the coat shows`);
     assert.equal(c.body, k < 0.5 ? BODIES.blob : BODIES.square, `${k}: the body it leaves, then the one it becomes`);
-    // Each coat, stretched by its warp, reaches exactly as far as the outline drawn along every ray.
+    // Each coat is stretched from its own body's reach along every ray onto the outline drawn.
     const drawn = points(dr.body).map(([x, y]) => Math.hypot(x - MID, y - MID) / UNIT);
     for (const [body, warp] of [[c.body, c.warp], ...(c.also ? [[c.also.body, c.also.warp]] : [])]) {
-      assert.equal(warp.length, drawn.length);
-      const own = radial(silhouette(body, rotation(still().pose), detail(96).rim), warp.length);
-      warp.forEach((w, j) => assert.ok(Math.abs(own[j] * w - drawn[j]) < 1e-3, `${k}, ray ${j}: ${own[j] * w} against ${drawn[j]}`));
+      assert.equal(warp.reach.length, drawn.length);
+      const own = radial(silhouette(body, rotation(still().pose), detail(96).rim), drawn.length);
+      drawn.forEach((r, j) => {
+        assert.ok(Math.abs(warp.reach[j] - r) < 1e-3, `${k}, ray ${j}: ${warp.reach[j]} against ${r}`);
+        assert.ok(Math.abs(warp.own[j] - own[j]) < 1e-12, `${k}, ray ${j}: own`);
+      });
     }
-    // The other coat is laid over only near half way, at most half of it, and the two swap there without a jump.
+    // The other body is named all through the change (so its mesh can be made early), but laid over only near half
+    // way, at most half of it, and the two swap there without a jump.
+    if (k > 0 && k < 1) assert.equal(c.also?.body, k < 0.5 ? BODIES.square : BODIES.blob, `${k}: the other body`);
     const share = c.also?.share ?? 0;
     if (Math.abs(k - 0.5) >= COAT_SWAP) assert.equal(share, 0, `${k}: one coat`);
     assert.ok(share <= 0.5);
@@ -367,7 +372,8 @@ test('the coat stays on through a change of shape, stretched onto the outline dr
   assert.deepEqual([before.body, before.also.body, after.body, after.also.body], [BODIES.blob, BODIES.square, BODIES.square, BODIES.blob]);
   assert.ok(Math.abs(before.also.share - 0.5) < 0.01 && Math.abs(after.also.share - 0.5) < 0.01);
   // On a body there is nothing to stretch.
-  assert.equal(at(1).coat.warp?.every((w) => Math.abs(w - 1) < 1e-9) ?? true, true);
+  const end = at(1).coat.warp;
+  assert.ok(!end || end.own.every((o, i) => Math.abs(end.reach[i] - o) < 1e-9));
   assert.equal(drawAvatar(BODIES.blob, 'gray', still(), 96, { coat: true }).coat.warp, undefined);
   const figure = (k) => drawAvatar(BODIES.blob, 'gray', still(0, 0, { figure: { form: 'ring', k, turn: 0, progress: 0 } }), 96, { coat: true }).coat.opacity;
   assert.equal(figure(0), 1);
@@ -401,6 +407,67 @@ const { FORMS, FIGURE_REACH, REST, figureBody } = await import('./figures.ts');
 const { bodyShapes } = await import('./draw.ts');
 const figured = (form, k, turn = 0, progress = 0) => still(0, 0, { figure: { form, k, turn, progress } });
 
+test('caught near half way, the coat laid over goes on from where it was and fades out, not gone in one step', async () => {
+  const { Rig } = await import('../index.ts');
+  const { COAT_SWAP } = await import('./morph.ts');
+  const coatNow = (r) => drawAvatar(r.state.body, 'gray', r.state, 96, { coat: true }).coat;
+  for (const at of [0.4, 0.45, 0.48, 0.52, 0.55]) {
+    const rig = new Rig({ body: BODIES.blob });
+    rig.setBody(BODIES.cloud);
+    while (rig.state.morph && rig.state.morph.k < at) rig.step(4);
+    const before = coatNow(rig);
+    assert.ok(before.also.share > 0.1, `${at}: crossing over`);
+    rig.setBody(BODIES.star);
+    rig.step(4);
+    const after = coatNow(rig);
+    assert.equal(after.body, before.body, `${at}: the same coat underneath`);
+    assert.equal(after.also?.body, before.also.body, `${at}: the same coat laid over`);
+    assert.ok(Math.abs(after.also.share - before.also.share) < 0.05, `${at}: ${before.also.share} then ${after.also.share}`);
+    // Then it fades out over the new change's first COAT_SWAP, never stepping, and the change goes on as ever.
+    let last = after.also.share;
+    while (rig.state.morph && rig.state.morph.k < COAT_SWAP) {
+      rig.step(4);
+      const c = coatNow(rig), share = c.also?.body === before.also.body ? c.also.share : 0;
+      assert.ok(share <= last + 1e-12 && last - share < 0.15, `${at}: ${last} then ${share}`);
+      last = share;
+    }
+    rig.step(4);
+    const c = coatNow(rig);
+    assert.equal(c.also?.body === before.also.body ? c.also.share : 0, 0, `${at}: gone once past COAT_SWAP`);
+  }
+});
+
+test('stretched onto a change of shape, a thin piece (an ear, a leaf, a plate) is never flung out past the outline drawn', async () => {
+  const { stretched } = await import('./draw.ts');
+  const { reachOf } = await import('../coat/layer.ts');
+  const { D } = await import('./math.ts');
+  const g = (id) => outlineBody(GALLERY.find((x) => x.definition.id === id).definition);
+  const R = rotation(still().pose), TAU = 2 * Math.PI;
+  for (const [a, b] of [[BODIES.blob, g('bunny')], [g('bunny'), BODIES.blob], [BODIES.square, g('sprout')], [g('barbell'), BODIES.blob]]) {
+    for (const k of [0.3, 0.44, 0.56, 0.75]) {
+      const c = drawAvatar(b, 'gray', still(0, 0, { body: b, morph: { from: a, k } }), 96, { coat: true }).coat;
+      for (const [body, warp] of [[c.body, c.warp], [c.also.body, c.also.warp]]) {
+        // Every point of the mesh's surface moved as the vertex shader moves it.
+        const v = coatMesh(body).vertices, n = warp.reach.length, box = reachOf(coatMesh(body), warp);
+        let past = 0, far = 0;
+        for (let j = 0; j < v.length; j += 6) {
+          const q = [0, 1, 2].map((r) => R[r * 3] * v[j] + R[r * 3 + 1] * v[j + 1] + R[r * 3 + 2] * v[j + 2]);
+          const at = ((((Math.atan2(-q[1], q[0]) / TAU) % 1) + 1) % 1) * n, i = Math.floor(at) % n, i1 = (i + 1) % n;
+          const rho = (Math.hypot(q[0], q[1]) * D) / (D - q[2]);
+          const to = stretched(rho, warp.own[i], warp.own[i1], warp.reach[i], warp.reach[i1], at - Math.floor(at), warp.press);
+          // (Between two rays the outline drawn reaches no further than the further of them.)
+          past = Math.max(past, to - Math.max(warp.reach[i], warp.reach[i1]));
+          far = Math.max(far, to);
+        }
+        // Never far past the outline drawn (the stretch read between two rays put a bunny's ears a whole unit past
+        // it, and a sprout's leaves out to the corners), and always inside its square.
+        assert.ok(past < 0.25, `${k}: ${past} past the outline`);
+        assert.ok(far <= (box * D) / Math.sqrt(D * D - box * box), `${k}: ${far} outside the square`);
+      }
+    }
+  }
+});
+
 test('a figure: the body\'s coat fades out over the first quarter, the figure\'s own fades in over the last, with no eyes', () => {
   for (const form of FORMS) {
     const coat = (k) => drawAvatar(BODIES.blob, 'gray', figured(form, k, 1.1, 0.4), 96, { coat: true }).coat;
@@ -428,7 +495,7 @@ test('a change of shape and a figure together: the body\'s coat fades stretched,
       // On the way in, the body's coat: the one the change of shape is on, stretched onto the outline, fading as it would alone.
       const early = both(form, 0.1, mk);
       assert.equal(early.body, mk < 0.5 ? BODIES.blob : BODIES.square, `${form} ${mk}`);
-      assert.ok(early.warp instanceof Float64Array, `${form} ${mk}: stretched`);
+      assert.ok(early.warp?.own instanceof Float64Array, `${form} ${mk}: stretched`);
       assert.equal(early.shape, undefined);
       assert.ok(Math.abs(early.opacity - alone(form, 0.1).opacity) < 1e-12, `${form} ${mk}: ${early.opacity}`);
       // From COAT_FADE on, the figure's own coat, whatever the shape under it is doing; once the figure is whole,
