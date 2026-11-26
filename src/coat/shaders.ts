@@ -136,12 +136,13 @@ void main() {
   // (The pile is fixed to the mesh at rest, so it goes where a figure's piece goes.)
   scenePlace = (rotation * (P * poseScale) + poseOffset) / ${(.54945*512/296).toFixed(9)};
   groomPoint = position;
-  if (portraitCoat && !ornament) {
+  if ((portraitCoat || builderPile) && !ornament) {
     // Project the observed optical surface back onto its rest-space density field.
     vec3 look = normalize(transpose(rotation)*vec3(0.,0.,1.)/poseScale);
     float incidence = max(.22,dot(look,Nm));
     vec3 parallax = look/incidence-Nm;
-    groomPoint += .022*${(.54945*512/296).toFixed(9)}*parallax*smoothstep(.08,.38,dot(look,Nm));
+    float opticalGap = portraitCoat ? .022 : .007-(pass == SHELL ? .0185*shell : 0.);
+    groomPoint += opticalGap*${(.54945*512/296).toFixed(9)}*parallax*smoothstep(.08,.38,dot(look,Nm));
   }
   groomSide = Nm.z;
   opticalPlace = rotation * ((position * opticalFrame.w - opticalFrame.xyz) * poseScale) + poseOffset * opticalFrame.w;
@@ -244,10 +245,10 @@ uniform sampler2D eyeField;
 uniform vec3 color;
 ${glossOptics}
 uniform bool fittedGloss;
-uniform int groomLayer, portraitLayer;
-uniform highp sampler2DArray portraitDensity;
-uniform highp sampler2DArray dotGroom;
-uniform vec3 groomAmplitude[8];
+uniform int opticalLayer;
+uniform highp sampler2DArray opticalDensity;
+
+
 uniform highp sampler2D contactField;
 uniform highp sampler2DShadow portraitShadow;
 uniform vec3 directLight[9], feltGain[9];
@@ -430,10 +431,10 @@ void main() {
     float socket = 1. - .18 * (1. - smoothstep(.05, 1.35, d));
     vec3 base = furLightLayer >= 0 ? tintedRadiance(normalUV(n),furLightLayer,2) : studioLight(n);
     vec3 variationRGB = grain * (.23 + .77 * base);
-    if (portraitLayer >= 0) {
-      vec2 uv = .5 + groomPoint.xy / (2.18 * ${(.54945*512/296).toFixed(9)});
-      vec4 front = texture(portraitDensity,vec3(uv,float(portraitLayer)));
-      vec4 back = texture(portraitDensity,vec3(uv,float(portraitLayer+1)));
+    if (opticalLayer >= 0) {
+      vec2 uv = .5 + groomPoint.xy / ((builderPile ? 2.125 : 2.18) * ${(.54945*512/296).toFixed(9)});
+      vec4 front = texture(opticalDensity,vec3(uv,float(opticalLayer)));
+      vec4 back = texture(opticalDensity,vec3(uv,float(opticalLayer+1)));
       front = (front*255.-128.)*feltScale/127.;
       back = (back*255.-128.)*feltScale/127.;
       vec3 key = normalize(vec3(-.6,.8,1.)), incoming = transpose(rotation)*key;
@@ -443,17 +444,9 @@ void main() {
         +n.x*n.x*feltGain[4]+n.x*n.y*feltGain[5]+n.y*n.y*feltGain[6]
         +n.x*n.z*feltGain[7]+n.y*n.z*feltGain[8];
       variationRGB = relief*clamp(gain,vec3(0.),vec3(3.))+.025*variationRGB;
-    } else if (groomLayer >= 0) {
-      vec2 uv = .5 + groomPoint.xy / (2.125 * ${(.54945*512/296).toFixed(9)});
-      vec2 front = texture(dotGroom,vec3(uv,float(groomLayer))).rg;
-      vec2 back = texture(dotGroom,vec3(uv,float(groomLayer+1))).rg;
-      vec2 density = (255.*mix(back,front,smoothstep(-.12,.12,groomSide))-128.)/40.;
-      vec3 fine = groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3];
-      vec3 coarse = groomAmplitude[4] + n.x*groomAmplitude[5] + n.y*groomAmplitude[6] + n.z*groomAmplitude[7];
-      variationRGB = 1.35*density.x*fine + 1.15*density.y*coarse + .08*variationRGB;
     }
     vec3 colour = (base + variationRGB) * socket;
-    if (portraitLayer >= 0 && furLightLayer >= 0) {
+    if (portraitCoat && opticalLayer >= 0 && furLightLayer >= 0) {
       colour -= portraitLightLoss(scenePlace,n);
     }
     if (contactExtent > 0.) {

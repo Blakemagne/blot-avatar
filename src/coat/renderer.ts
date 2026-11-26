@@ -126,7 +126,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const u = {
     poseScale: uniform('poseScale'), poseOffset: uniform('poseOffset'), rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
     matteBodyLayer: uniform('matteBodyLayer'), feltScale: uniform('feltScale'), feltGain: uniform('feltGain[0]'), feltExtent: uniform('feltExtent'), directLight: uniform('directLight[0]'), shadowWeights: uniform('shadowWeights[0]'),
-    builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), portraitLayer: uniform('portraitLayer'), groomLayer: uniform('groomLayer'), groomResponse: uniform('groomAmplitude[0]'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
+    builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), opticalLayer: uniform('opticalLayer'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
     glossCoefficients: uniform('glossCoefficients[0]'), pigmentControls: uniform('pigmentControls'), glossPigment: uniform('glossPigment'), finish: uniform('finish'), ornament: uniform('ornament'), axes: uniform('ornamentAxes'), offset: uniform('ornamentOffset'), metal: uniform('metal'),
     portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
@@ -181,12 +181,6 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, studio.width, studio.height, 0, gl.RG, gl.UNSIGNED_BYTE, studio.data);
   }
-  texture(7, 'dotGroom', gl.TEXTURE_2D_ARRAY);
-  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, null);
   const loadedTints = [new Set<number>(), new Set<number>(), new Set<number>()];
   for (const [unit, sampler] of [[8, 'matteTintStudio'], [9, 'metalTintStudio'], [12, 'furTintStudio']] as const) {
     texture(unit, sampler, gl.TEXTURE_2D_ARRAY);
@@ -211,26 +205,25 @@ function createRenderer(restored: () => void): Renderer | null {
     known.add(i);
     return i;
   };
-  const loadedGrooms = new Set<number>();
-  const portraitLayers = new Map<string, number>();
-  texture(6, 'portraitDensity', gl.TEXTURE_2D_ARRAY);
+  const opticalLayers = new Map<string, number>();
+  texture(6, 'opticalDensity', gl.TEXTURE_2D_ARRAY);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, null);
 
-  const portraitLayer = (name: string, assets: NonNullable<typeof dotRenderer>) => {
-    const known = portraitLayers.get(name);
+  const opticalLayer = (name: string, field: string, assets: NonNullable<typeof dotRenderer>) => {
+    const known = opticalLayers.get(name);
     if (known !== undefined) return known;
-    const layer = 2 * portraitLayers.size, size = assets.feltSize;
+    const layer = 2 * opticalLayers.size, size = assets.feltSize;
     gl.activeTexture(gl.TEXTURE6);
     if (layer === 0) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, size, size,
-      2 * Object.keys(assets.feltReliefs).length, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    const optical = assets.feltField(assets.feltReliefs[name].field,size);
+      2 * (Object.keys(assets.feltReliefs).length + Object.keys(assets.builderReliefs).length), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const optical = assets.feltField(field,size);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,size,size,2,gl.RGBA,gl.UNSIGNED_BYTE,optical);
     gl.activeTexture(gl.TEXTURE2);
-    portraitLayers.set(name, layer);
+    opticalLayers.set(name, layer);
     return layer;
   };
   gl.activeTexture(gl.TEXTURE2);
@@ -348,28 +341,19 @@ function createRenderer(restored: () => void): Renderer | null {
       dye = key;
     }
     const assets = f.dotBody ? dotRenderer : undefined;
-    const groom = assets && f.dotBody && !f.character && !f.glossy && assets.groomResponse[key] ? assets.groomBodies.indexOf(f.dotBody) : -1;
-    if (assets && groom >= 0) {
-      const { groomSize, groomField, groomResponse, groomBodies } = assets;
-      if (!loadedGrooms.has(groom)) {
-        gl.activeTexture(gl.TEXTURE7);
-        if (!loadedGrooms.size) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RG8, groomSize, groomSize,
-          2*groomBodies.length, 0, gl.RG, gl.UNSIGNED_BYTE, null);
-        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 2*groom, groomSize, groomSize, 2, gl.RG, gl.UNSIGNED_BYTE, groomField(groom));
-        gl.activeTexture(gl.TEXTURE2);
-        loadedGrooms.add(groom);
-      }
-      gl.uniform3fv(u.groomResponse, groomResponse[key]);
-    }
-    gl.uniform1i(u.builderPile, groom >= 0 ? 1 : 0);
-    gl.uniform1i(u.groomLayer, 2*groom);
+    const builder = assets && f.dotBody && !f.character && !f.glossy && assets.builderGain[key] ? assets.builderReliefs[f.dotBody] : undefined;
     const portrait = f.character && !f.glossy ? assets?.feltReliefs[f.character] : undefined;
-    gl.uniform1i(u.portraitLayer, portrait && assets && f.character ? portraitLayer(f.character, assets) : -1);
+    const relief = portrait ?? builder;
+    const name = f.character ?? f.dotBody;
+    gl.uniform1i(u.builderPile,builder ? 1 : 0);
+    gl.uniform1i(u.opticalLayer,relief && name && assets ? opticalLayer(name,relief.field,assets) : -1);
     const felt = portrait && f.character && assets ? assets.feltLayers[f.character] : undefined;
-    gl.uniform1i(u.furLightLayer, assets && (felt !== undefined || groom >= 0) ? tintLayer(f.colour,2,assets,felt) : -1);
+    gl.uniform1i(u.furLightLayer, assets && relief ? tintLayer(f.colour,2,assets,felt) : -1);
+    if (relief && assets) {
+      gl.uniform4fv(u.feltScale,relief.scale);
+      gl.uniform3fv(u.feltGain,portrait?.gain ?? assets.builderGain[key]);
+    }
     if (portrait && f.character && assets) {
-      gl.uniform4fv(u.feltScale,portrait.scale);
-      gl.uniform3fv(u.feltGain,portrait.gain);
       const [centre, width] = assets.feltExtent[f.character];
       gl.uniform2f(u.feltExtent,centre*DOT_RADIUS/140.6592,width*DOT_RADIUS/140.6592);
     }
@@ -453,7 +437,7 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform4fv(u.nowBall, now);
     }
 
-    const contactColour = groom >= 0 && assets?.contactColor[key];
+    const contactColour = builder && assets?.contactColor[key];
     if (felt !== undefined && assets && f.character) {
       contact ??= assets.createDotContact(gl,link);
       contact(f,pixels,rotation,geometryOf,true);
@@ -480,7 +464,7 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.enable(gl.CULL_FACE);
     gl.uniform1i(u.pass, PASS.body);
     gl.drawElements(gl.TRIANGLES, geometry.indices, gl.UNSIGNED_INT, 0);
-    if (groom >= 0 || portrait) {
+    if (relief) {
       // The solid pile sits on the unexpanded body. Translucent shells approximate the measured
       // alpha profile of the short cards at its edge without changing the opaque depth surface.
       const opacity = portrait ? [.896,.802,.646,.425,.196,.054,.008] : [.80,.73,.30,.13,.053,.032,.009];
