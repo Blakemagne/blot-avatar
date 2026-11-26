@@ -1,6 +1,7 @@
 // A still avatar: the body for a shape id and the pose it holds, for a picture that never moves (and for the
 // first picture of one that will).
 
+import { DOT_SHAPES } from './dot-shapes';
 import { BODIES, bodyFor } from './engine/bodies/index';
 import { portraitFor } from './engine/bodies/portraits';
 import type { Body } from './engine/body';
@@ -21,7 +22,11 @@ export type Shape = string | AvatarDefinition;
  * The engine's body for a shape. A shape id the engine does not know is drawn as the blob. A definition is not
  * checked here: check one you did not write with validateAvatar first (an outline that cannot be read throws).
  */
-export const bodyOf = (shape: Shape): Body => (typeof shape === 'string' ? bodyFor(shape) ?? BODIES.blob : outlineBody(shape));
+export function bodyOf(shape: Shape): Body {
+  if (typeof shape !== 'string') return outlineBody(shape);
+  const dot = shape.startsWith('dot-') && DOT_SHAPES.find(def => def.id === shape);
+  return dot ? outlineBody(dot) : bodyFor(shape) ?? BODIES.blob;
+}
 
 /** Below this size a still faces front: a turned face is a smear that small. */
 export const PORTRAIT_FROM = 28;

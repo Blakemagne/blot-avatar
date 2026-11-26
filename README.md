@@ -493,3 +493,21 @@ These look like mistakes and are not. Do not undo them.
 ## Licence
 
 MIT, see `LICENSE`. Where the bodies' proportions came from is in `THIRD_PARTY_NOTICES.md`.
+
+## Dot studio
+
+Build with `npm run site` and open `_site/dots.html` to try the eleven shapes, eight character presets and independent face, glasses, extra, colour and material controls. The geometry measurements and remaining differences are in the [customization survey](docs/dot-survey.md).
+
+```ts
+import { dotAvatar, mount } from '@blot/avatar';
+
+const avatar = mount(host, {
+  ...dotAvatar({
+    shape: 'dot-rounded-triangle', colour: '#00B1FF', texture: 'Fur',
+    eyes: 'Sleepy lids', extra: 'Crown', extraColour: '#FFCC38',
+  }),
+  size: 144, follow: true,
+});
+```
+
+The same options supply `shape`, `body` and `material` to the React hook. Attach its layer groups to display the styled face and accessories and pass the chosen body colour in `fxPaint.fill` for glossy or furry finishes. Low-level drawing consumers should paint `Drawing.layers` in order.

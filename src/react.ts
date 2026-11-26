@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { coatLayer, type CoatLayer } from './coat/layer';
+import { glossyFill } from './gloss';
 import { writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import type { Drawing } from './engine/draw';
@@ -90,6 +91,14 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   };
   /** The effects' colours: a powered avatar's twinkles and halo take its skin's rainbow and halo. */
   const withSkin = (c: FxPaint): FxPaint => (skinId.current ? { ...c, ...skinPaint(skinId.current) } : c);
+  useEffect(() => {
+    const path = body.current;
+    if (p.material !== 'glossy' || !path?.ownerSVGElement) return;
+    const before = path.style.fill;
+    const gloss = glossyFill(path, p.fxPaint?.fill ?? path.getAttribute('fill') ?? 'currentColor');
+    path.style.fill = gloss.fill;
+    return () => { gloss.remove(); path.style.fill = before; };
+  }, [p.material, p.fxPaint?.fill]);
   // The coat first, so that the first picture is drawn with it.
   useEffect(() => {
     const el = coat.current;

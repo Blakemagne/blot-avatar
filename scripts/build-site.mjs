@@ -56,8 +56,8 @@ function thumbs() {
 const THUMB = 56;
 
 const options = {
-  entryPoints: [path.join(site, 'main.ts')],
-  outfile: path.join(out, 'app.js'),
+  entryPoints: { app: path.join(site, 'main.ts'), dots: path.join(site, 'dots.ts') },
+  outdir: out,
   bundle: true,
   format: 'iife',
   target: ['es2020'],
@@ -72,6 +72,7 @@ const options = {
 async function statics() {
   await mkdir(out, { recursive: true });
   await copyFile(path.join(site, 'index.html'), path.join(out, 'index.html'));
+  await copyFile(path.join(site, 'dots.html'), path.join(out, 'dots.html'));
   await copyFile(path.join(site, 'style.css'), path.join(out, 'style.css'));
   // The design prompt, for a short prompt in an agent app's link to point at.
   await copyFile(path.join(site, 'prompt.md'), path.join(out, 'prompt.md'));

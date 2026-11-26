@@ -5,6 +5,8 @@
 // three kinds of patch only: part of a sphere, part of the cone between two spheres, and a flat triangle
 // touching three spheres. Everything here is closed form on those patches, so there is no mesh.
 
+import type { DotStyle } from './dot-parts';
+
 export type Sphere = readonly [x: number, y: number, z: number, r: number];
 export type Piece = readonly Sphere[];
 
@@ -109,6 +111,8 @@ export interface Decal {
  * face is drawn on whichever side is turned to the viewer.
  */
 export interface Body {
+  /** Independent permanent eye, eyewear and accessory design. */
+  dotStyle?: Readonly<DotStyle>;
   id: string;
   pieces: readonly Piece[];
   eyes: EyeSpec;

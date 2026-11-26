@@ -1,6 +1,7 @@
 // A live avatar on any page, no framework: mount(host, { shape, size }) puts one in `host` and keeps it alive
 // until destroy(). It is the same controller React's useLiveAvatar runs, called in the same order.
 
+import { glossyFill } from './gloss';
 import { coatLayer, type CoatLayer } from './coat/layer';
 import { VIEW_BOX, colours, type Drawing } from './engine/draw';
 import { writeLayers, type Paint } from './layers';
@@ -158,9 +159,12 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     return { fill: opts.fill ?? c.fill, eyeFill: opts.eyeFill ?? c.eyeFill, accent: opts.accent };
   };
   let last = live.first;
+  let gloss: ReturnType<typeof glossyFill> | null = null;
   const paint = () => {
     const c = colour();
-    paths[0].style.fill = c.fill;
+    gloss?.remove();
+    gloss = opts.material === 'glossy' && paths[0].ownerSVGElement ? glossyFill(paths[0], c.fill) : null;
+    paths[0].style.fill = gloss?.fill ?? c.fill;
     paths[1].style.fill = paths[2].style.fill = eyeInk(c.eyeFill, inked);
     paintEffects(back, front, last, fxPaint(c));
     // (A coat at rest is not drawn again by itself: it is told the new colour.)
@@ -177,6 +181,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   layered(live.first);
   svg.appendChild(front);
   host.appendChild(svg);
+  if (opts.material === 'glossy') paint();
   material();
 
   // 3. Alive, in React's effect order.
@@ -247,7 +252,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
-      if (changed('material')) { material(); live.motion(); }
+      if (changed('material')) { material(); paint(); live.motion(); }
     },
     poke: (kind) => { if (!gone) live.poke(kind); },
     play: (name, cue) => !gone && live.play(name, cue),

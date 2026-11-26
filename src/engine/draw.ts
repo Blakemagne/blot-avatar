@@ -2,6 +2,7 @@
 
 import type { Body, Decal } from './body';
 import { antennaPieces, decalOutline } from './decals';
+import { dotFace, dotExtra } from './dot-parts';
 import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
@@ -355,6 +356,13 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
   if (body.antennas && kIn * grow > 0.02) stalks(body, state, d.rim, kIn * grow, least, layers);
   const from = morph ? leaf(morph.from) : null;
   if (from && from !== body && from.antennas && kOut * grow > 0.02) stalks(from, state, d.rim, kOut * grow, least, layers);
+  let dotMask: Float64Array[] | undefined;
+  if (wearer.dotStyle && !fig && !morph) {
+    const face = dotFace(wearer, wearer.dotStyle, state, R, size, own);
+    layers.push(...face, ...dotExtra(wearer, wearer.dotStyle, R, d.rim));
+    if (coat) dotMask = face.flatMap(p => p.polys.map(poly => poly.slice()));
+    eyes = [[], []];
+  }
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 
   // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, a move to the side, the mirror flip.
@@ -362,7 +370,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
   const tall = state.stretch ?? 1, big = state.scale ?? 1, up = state.lift ?? 0, flip = state.flip ?? 1, dx = (state.shift ?? 0) * flip;
   let shadow: Float64Array | null = null, opacity = 0;
   // (For a coat: the eyes before the move, and the move, x' = a x + e and y' = d y + f in body units.)
-  let affine: readonly number[] = IDENTITY, bare: Float64Array[] | null = coat ? [...eyes[0], ...eyes[1]] : null;
+  let affine: readonly number[] = IDENTITY, bare: Float64Array[] | null = coat ? dotMask ?? [...eyes[0], ...eyes[1]] : null;
   if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1 || dx !== 0) {
     // (The ground is under the body itself: a figure's little ball going round below it does not lift it.)
     const box = bounds(fig ? [outline[0]] : outline), ground = box[3], kx = (big * flip) / tall;

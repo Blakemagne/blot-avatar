@@ -18,3 +18,15 @@ export const BOT_COLOURS: readonly (readonly [hex: string, name: string])[] = [
   ['#F93498', 'Magenta'],
   ['#959595', 'Gray'],
 ];
+
+/** Body swatches in the Dot editor's display order. */
+export const DOT_COLOURS = [
+  ['#FFFFFF', 'White'], ['#FA70AB', 'Pink'], ['#DD6ADC', 'Orchid'],
+  ['#A25BFF', 'Violet'], ['#4778FF', 'Blue'], ['#00B1FF', 'Cyan'],
+  ['#04BB9F', 'Teal'], ['#B6D80B', 'Lime'], ['#FFCC38', 'Yellow'], ['#FF8066', 'Coral'],
+] as const;
+
+/** The independently selectable extra colour. White follows coral in this picker. */
+export const DOT_EXTRA_COLOURS = [
+  ...DOT_COLOURS.slice(1), DOT_COLOURS[0], ['#1F1F1F', 'Charcoal'], ['#8C4A2B', 'Brown'],
+] as const;

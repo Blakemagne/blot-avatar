@@ -17,7 +17,11 @@ export { OVERDRAW, PORTRAIT_FROM, bodyOf, stillState, svgBox, type Shape } from 
 export { LARGE, SMALL, SMALL_LOOK, createLive, lookFor, lookWithin, type Feel, type Live, type LiveProps, type Material, type Reach } from './live';
 export { mount, type MountOptions, type Mounted } from './mount';
 export { coatable } from './coat/renderer';
-export { BOT_COLOURS } from './palette';
+export { DOT_SHAPES } from './dot-shapes';
+export { BOT_COLOURS, DOT_COLOURS, DOT_EXTRA_COLOURS } from './palette';
 export { GALLERY, galleryAvatar, galleryColour, type GalleryAvatar } from './gallery';
 export { writeLayers, type Paint } from './layers';
 export { ULTRA_INK, ULTRA_LAVENDER, ULTRA_PALETTE, eyeInk, furShown, paintSkin, skinMarkup, skinPaint, ultraId } from './ultra';
+
+export { dotAvatar, DOT_CHARACTERS, type DotAppearance } from './dot';
+export { DOT_EYES, DOT_GLASSES, DOT_EXTRAS, type DotStyle } from './engine/dot-parts';

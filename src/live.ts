@@ -79,7 +79,7 @@ export interface LiveProps {
 }
 
 /** A body's finish: flat paint, or a coat of fur. */
-export type Material = 'flat' | 'fluffy';
+export type Material = 'flat' | 'fluffy' | 'glossy';
 
 export interface Live {
   /** The rig. Under reduced motion a new shape builds a new one. */

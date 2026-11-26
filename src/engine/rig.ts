@@ -636,6 +636,13 @@ export class Rig {
    */
   setBody(body: Body): void {
     this.visiting = null;
+    if (body === this.state.body) return;
+    // A wardrobe edit on the same geometry keeps the current pose and any in-flight transition.
+    if (body.dotStyle && this.state.body?.dotStyle && body.pieces === this.state.body.pieces) {
+      this.state.body = body;
+      this.bodies++;
+      return;
+    }
     this.morphTo(body);
   }
 
