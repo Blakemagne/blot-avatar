@@ -20,6 +20,7 @@
 // looks up and away and holds; working reads, line after line, with a beat at each new line; waiting rocks
 // slowly from side to side; speaking bobs with each syllable. Left idle, it breathes.
 
+import { dotRenderer } from './dot-renderer-registry';
 import type { Body } from './body';
 import { BLINK_MS, CLIPS, PERSONALITY, PICKUP_STAR, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Personality, type Playing, type View } from './clips';
 import { inOut, smooth, track } from './ease';
@@ -334,6 +335,8 @@ export class Rig {
   /** How long since a voice was last heard, in ms, and how much of its own rhythm shows (0..1). */
   private quiet = SPEAK_QUIET_MS; private own = new Spring(GATE_RATE);
   private breathAt = 0;
+  private readyAt: number | undefined;
+  private readyFree = 0;
   /** The pose it has been told to rest in, and how awake it is (1, or 0 once at rest): the breath fades with it. */
   private home: Pose | null = null; private awake = new Spring(GATE_RATE);
   private loud = 0; private level = new Spring(LEVEL_RATE);
@@ -440,6 +443,7 @@ export class Rig {
     let far = Math.hypot(x, y);
     // (An infinite one has no direction to keep: it is a full look to that side, or along that diagonal.)
     if (far === Infinity) { x = Math.max(-1, Math.min(1, x)); y = Math.max(-1, Math.min(1, y)); far = Math.hypot(x, y); }
+    if (this.state.body?.dotStyle && this.readyAt === undefined) this.readyAt = 0;
     this.target = this.state.body?.dotStyle
       ? { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }
       : far > 1 ? { x: x / far, y: y / far } : { x, y };
@@ -770,7 +774,7 @@ export class Rig {
       // Coming to rest: eyes to the middle, whatever they were told to look at.
       this.aim(0, 0, home.roll);
     } else if (act === 'idle') {
-      if (this.idle && !this.target) {
+      if (this.idle && !this.target && !s.body?.dotStyle) {
         this.driftIn -= dtMs;
         if (this.driftIn <= 0) {
           if (this.away) {
@@ -1042,7 +1046,13 @@ export class Rig {
 
     // Idle or not, it breathes: a little taller and back, slowly. (Not with idle off: then a rig left alone
     // is still. And not as a loading figure: a ring stays round.) A lively face breathes quicker, a sleeper slower and deeper.
-    if (this.idle && dotGaze && act === 'idle' && !this.cueing.some(Boolean)) {
+    const dotIdle = this.idle && dotGaze && act === 'idle' && !this.cueing.some(Boolean);
+    if (this.readyAt !== undefined && !s.body?.dotStyle) this.readyAt = undefined;
+    if (dotIdle && this.readyAt !== undefined && dotRenderer && awake > .001) {
+      this.readyAt += dtMs;
+      this.readyFree += ((this.target ? 0 : 1) - this.readyFree) * (1-Math.exp(-dtMs/140));
+      dotRenderer.readyIdle(o, this.readyAt, awake * Math.min(1,this.readyAt/240), this.readyFree);
+    } else if (dotIdle) {
       // The neutral Dot breath scales the vertical axis by ±0.3% over six seconds.
       // Its two other axes preserve volume and its centre moves by one thousandth of a radius.
       const wave = Math.sin(TAU * this.breathAt / 6000) * awake;

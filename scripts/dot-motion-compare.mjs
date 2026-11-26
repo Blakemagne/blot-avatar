@@ -51,3 +51,25 @@ for (const [i,label] of ['body','eyes'].entries()) {
   console.log(label, 'median', quantile(e,.5).toFixed(4), 'p95', quantile(e,.95).toFixed(4), 'maximum', Math.max(...e).toFixed(4));
   if (Math.max(...e) > .15) process.exitCode = 1;
 }
+
+const ready = new Rig({ body: config.body, idle: true, blinks: false });
+ready.look(0,0);
+ready.stop();
+const readyObservations = JSON.parse(readFileSync(new URL('../golden/dots/ready-checkpoints.json', import.meta.url)));
+const swayErrors = [];
+let clock = 0;
+for (const [t, expected] of readyObservations) {
+  const time = 1000*t;
+  while (clock + 1000/60 < time) { ready.step(1000/60); clock += 1000/60; }
+  ready.step(time-clock); clock = time;
+  const coat = drawAvatar(config.body,config.color,ready.state,296,{coat:true}).coat;
+  const { offset, scale } = coat.dotFace.playback;
+  for (const point of probes) {
+    const native = apply4(expected,point);
+    const observed = [0,1,2].map(i => offset[i]/DOT_RADIUS +
+      point.reduce((sum,v,j) => sum + v*scale[j]*coat.rotation[3*i+j],0));
+    swayErrors.push(Math.hypot(...native.map((v,i) => v-observed[i]))*140.6592);
+  }
+}
+console.log('Ready idle, next cycle:',readyObservations.length,'checkpoints, median',quantile(swayErrors,.5).toFixed(4),'p95',quantile(swayErrors,.95).toFixed(4),'maximum',Math.max(...swayErrors).toFixed(4));
+if (Math.max(...swayErrors) > 3) process.exitCode = 1;

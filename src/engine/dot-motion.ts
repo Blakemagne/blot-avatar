@@ -1,4 +1,5 @@
-import type { Clip } from './clips';
+import { readyTrack } from './dot-ready';
+import type { Clip, Channels } from './clips';
 import { DOT_RADIUS } from './dot-depth';
 import { dotTracks, type DotTrack } from './dot-tracks';
 
@@ -35,6 +36,35 @@ function keysFor(track: DotTrack): number[][] {
   return keys;
 }
 
+function sampleTrack(track: DotTrack, time: number): number[] {
+  const keys = keysFor(track);
+  let lo = 0, hi = keys.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (time < keys[mid][0]) hi = mid;
+    else lo = mid;
+  }
+  const a = keys[lo], b = keys[hi];
+  const t = Math.min(1, Math.max(0, (time - a[0]) / (b[0] - a[0] || 1)));
+  return a.map((v, i) => v + t * (b[i] - v));
+}
+
+/** In Ready the five-second breath continues between occasional weight shifts and eye movements. */
+export function readyIdle(out: Channels, ms: number, awake: number, free: number): void {
+  const q = sampleTrack(readyTrack, ms % readyTrack.ms);
+  const weight = awake * free;
+  out.yaw += weight*q[1]; out.pitch += weight*q[2]; out.roll += weight*q[3];
+  const eyes = [q.slice(10,22),q.slice(22,34)].map(bone => bone.map((v, i) => {
+    const rest = i === 0 || i === 4 || i === 8 ? 1 : 0;
+    return rest + weight*(v-rest);
+  }));
+  out.dotPlayback = {
+    scale: q.slice(4,7).map(v => 1 + awake*(v-1)),
+    offset: [q[7]*weight,q[8]*awake,q[9]*weight].map(v => v*DOT_RADIUS),
+    eyes,
+  };
+}
+
 /** The names used with mount().play(), their durations, and which reference motions repeat. */
 export const DOT_MOTIONS = Object.entries(dotTracks).map(([slug, track]) => ({
   id: 'dot-' + slug, name: track.name, category: track.category, durationMs: track.ms, loops: track.loops,
@@ -45,16 +75,7 @@ export const DOT_CLIPS: Readonly<Record<string, Clip>> = Object.fromEntries(
     const clip: Clip = {
       lane: 'cue', ms: track.ms,
       apply(out, playing) {
-        const time = playing.u * track.ms, keys = keysFor(track);
-        let lo = 0, hi = keys.length - 1;
-        while (hi - lo > 1) {
-          const mid = (lo + hi) >> 1;
-          if (time < keys[mid][0]) hi = mid;
-          else lo = mid;
-        }
-        const a = keys[lo], b = keys[hi];
-        const t = Math.min(1, Math.max(0, (time - a[0]) / (b[0] - a[0] || 1)));
-        const sample = a.map((v, i) => v + t * (b[i] - v));
+        const sample = sampleTrack(track, playing.u * track.ms);
         out.yaw += sample[1]; out.pitch += sample[2]; out.roll += sample[3];
         out.dotPlayback = {
           scale: sample.slice(4, 7), offset: sample.slice(7, 10).map(v => v * DOT_RADIUS),
