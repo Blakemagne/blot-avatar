@@ -41,8 +41,9 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
   character.append(catalog);
   characterLabel.append('Character', character);
   controls.appendChild(characterLabel);
-  const fields = new Map<keyof DotAppearance, HTMLSelectElement>();
-  function choice<K extends keyof DotAppearance>(
+  type ChoiceKey = 'shape' | 'colour' | 'texture' | 'eyes' | 'glasses' | 'extra' | 'extraColour';
+  const fields = new Map<ChoiceKey, HTMLSelectElement>();
+  function choice<K extends ChoiceKey>(
     label: string,
     key: K,
     values: readonly (readonly [NonNullable<DotAppearance[K]>, string])[],

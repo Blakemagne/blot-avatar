@@ -35,6 +35,8 @@ export const DOT_EXTRAS = [
   'Crown',
 ] as const;
 export interface DotStyle {
+  /** Local Z multiplier for an editable body and its mounted parts. */
+  depthScale?: number;
   eyes: (typeof DOT_EYES)[number];
   glasses: (typeof DOT_GLASSES)[number];
   extra: (typeof DOT_EXTRAS)[number];
@@ -160,7 +162,7 @@ export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: numbe
     solid: true,
     fill,
     front,
-    polys: silhouette(solid, rotation, rim),
+    polys: silhouette(solid, rotation, rim, style.depthScale),
   }));
 }
 

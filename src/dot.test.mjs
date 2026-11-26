@@ -208,3 +208,26 @@ test('eye inserts follow the measured held-out cursor directions independently',
   errors.sort((a,b) => a-b);
   assert.ok(errors[Math.floor(errors.length/2)] < .25);
 });
+
+test('depth changes the editable body and its mounted face while fixed fur portraits keep their thickness', async () => {
+  const { DOT_CHARACTERS, DOT_CATALOG } = await import('./index.ts');
+  const recipe = { shape: 'dot-rounded-triangle', eyes: 'Sleepy lids', extra: 'Crown' };
+  const get = depth => dotAvatar({ ...recipe, depth }).body;
+  assert.equal(get(.5), get(undefined));
+  assert.equal(get(NaN), get(.5));
+  assert.equal(get(-.25), get(0));
+  assert.equal(get(1.2), get(1));
+  assert.equal(get(0).dotStyle.depthScale, .6);
+  assert.equal(get(1).dotStyle.depthScale, 1.4);
+  const state = stillState('blob', 7);
+  state.pose.yaw = .7;
+  const draw = depth => drawAvatar(get(depth), '#00B1FF', state, 296, { coat: true });
+  const flat = draw(0), deep = draw(1);
+  assert.notEqual(flat.body, deep.body);
+  assert.notDeepEqual(flat.layers, deep.layers);
+  assert.deepEqual(flat.coat.rotation, deep.coat.rotation);
+  assert.equal(dotAvatar({ ...DOT_CHARACTERS.Iris, depth: 0 }).body, dotAvatar(DOT_CHARACTERS.Iris).body);
+  const matte = DOT_CATALOG.find(entry => entry.id === 'matisse').appearance;
+  assert.equal(dotAvatar({ ...matte, depth: 0 }).body.dotStyle.catalogId, 'matisse');
+  assert.equal(dotAvatar({ ...matte, depth: 0 }).body.dotStyle.depthScale, .6);
+});

@@ -130,7 +130,7 @@ export function createDotContact(gl: WebGL2RenderingContext, link: Link) {
     gl.uniform1i(u.fromLight,fromLight ? 1 : 0);
     gl.uniformMatrix3fv(u.rotation,false,rotation);
     const s = f.playback?.scale, o = f.playback?.offset;
-    gl.uniform3f(u.scale,s?.[0] ?? 1,s?.[1] ?? 1,s?.[2] ?? 1);
+    gl.uniform3f(u.scale,s?.[0] ?? 1,s?.[1] ?? 1,(s?.[2] ?? 1) * (f.depthScale ?? 1));
     gl.uniform3f(u.origin,o?.[0] ?? 0,o?.[1] ?? 0,o?.[2] ?? 0);
     gl.uniform3f(u.square,f.cx,f.cy,f.half);
     function draw(mesh: CoatMesh, axes?: readonly number[]) {

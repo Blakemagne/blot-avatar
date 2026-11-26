@@ -6,7 +6,7 @@
 // one path with the default nonzero fill is their union.
 
 import { prepare, type Body, type Solid } from './body';
-import { D, type Mat3 } from './math';
+import { D, project, type Mat3 } from './math';
 
 const tables = new Map<number, Float64Array>();
 function circle(k: number): Float64Array {
@@ -27,7 +27,7 @@ let stack = new Uint32Array(1024);
  * One convex polygon per piece, flat [x0, y0, x1, y1, ...] in screen units (x right, y down, 1 unit = half
  * the drawing box). `k` is how many points trace each sphere's rim.
  */
-export function silhouette(body: Body | Solid, R: Mat3, k: number): Float64Array[] {
+export function silhouette(body: Body | Solid, R: Mat3, k: number, depthScale = 1): Float64Array[] {
   const prep = prepare(('outline' in body && body.outline) || body);
   const ring = circle(k);
   const out: Float64Array[] = [];
@@ -36,6 +36,20 @@ export function silhouette(body: Body | Solid, R: Mat3, k: number): Float64Array
     if (pts.length < total * 2) { pts = new Float64Array(total * 2); order = new Uint32Array(total); stack = new Uint32Array(total * 2); }
     for (let i = 0; i < pp.n; i++) {
       const o = i * 4, x = pp.s[o], y = pp.s[o + 1], z = pp.s[o + 2], r = pp.s[o + 3];
+      if (depthScale !== 1) {
+        // Trace the tangent circle in unscaled body coordinates, then project the stretched sphere.
+        const dx = R[6] * D - x, dy = R[7] * D - y, dz = R[8] * D / (depthScale * depthScale) - z;
+        const distance = Math.hypot(dx, dy, dz), nx = dx / distance, ny = dy / distance, nz = dz / distance;
+        const span = Math.hypot(nx, nz);
+        const ux = span ? nz / span : 1, uz = span ? -nx / span : 0;
+        const offset = r * r / distance, radius = Math.sqrt(Math.max(0, r*r - offset*offset));
+        for (let j = 0; j < k; j++) {
+          const u = radius * ring[j*2], v = radius * ring[j*2+1];
+          project(R, x + offset*nx + u*ux + v*ny*uz, y + offset*ny + v*(nz*ux-nx*uz),
+            z + offset*nz + u*uz - v*ny*ux, pts, (i*k+j)*2);
+        }
+        continue;
+      }
       // From the camera to the sphere's centre, then the cone of rays that graze the sphere.
       let ax = R[0] * x + R[1] * y + R[2] * z, ay = R[3] * x + R[4] * y + R[5] * z, az = R[6] * x + R[7] * y + R[8] * z - D;
       const len = Math.hypot(ax, ay, az);

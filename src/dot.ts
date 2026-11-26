@@ -8,7 +8,9 @@ import { DOT_CLIPS } from './engine/dot-motion';
 import { DOT_SHAPES } from './dot-shapes';
 import type { MountOptions } from './mount';
 
-export interface DotAppearance extends Partial<DotStyle> {
+export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale'>> {
+  /** Builder depth from 0 to 1, with a neutral setting of 0.5. Fixed furry portraits retain their depth. */
+  depth?: number;
   /** A DOT_SHAPES definition id, e.g. 'dot-rounded-triangle'. */
   shape: string;
   /** CSS body colour, including any DOT_COLOURS swatch. */
@@ -39,7 +41,10 @@ export function dotAvatar(
     && (options.glasses ?? 'None') === (preset.glasses ?? 'None')
     && (options.extra ?? 'None') === (preset.extra ?? 'None')
     && (options.extraColour ?? '#1F1F1F') === (preset.extraColour ?? '#1F1F1F');
+  const fixedDepth = matches && options.character;
+  const depth = fixedDepth || !Number.isFinite(options.depth) ? .5 : Math.max(0, Math.min(1, options.depth!));
   const style: DotStyle = {
+    ...(depth === .5 ? {} : { depthScale: .6 + .8 * depth }),
     eyes: shape.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : (options.eyes ?? 'Oval'),
     character: matches ? options.character : undefined,
     catalogId: matches && !options.character ? options.catalogId : undefined,

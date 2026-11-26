@@ -26,6 +26,12 @@ for (const [name, preset] of Object.entries({blossie: 'Blossie', studio_felipe_h
 }
 cases['linked-character'] = { texture: 'Fur', eyes: 'Sleepy lids', extra: 'Crown', extraColour: '#FFCC38' };
 export const turns = {
+  'depth-flat': { turn: [1.05, .16, 0], depth: 0 },
+  'depth-deep': { turn: [1.05, .16, 0], depth: 1 },
+  'depth-mount': { turn: [-.67, .19, .04], depth: .2, extra: 'Crown', eyes: 'Sleepy lids' },
+  'depth-fur': { turn: [.56, -.25, 0], depth: .8, texture: 'Fur' },
+  'depth-matte': { turn: [-.86, .1, .07], depth: .15, catalog: 'matisse' },
+  'depth-portrait': { turn: [-.68, .11, 0], depth: 0, preset: 'Iris' },
   'turn-catalog-matisse': { catalog: 'matisse', turn: [.37, -.14, .06] },
   'turn-catalog-zadie': { catalog: 'zadie', turn: [-.43, .11, 0] },
   'turn-catalog-blue_spectacles': { catalog: 'blue_spectacles', turn: [.31, -.16, 0] },

@@ -292,7 +292,7 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  * Everything on screen for a state, as flat screen polygons (x right, y down, 1 unit = half the drawing box):
  * the body's path (pieces, and any holes wound the other way) and the two eye paths.
  */
-function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; reach: Float64Array | null; shape: FigureShape | null } {
+function compose(given: Body, state: RigState, size: number, coat = false): { coatRotation: Mat3; body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; reach: Float64Array | null; shape: FigureShape | null } {
   const body = state.body ?? given, d = detail(size);
   const unanimated = state;
   const playback = body.dotStyle && !state.figure && !state.morph ? state.dotPlayback : undefined;
@@ -320,7 +320,12 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
       for (let j = 0; j < 3; j++) R[i+j] = a*rest[j] + b*rest[3+j] + c*rest[6+j];
     }
   }
-  const own = silhouette(body, R, d.rim);
+  const depthScale = body.dotStyle?.depthScale;
+  const coatRotation = coat && depthScale !== undefined ? R.slice() : R;
+  if (depthScale !== undefined) {
+    R[2] *= depthScale; R[5] *= depthScale; R[8] *= depthScale;
+  }
+  const own = silhouette(body, R, d.rim, depthScale);
   const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
   let outline: Float64Array[] = own, eyes: [Float64Array[], Float64Array[]];
   let wearer = body, fence: ArrayLike<number>[] = own;
@@ -425,7 +430,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
     }
   }
   // The effects are placed against the body itself: not a figure's little ball going round it.
-  return { body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline, affine, bare, reach, shape };
+  return { coatRotation, body: outline, eyes, layers, shadow, opacity, frame: fig && fig.form === 'orbit' ? [outline[0]] : outline, affine, bare, reach, shape };
 }
 
 const IDENTITY = [1, 0, 0, 1, 0, 0] as const;
@@ -585,7 +590,7 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
  * With `coat`, the drawing also carries what a coat of fur needs (Drawing.coat); the rest is the same either way.
  */
 export function drawAvatar(body: Body, colour: string, state: RigState, size: number, opts?: { coat?: boolean }): Drawing {
-  const { body: outline, eyes, layers, shadow, opacity, frame, affine, bare, reach, shape } = compose(body, state, size, opts?.coat === true);
+  const { coatRotation, body: outline, eyes, layers, shadow, opacity, frame, affine, bare, reach, shape } = compose(body, state, size, opts?.coat === true);
   const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
@@ -606,7 +611,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
     out.coat = figure
       ? { ...wears, rotation: figureTurn(state), affine: move, eyes: '', ...(shape ? { shape } : {}) }
-      : { ...wears, ...(dotFace ? { dotFace } : {}), rotation: new Float64Array(R), affine: move, eyes: toPath(bare, UNIT, MID) };
+      : { ...wears, ...(dotFace ? { dotFace } : {}), rotation: new Float64Array(coatRotation), affine: move, eyes: toPath(bare, UNIT, MID) };
   }
   return out;
 }

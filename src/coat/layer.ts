@@ -289,7 +289,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
-    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
+    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.depthScale,style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
@@ -302,7 +302,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       const field = glossy || style ? null : fieldFor(c.eyes, points, detail, perUnit);
       const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
       if (ornament) solids.push(ornament);
-      const frame = { glossy, solids, playback: c.dotFace?.playback, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const frame = { glossy, solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;

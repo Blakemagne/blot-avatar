@@ -13,7 +13,7 @@ export async function capture(spec: Spec, pixels = 512): Promise<string> {
   host.style.width = host.style.height = size + 'px';
   const config = spec.catalog ? DOT_CATALOG.find(p => p.id === spec.catalog)!.appearance : spec.preset ? DOT_CHARACTERS[spec.preset]
     : { shape: 'dot-rounded-triangle', extraColour: '#FFCC38', ...spec };
-  avatar = mount(host, { ...dotAvatar(config), size, follow: false });
+  avatar = mount(host, { ...dotAvatar({ ...config, depth: spec.depth }), size, follow: false });
   const rig = avatar.live.rig;
   const [yaw, pitch, roll] = spec.turn ?? [0, 0, 0];
   Object.assign(rig.state.pose, { yaw, pitch, roll });

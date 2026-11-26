@@ -32,6 +32,7 @@ const DEEPER = 0.2;
 /** One coat to draw. */
 export interface CoatFrame {
   glossy?: boolean;
+  depthScale?: number;
   character?: string;
   catalogId?: string;
   dotBody?: string;
@@ -403,7 +404,7 @@ function createRenderer(restored: () => void): Renderer | null {
     } else gl.uniform1i(u.warpN, 0);
 
     const s = f.playback?.scale, origin = f.playback?.offset;
-    gl.uniform3f(u.poseScale, s?.[0] ?? 1, s?.[1] ?? 1, s?.[2] ?? 1);
+    gl.uniform3f(u.poseScale, s?.[0] ?? 1, s?.[1] ?? 1, (s?.[2] ?? 1) * (f.depthScale ?? 1));
     gl.uniform3f(u.poseOffset, origin?.[0] ?? 0, origin?.[1] ?? 0, origin?.[2] ?? 0);
     const R = f.rotation;
     // Column by column, as GLSL reads a mat3. `view` is the same turn with y down, open-bot-avatar's way.
