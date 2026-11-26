@@ -1,3 +1,4 @@
+import { insetEyeRadiance } from './coat/dot-inset-radiance';
 import { readyIdle } from './engine/dot-motion';
 import { createDotContact } from './coat/dot-contact';
 import { contactColor } from './coat/dot-contact-color';
@@ -24,7 +25,8 @@ import { portraitLight } from './coat/dot-portrait-light';
 export const dotRendering = {
   readyIdle, createDotContact, contactColor, dotMesh, dotFeatures, dotAttachments, catalogRigs, catalogLight,
   matteBodyLayers, mattePartLayers,
-  extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },
+  insetLayer: extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length,
+  extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },
   extraSwatches: [...DOT_COLOURS, ...DOT_EXTRA_COLOURS.slice(-2)].map(([hex]) => parseInt(hex.slice(1), 16)),
   builderGain, builderReliefs, feltLayers, feltShadow,
   feltExtent: { 'Felipe flower': [.09,.86], Josh: [.15,.67], Alfred: [.11,.90], Blossie: [-.01,.89],

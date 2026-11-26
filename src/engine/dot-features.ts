@@ -22,6 +22,7 @@ export interface DotSolid {
   tint: Rgb;
   metal?: boolean;
   material?: number;
+  insetSurface?: number;
   portraitSection?: number;
   catalogCrownLayer?: number;
   /** Dark or white curved eye and eyewear materials. */
@@ -139,6 +140,7 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
       mesh: template && fitting ? fittedMesh(template,fitting) : style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
       material: s.material,
+      insetSurface: !fixed && !frog && style.eyes === 'Crescent inset' && eyes.includes(s) ? eyes.indexOf(s) % 3 : undefined,
       catalogCrownLayer: fitting?.mesh === 'Crown' ? (s.material === 10 ? 13 : 12) : undefined,
       portraitSection: style.character ? index : undefined,
       finish: s.role === 'extra' ? undefined : s.light ? 'white' : !fixed ? 'ink' : s.role === 'glass' ? 'portrait-glass' : 'portrait-ink',

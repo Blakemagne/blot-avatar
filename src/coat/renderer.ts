@@ -489,14 +489,14 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform1f(u.strandWidth, strandWidth);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 8, rootsIn(geometry.roots, strandPasses));
     }
-    for (const { mesh, tint, axes, metal, finish, material, portraitSection, catalogCrownLayer } of f.solids ?? []) {
+    for (const { mesh, tint, axes, metal, finish, material, insetSurface, portraitSection, catalogCrownLayer } of f.solids ?? []) {
       const part = geometryOf(mesh);
       const portraitIndex = f.character && portraitSection !== undefined ? assets?.portraitParts[f.character]?.[portraitSection] : undefined;
       const fitting = portraitIndex === undefined ? undefined : assets?.portraitMaterials[portraitIndex];
       if (fitting) gl.uniform3fv(u.studio, fitting.light);
       else if (assets && material !== undefined) gl.uniform3fv(u.studio, assets.catalogLight[material]);
       const matteLayer = material !== undefined ? assets?.mattePartLayers[material] : undefined;
-      const layer = catalogCrownLayer ?? matteLayer;
+      const layer = assets && insetSurface !== undefined ? assets.insetLayer + insetSurface : catalogCrownLayer ?? matteLayer;
       const polished = !!metal || catalogCrownLayer !== undefined;
       const measuredTint = assets && (layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.pile ? 6 : fitting || material !== undefined ? 5 :
