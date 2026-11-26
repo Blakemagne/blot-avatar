@@ -282,9 +282,13 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
     const extra = style && !style.character && !style.catalogId && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
+    const mountKey = extra && style ? base.body.id + '/' + style.extra : undefined;
+    const fit = mountKey && style && dotRenderer
+      ? dotRenderer.builderFittings[mountKey + '/' + style.glasses] ?? dotRenderer.builderFittings[mountKey]
+      : undefined;
     const ornament: DotSolid | undefined = extra && style ? {
-      mesh: extra, tint: tint!,
-      axes: dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT, metal: style.extra === 'Crown',
+      mesh: fit && dotRenderer ? dotRenderer.fittedMesh(extra, fit) : extra, tint: tint!,
+      axes: fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT, metal: style.extra === 'Crown',
     } : undefined;
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;

@@ -4,6 +4,7 @@ import { catalogFittings } from './dot-catalog-fittings';
 import { fittedMesh } from './dot-fitted-mesh';
 import { gazeTransform, transformAxes } from './dot-gaze';
 import { catalogParts } from './dot-catalog-parts';
+import { eyewearFits, eyeMaterials, frameFits } from './dot-eyewear-fits';
 import { faceFits } from './dot-face-fits';
 import type { Body } from './body';
 import type { CoatMesh } from './coat';
@@ -121,6 +122,10 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
   const fits = fixed ? undefined : faceFits[body.id];
   const gazeKey = style.catalogId ? 'catalog/' + style.catalogId : style.character ? 'portrait/' + style.character
     : body.id + '/' + (frog ? 'Raised sockets' : style.eyes);
+  const mountedKey = gazeKey + '/' + style.glasses;
+  const relativeEyes = !fixed && eyewearFits[mountedKey];
+  const mountedFrames = !fixed && frameFits[mountedKey];
+  const materials = !fixed && eyeMaterials[gazeKey];
   const eyeX = motion.x * body.eyes.slideX, eyeY = motion.y * body.eyes.slideY;
   const result: DotSolid[] = [];
   for (const [index, s] of pieces.entries()) {
@@ -131,9 +136,15 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
     const lid = isEye ? Math.max(.055, s.side < 0 ? motion.left : motion.right) : 1;
     const pivot = s.role === 'catch' ? pieces.find(part => part.role === 'eye' && part.side === s.side) : s;
     const lidPivot = (pivot ?? s).origin[1]*DOT_RADIUS;
-    const spacing = !fixed && !frog && glasses.length && isEye ? s.side*.036*sx : 0;
-    const axes = [sx,0,zx, 0,sy*lid,zy, 0,0,sz,
-      dx*DOT_RADIUS+spacing, dy*DOT_RADIUS+lidPivot*sy*(1-lid), dz*DOT_RADIUS];
+    let axes = [sx,0,zx, 0,sy*lid,zy, 0,0,sz,
+      dx*DOT_RADIUS, dy*DOT_RADIUS+lidPivot*sy*(1-lid), dz*DOT_RADIUS];
+    const relative = relativeEyes && relativeEyes[index];
+    if (relative && index < eyes.length) {
+      const [x,y,zx,zy,zz,z] = relative;
+      axes = transformAxes([1,0,zx, 0,1,zy, 0,0,1+zz, x,y,z], axes);
+    }
+    const frame = s.role === 'glass' && mountedFrames && mountedFrames[index-eyes.length];
+    if (frame) axes = [...frame.slice(0,9), ...frame.slice(9).map(offset => offset * DOT_RADIUS)];
     const gaze = isEye || s.role === 'socket' ? gazeTransform(gazeKey, index, axes, eyeX/.0391, eyeY/.0512) : undefined;
     if (!gaze && isEye) { axes[9] += eyeX; axes[10] += eyeY; }
     const bone = (isEye || s.role === 'socket') && motion.playback?.eyes[s.side < 0 ? 0 : 1];
@@ -146,7 +157,7 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
     result.push({
       mesh: template && fitting ? fittedMesh(template,fitting) : style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
-      material: s.material,
+      material: (index < eyes.length && materials ? materials[index] : undefined) ?? s.material,
       insetSurface: !fixed && !frog && style.eyes === 'Crescent inset' && eyes.includes(s) ? eyes.indexOf(s) % 3 : undefined,
       catalogCrownLayer: fitting?.mesh === 'Crown' ? (s.material === 10 ? 13 : 12) : undefined,
       portraitSection: style.character ? index : undefined,

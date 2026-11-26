@@ -13,7 +13,7 @@ export function fittedMesh(template: CoatMesh, fit: CatalogFitting): CoatMesh {
   const known = cache.get(fit);
   if (known) return known;
   const vertices: number[] = [], data = template.vertices, c = fit.coefficients;
-  const polynomial = Math.min(powers.length, c.length/3);
+  const polynomial = fit.kernels ? 4 : Math.min(powers.length, c.length/3);
   function point(px: number, py: number, pz: number) {
     const x = (px/DOT_RADIUS-fit.mid[0])/fit.half[0];
     const y = (py/DOT_RADIUS-fit.mid[1])/fit.half[1];
@@ -24,7 +24,14 @@ export function fittedMesh(template: CoatMesh, fit: CatalogFitting): CoatMesh {
       const [a,b,d] = powers[i], w = xx[a]*yy[b]*zz[d];
       ox += c[at++]*w; oy += c[at++]*w; oz += c[at++]*w;
     }
-    if (at < c.length) {
+    if (fit.kernels) {
+      const centres = fit.kernels;
+      for (let i = 0; i < centres.length; i += 3) {
+        const dx = x-centres[i], dy = y-centres[i+1], dz = z-centres[i+2];
+        const w = Math.exp(-fit.falloff! * (dx*dx + dy*dy + dz*dz));
+        ox += c[at++]*w; oy += c[at++]*w; oz += c[at++]*w;
+      }
+    } else if (at < c.length) {
       for (let a=-1; a<=1; a++) for (let b=-1; b<=1; b++) for (let d=-1; d<=1; d++) {
         const w = Math.exp(-2.3*((x-a)**2+(y-b)**2+(z-d)**2));
         ox += c[at++]*w; oy += c[at++]*w; oz += c[at++]*w;

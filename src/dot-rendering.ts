@@ -9,6 +9,8 @@ import { extraRadiance } from './coat/dot-extra-radiance';
 import { DOT_COLOURS, DOT_EXTRA_COLOURS } from './palette';
 import { dotMesh } from './engine/dot-mesh';
 import { dotFeatures } from './engine/dot-features';
+import { builderFittings } from './engine/dot-builder-fittings';
+import { fittedMesh } from './engine/dot-fitted-mesh';
 import { dotAttachments } from './engine/dot-attachments';
 import { catalogRigs } from './engine/dot-catalog-surfaces';
 import { catalogLight } from './coat/dot-catalog-light';
@@ -23,7 +25,7 @@ import { portraitLight } from './coat/dot-portrait-light';
 
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
 export const dotRendering = {
-  readyIdle, createDotContact, contactColor, dotMesh, dotFeatures, dotAttachments, catalogRigs, catalogLight,
+  readyIdle, createDotContact, contactColor, dotMesh, dotFeatures, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
   matteBodyLayers, mattePartLayers,
   insetLayer: extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length,
   extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },

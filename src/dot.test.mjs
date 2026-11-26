@@ -263,3 +263,35 @@ test('live stage frames each catalog and wearer, including the forehead and floo
   }
   assert.throws(() => dotStageLayout(recipe, 0), RangeError);
 });
+
+test('eyewear seats visible eyes and frames on each wearer', async () => {
+  const { dotFeatures } = await import('./engine/dot-features.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  const parts = (shape, eyes, glasses) => dotFeatures(dotAvatar({ shape, eyes, glasses }).body);
+  const triangle = 'dot-rounded-triangle';
+  const bare = parts(triangle, 'Sparkle capsules', 'None');
+  const monocle = parts(triangle, 'Sparkle capsules', 'Monocle');
+  assert.ok(Math.abs(monocle[0].axes[9] - bare[0].axes[9] + .12*DOT_RADIUS) < .0001);
+  assert.ok(Math.abs(monocle[3].axes[9] - bare[3].axes[9] - .12*DOT_RADIUS) < .0001);
+  assert.notDeepEqual(monocle.at(-1).axes, parts(triangle, 'Oval', 'Monocle').at(-1).axes);
+  assert.equal(parts('dot-blossie', 'Oval', 'None')[0].material, 0);
+  assert.equal(parts(triangle, 'Oval', 'None')[0].material, 4);
+});
+
+test('mounted beanies follow the band and brim fit for the selected glasses', async () => {
+  const { builderFittings } = await import('./engine/dot-builder-fittings.ts');
+  const { fittedMesh } = await import('./engine/dot-fitted-mesh.ts');
+  const { dotMesh } = await import('./engine/dot-mesh.ts');
+  const template = dotMesh('Beanie');
+  const bare = fittedMesh(template, builderFittings['dot-blossie/Beanie']);
+  const fit = builderFittings['dot-blossie/Beanie/Round sunglasses'];
+  const worn = fittedMesh(template, fit);
+  assert.equal(worn, fittedMesh(template, fit));
+  assert.equal(worn.indices.length, bare.indices.length);
+  let displacement = 0;
+  for (let i=0; i<worn.vertices.length; i+=6) {
+    displacement = Math.max(displacement, Math.hypot(
+      worn.vertices[i] - bare.vertices[i], worn.vertices[i+1] - bare.vertices[i+1], worn.vertices[i+2] - bare.vertices[i+2]));
+  }
+  assert.ok(displacement > .40);
+});
