@@ -215,7 +215,8 @@ addEventListener('storage', (e) => {
   if (pg.key.startsWith('yours:') && !yours.some((d) => `yours:${d.id}` === pg.key)) select('body:blob');
   else if (pg.key.startsWith('yours:')) select(pg.key);
 });
-const entries = (): Entry[] => [...BODY_ENTRIES, ...GALLERY_ENTRIES, ...yours.map(yoursEntry)];
+const pickerShapes = [...BODY_ENTRIES, ...GALLERY_ENTRIES];
+const entries = (): Entry[] => [...pickerShapes, ...yours.map(yoursEntry)];
 const entry = (key: string): Entry => entries().find((e) => e.key === key) ?? BODY_ENTRIES[0];
 
 // ---- The studio's avatar.
@@ -458,11 +459,8 @@ function tabs(name: string, shown?: (id: string) => void): (id: string, focus?: 
   set(buttons[0].id, false);
   return show;
 }
-const showCard = tabs('card', (id) => { if (id === 'tab-bot') marked(); });
-/** Which of the Bot tab's three lists holds each kind. */
-const LIST: Record<Entry['kind'], string> = { body: 'seg-bodies', gallery: 'seg-outlines', yours: 'seg-yours' };
-const showList = tabs('bots', () => marked());
-tabs('appearance');
+tabs('card', () => marked());
+tabs('appearance', (id) => { if (id === 'choose-Shape') marked(); });
 tabs('play');
 const showStep = tabs('new');
 tabs('lanes');
@@ -511,10 +509,13 @@ function paintThumb(cell: HTMLElement, colour: string): void {
   if (slot) tiles.get(slot)?.avatar?.update({ ...inked(colour), material: pg.material });
 }
 const cells = new Map<string, HTMLButtonElement>();
-const botsBox = $('[data-bots]'), pickNote = $('[data-pick-note]');
+const pickNote = $('[data-pick-note]');
 function cellFor(e: Entry): HTMLLIElement {
-  const duplicate = e.kind === 'body' && e.id.startsWith('dot-') && SHAPES.includes(named(e));
-  const label = duplicate ? named(e) + ' (Dot)' : named(e);
+  let label = named(e);
+  if (SHAPES.includes(label)) {
+    if (e.kind === 'gallery') label += ' (outline)';
+    else if (e.id.startsWith('dot-')) label += ' (Dot)';
+  }
   const b = make('button', { type: 'button', className: 'bot-cell', title: label });
   b.setAttribute('aria-label', label);
   const slot = make('span', { className: 'bot-thumb' });
@@ -538,36 +539,19 @@ function cellFor(e: Entry): HTMLLIElement {
   cells.set(e.key, b);
   return make('li', {}, b);
 }
-function grid(label: string, list: Entry[], extra?: HTMLElement): HTMLUListElement {
-  const ul = make('ul', { className: 'bots' }, ...list.map(cellFor));
-  if (extra) ul.append(make('li', {}, extra));
-  ul.setAttribute('aria-label', label);
-  return ul;
-}
-const newTile = make('button', { type: 'button', className: 'bot-cell bot-new', title: 'make a new one' }, make('span', { className: 'bot-plus', textContent: '+' }));
-newTile.setAttribute('aria-label', 'make a new one');
-newTile.addEventListener('click', () => { showCard('tab-new'); showStep('seg-describe'); describe.focus(); });
-$('#bots-bodies').append(grid('blot\'s bodies', BODY_ENTRIES));
-$('#bots-outlines').append(grid('from outlines', GALLERY_ENTRIES));
-const yoursList = $('#bots-yours'), yoursCount = $('[data-yours-count]');
-function drawYours(): void {
-  const none = yours.length ? [] : [make('p', { className: 'sub-label', textContent: 'none yet. + has a model draw one from a few words.' })];
-  yoursList.replaceChildren(grid('yours', yours.map(yoursEntry), newTile), ...none);
-  yoursCount.textContent = yours.length ? String(yours.length) : '';
-}
-drawYours();
+$('[data-shapes]').append(...pickerShapes.map(cellFor));
+const importedList = $('[data-imported-shapes]');
 function redrawYours(): void {
-  // Focus on one of yours (or on +) stays on it through the redraw.
-  const had = document.activeElement, focused = [...cells].find(([, b]) => b === had)?.[0];
+  const focused = [...cells].find(([, b]) => b === document.activeElement)?.[0];
   for (const k of [...cells.keys()]) if (k.startsWith('yours:')) {
     const slot = cells.get(k)?.querySelector('.bot-thumb');
     if (slot) { visibleTiles.unobserve(slot); tiles.get(slot)?.avatar?.destroy(); }
     cells.delete(k);
   }
-  drawYours();
+  importedList.replaceChildren(...yours.map(d => cellFor(yoursEntry(d))));
+  $('[data-imported]').hidden = yours.length === 0;
   marked();
-  if (had === newTile) newTile.focus({ preventScroll: true });
-  else if (focused?.startsWith('yours:')) cells.get(focused)?.focus({ preventScroll: true });
+  if (focused?.startsWith('yours:')) cells.get(focused)?.focus({ preventScroll: true });
 }
 const KIND_SAYS: Record<Entry['kind'], string> = { body: 'one of blot\'s bodies', gallery: 'drawn from an outline', yours: 'yours, kept in this browser' };
 /** The pressed cell is the one on the stage, scrolled into the list's view (the list only, never the page). */
@@ -576,7 +560,8 @@ function marked(): void {
   const e = entry(pg.key);
   pickNote.textContent = `on the stage: ${named(e)}, ${KIND_SAYS[e.kind]}.`;
   const cell = cells.get(pg.key);
-  if (!cell || botsBox.hidden || !botsBox.offsetParent) return;
+  const botsBox = cell?.closest<HTMLElement>('.bots-box');
+  if (!cell || !botsBox?.offsetParent) return;
   const box = botsBox.getBoundingClientRect(), c = cell.getBoundingClientRect();
   if (c.top < box.top || c.bottom > box.bottom) botsBox.scrollTop += c.top - box.top - (box.height - c.height) / 2;
 }
@@ -669,8 +654,6 @@ function select(key: string, carryColour = true): void {
   syncWardrobe();
   pg.color = picked.get(key) ?? entry(key).own;
   bodyPicker.set(pg.color);
-  // The list that holds it (Bodies, Outlines or Yours) shows, if another one was showing.
-  if (cells.get(key)?.closest<HTMLElement>('[data-bots] > [role="tabpanel"]')?.hidden !== false) showList(LIST[entry(key).kind]);
   marked();
   coloured();
   actions();
@@ -802,7 +785,7 @@ function actions(): void {
     b.title = e.definition ? '' : 'blot\'s own bodies are not drawn from an outline, so there is no definition to give';
   }
   doButton('remove').hidden = e.kind !== 'yours';
-  doButton('remove').setAttribute('aria-label', `remove ${named(e)} from yours`);
+  doButton('remove').setAttribute('aria-label', `remove ${named(e)} from imported shapes`);
 }
 const json = (d: AvatarDefinition) => `${JSON.stringify(d, null, 2)}\n`;
 async function copy(text: string, failed: string): Promise<void> {
@@ -997,7 +980,7 @@ function add(text: string): void {
   redrawYours();
   select(`yours:${r.values[r.values.length - 1].id}`);
   const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name.toLowerCase());
-  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and kept under Shape → Yours in this browser.`, ...r.notes];
+  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and saved in this browser under New → Imported shapes.`, ...r.notes];
   if (replaced.length) lines.push(`it took the place of the one you had with the same id: ${replaced.join(', ')}.`);
   importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: calm(t) })));
   importText.value = '';
@@ -1239,7 +1222,7 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
   });
 }
 
-showList(LIST[entry(pg.key).kind]);
+redrawYours();
 finished();
 route();
 coloured();

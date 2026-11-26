@@ -178,15 +178,12 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(20 20 30 / 12%); }
-.count { font-size: 12px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
-.count:empty { display: none; }
 .step-n {
   display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
   font-size: 12px; background: var(--line); color: var(--ink);
 }
 [aria-selected="true"] > .step-n { background: var(--accent); color: var(--on-accent); }
 .bots-box { max-height: 336px; overflow-y: auto; margin: 0 -8px; padding: 2px 8px; overscroll-behavior: contain; }
-.bots-box .sub-label { margin: 12px 0 0; }
 .pick-note { margin: 12px 0 0; }
 .mark-row { margin-top: 14px; }
 .bots { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); }
@@ -199,9 +196,6 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 /* Inside the cell: the list's scroll box would cut a ring drawn outside it. */
 .bot-cell:focus-visible { outline-offset: -4px; }
 .bot-thumb { position: relative; display: block; pointer-events: none; }
-.bot-new { border: 1px dashed color-mix(in srgb, var(--ink) 30%, var(--line)); background: none; }
-.bot-plus { font-size: 28px; line-height: 1; color: var(--muted); }
-.bot-new:hover .bot-plus { color: var(--ink); }
 .colour-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; justify-items: start; }
 /* The finish: a small two-way switch under the colour. */
 .finish { margin-top: 4px; }

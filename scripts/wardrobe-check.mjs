@@ -45,7 +45,7 @@ try {
     const missing = await page.evaluate(async () => {
       const missed = [], host = document.querySelector('[data-avatar=play]');
       for (const name of ['heart', 'star', 'frog', 'capsule', 'star', 'frog']) {
-        document.querySelector(`#bots-bodies button[aria-label="${name}"]`).click();
+        document.querySelector(`[data-shapes] button[aria-label="${name}"]`).click();
         for (let frame = 0; frame < 3; frame++) {
           await new Promise(requestAnimationFrame);
           if (!host.querySelector('canvas')?.getClientRects().length || host.querySelector('[data-layer="headband"]')) missed.push({ name, frame });

@@ -98,15 +98,8 @@
             </div>
             <section id="wardrobe-Shape" role="tabpanel" aria-labelledby="choose-Shape">
               <label class="preset-choice">Character <select data-characters><option value="">Custom</option></select></label>
-              <div class="seg" role="tablist" aria-label="which avatars" data-tabs="bots">
-                <button type="button" role="tab" id="seg-bodies" aria-controls="bots-bodies">bodies</button>
-                <button type="button" role="tab" id="seg-outlines" aria-controls="bots-outlines">outlines</button>
-                <button type="button" role="tab" id="seg-yours" aria-controls="bots-yours">yours <span class="count" data-yours-count></span></button>
-              </div>
-              <div class="bots-box" data-bots>
-                <div role="tabpanel" id="bots-bodies" aria-labelledby="seg-bodies"></div>
-                <div role="tabpanel" id="bots-outlines" aria-labelledby="seg-outlines"></div>
-                <div role="tabpanel" id="bots-yours" aria-labelledby="seg-yours"></div>
+              <div class="bots-box">
+                <ul class="bots" data-shapes aria-label="Shapes"></ul>
               </div>
               <p class="sub-label pick-note" data-pick-note></p>
               <div class="colour-row">
@@ -211,6 +204,12 @@
                 <input type="file" accept=".json,application/json" data-import-file hidden>
               </div>
               <div class="import-out" data-import-out role="status"></div>
+            </div>
+            <div data-imported hidden>
+              <h2 class="field-label" id="imported-label">Imported shapes</h2>
+              <div class="bots-box">
+                <ul class="bots" data-imported-shapes aria-labelledby="imported-label"></ul>
+              </div>
             </div>
           </div>
         </div>
