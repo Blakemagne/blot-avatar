@@ -1,3 +1,5 @@
+import { fixedMicrogeometry } from './dot-fixed-microgeometry';
+import { fixedRims } from './dot-fixed-rims';
 import { microgeometry } from './dot-microgeometry';
 import { bodyRims } from './dot-rims';
 import { normalCorrections } from './dot-normals';
@@ -24,7 +26,7 @@ export function dotMesh(id: string): CoatMesh | undefined {
   const cached = cache.get(field);
   if (cached) return cached;
   const origin = field.origin ?? [0, 0, 0], radius = field.radius ?? 1;
-  const rim = bodyRims[id];
+  const rim = bodyRims[id] ?? fixedRims[id];
   const bytes = rim ? Uint8Array.from(atob(rim), c => c.charCodeAt(0)) : undefined;
   const equator = bytes && new DataView(bytes.buffer);
   const { thicknessSquared, grid } = field;
@@ -44,7 +46,7 @@ export function dotMesh(id: string): CoatMesh | undefined {
   const m = (x: number, y: number) => field.centre ? sample(field.centre, field.grid, x, y) : 0;
   const profile = normalCorrections[id];
   const corrections = profile ? Int8Array.from(atob(profile), c => c.charCodeAt(0)) : undefined;
-  const mesh = sectionMesh(origin, radius, equator ? 128 : 96, q, m, !field.origin, corrections, microgeometry[id]);
+  const mesh = sectionMesh(origin, radius, equator ? 128 : 96, q, m, !field.origin, corrections, microgeometry[id] ?? fixedMicrogeometry[id]);
   cache.set(field, mesh);
   return mesh;
 }
