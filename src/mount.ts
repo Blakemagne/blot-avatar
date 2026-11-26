@@ -4,7 +4,7 @@
 import { glossyFill } from './gloss';
 import { coatLayer, type CoatLayer } from './coat/layer';
 import { VIEW_BOX, colours, type Drawing } from './engine/draw';
-import { writeLayers, type Paint } from './layers';
+import { clipEyes, writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { svgBox, type Shape } from './still';
@@ -77,6 +77,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   let latest = live.first, grouped = false;
   const layered = (d: typeof latest) => {
     latest = d;
+    clipEyes(paths[1], paths[2], d);
     if (!grouped && !d.layers?.length) return;
     if (!grouped) {
       if (split) split.below.appendChild(under); else svg.insertBefore(under, paths[0]);

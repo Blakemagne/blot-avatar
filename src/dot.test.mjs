@@ -118,6 +118,102 @@ test('Frog picker portraits keep both raised eye sockets facing the viewer', () 
   }
 });
 
+test('headphones add only the arch and two pads to each editable wearer', () => {
+  for (const shape of DOT_SHAPES) {
+    const bare = dotFeatures(dotAvatar({ shape: shape.id }).body);
+    const worn = dotFeatures(dotAvatar({ shape: shape.id, extra: 'Headphones' }).body);
+    assert.deepEqual(worn.slice(0, bare.length), bare, shape.name);
+    assert.equal(worn.length - bare.length, 3, shape.name);
+  }
+  const { body } = dotAvatar({ shape: 'dot-rounded-head-with-two-ears', extra: 'Headphones' });
+  const [socket, pupil, rightSocket, rightPupil] = dotFeatures(body, { x: 0, y: 0, left: .35, right: 1 });
+  assert.equal(socket.axes[4], .35);
+  assert.equal(pupil.axes[4], .35);
+  assert.equal(rightSocket.axes[4], 1);
+  assert.equal(rightPupil.axes[4], 1);
+});
+
+test('glasses on a Blot face keep a continuous curved rim as its eyes move', async () => {
+  const { FRAME_CURVE } = await import('./engine/dot-parts.ts');
+  for (const glasses of DOT_GLASSES.slice(1)) {
+    const meshes = [];
+    for (const host of ['teardrop', GALLERY.find(g => g.definition.id === 'egg').definition]) {
+      const { body } = avatarParts(host, { glasses });
+      const rest = dotFeatures(body);
+      assert.deepEqual(dotFeatures(body, { x: .8, y: -.6, left: .1, right: 1 }), rest);
+      assert.ok(rest.length > 0);
+      for (const { mesh } of rest) {
+        const v = mesh.vertices;
+        for (let i = 0; i < v.length; i += 6) {
+          assert.ok(Math.abs(v[i+2] + FRAME_CURVE * v[i] ** 2) <= .018, glasses);
+        }
+      }
+      meshes.push(rest.map(p => p.mesh));
+      const view = drawAvatar(body, '#FFFFFF', { ...front, pose: { yaw: -.6, pitch: 0, roll: 0 } }, 180);
+      if (glasses === 'Monocle' || glasses === 'Tall oval frames') {
+        assert.ok(view.eyes.every(Boolean));
+        assert.equal(view.layers.filter(layer => layer.overEyes).length, rest.length);
+      } else assert.deepEqual(view.eyes, ['', '']);
+    }
+    assert.ok(meshes[0].every((mesh, index) => mesh === meshes[1][index]));
+  }
+});
+
+test('headwear fits a flat-topped Blot outline and keeps rigid props proportional', async () => {
+  const { bodyAttachment, fitHeadband, rigidAttachment } = await import('./coat/wardrobe-fit.ts');
+  const { dotMesh } = await import('./engine/dot-mesh.ts');
+  const host = bodyOf(GALLERY.find(g => g.definition.id === 'mug').definition);
+  const mesh = coatMesh(host), source = dotMesh('dot-rounded-triangle').box;
+  const fit = bodyAttachment(host, mesh, source);
+  for (const extra of ['Beret', 'Tuft', 'Bow tie', 'Crown']) {
+    const prop = dotMesh(extra);
+    const mount = rigidAttachment(host, fit, source, prop, extra);
+    assert.equal(mount[0], mount[4]);
+    assert.equal(mount[0], mount[8]);
+    if (extra !== 'Bow tie') assert.ok(mount[4]*prop.box[4] + mount[10] > mesh.box[4] + .12, extra);
+  }
+  const worn = dotFeatures(avatarParts(host, { extra: 'Headphones' }).body);
+  const hoop = worn.find(part => !part.finish).mesh;
+  const band = fitHeadband(host, hoop, fit);
+  assert.notEqual(band, hoop);
+  assert.ok(band.vertices.every(Number.isFinite));
+  assert.equal(fitHeadband(host, hoop, fit), band);
+});
+
+test('rapid fitted shape changes and visits land with the full face and material on every frame', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const classic = bodyOf('star'), egg = avatarParts('teardrop', { glasses: 'Tall oval frames' }).body;
+  const frog = dotAvatar({ shape: 'dot-rounded-head-with-two-ears', extra: 'Headphones' }).body;
+  const rig = new Rig({ body: classic, idle: false });
+  rig.setBody(bodyOf('teardrop'));
+  rig.step(60);
+  assert.ok(rig.state.morph);
+  function assembled(expected) {
+    const d = drawAvatar(expected, '#FFFFFF', rig.state, 180, { coat: true });
+    assert.equal(rig.state.morph, null);
+    assert.equal(rig.state.dot, 0);
+    assert.equal(d.coat.body, expected);
+    assert.equal(d.coat.warp, undefined);
+    assert.equal(d.coat.also, undefined);
+    assert.ok(d.coat.dotFace);
+    assert.ok(d.layers.some(p => p.solid && p.d));
+  }
+  for (const body of [egg, frog, egg, frog]) {
+    rig.setBody(body);
+    assembled(body);
+    rig.step(16);
+    assembled(body);
+  }
+  rig.visit(egg, 0);
+  assembled(egg);
+  for (let frame = 0; frame < 100; frame++) rig.step(16);
+  assembled(frog);
+  rig.setBody(classic);
+  assert.equal(rig.state.morph, null);
+  rig.setBody(bodyOf('blob'));
+  assert.ok(rig.state.morph);
+});
+
 test('every Dot contour fits its measured native-aspect silhouette before and after inflation', () => {
   assert.equal(DOT_PICKER_SHAPES.length, reference.length);
   for (const [i, shape] of DOT_PICKER_SHAPES.entries()) {

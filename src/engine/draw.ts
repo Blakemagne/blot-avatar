@@ -139,6 +139,8 @@ export interface DrawnCoat {
 
 /** One more path of a drawing: an antenna, a decal. */
 export interface Layer {
+  /** A spectacle frame that occludes the host's original eye paths. */
+  overEyes?: boolean;
   solid?: boolean;
   /** The antenna's or the decal's name, the same from frame to frame. */
   id: string;
@@ -511,7 +513,7 @@ export function effectShapes(body: Body, state: RigState, size: number): FxPart[
 }
 
 /** A layer before it is a path: screen polygons, and what it is. */
-interface Piece { solid?: boolean; id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
+interface Piece { overEyes?: boolean; solid?: boolean; id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
 
 /** The thinnest an antenna's stalk is drawn, in pixels across. */
 const STALK_PX = 1.4;
@@ -596,7 +598,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
     out.layers = [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)]
-      .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front, ...(l.solid ? { solid: true } : {}) }));
+      .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front, ...(l.solid ? { solid: true } : {}), ...(l.overEyes ? { overEyes: true } : {}) }));
   }
   const parts = shadow || state.fx?.length ? effectsOf(state, frame, size, shadow, opacity) : null;
   if (parts && parts.length) out.effects = parts.filter((p) => p.opacity > 0.004 && p.polys.length).map((p) => ({ layer: p.layer, role: p.role, opacity: Math.round(p.opacity * 1000) / 1000, d: toPath(p.polys, UNIT, MID) }));

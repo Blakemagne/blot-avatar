@@ -1,3 +1,4 @@
+import { bodyAttachment, fitHeadband, rigidAttachment } from './wardrobe-fit';
 import type { DotSolid } from '../engine/dot-features';
 // One avatar's coat: a canvas under its body path, painted by the shared renderer and moved with the drawing.
 // mount() and React's useLiveAvatar both use it.
@@ -47,30 +48,6 @@ export interface CoatLayer {
 /** A coat fainter than this is not shown. */
 const OFF = 0.004;
 const NEUTRAL_ATTACHMENT = [1,0,0, 0,1,0, 0,0,1, 0,0,0] as const;
-const attachments = new WeakMap<Body, readonly number[]>();
-
-/** Fit accessories around the face. Handles and off-centre limbs can extend beyond it. */
-function bodyAttachment(body: Body, mesh: CoatMesh, source: CoatMesh['box']) {
-  const saved = attachments.get(body);
-  if (saved) return saved;
-  const box = mesh.box, cx = body.eyes.cx ?? 0;
-  const half = Math.min(cx - box[0], box[3] - cx);
-  const band = Math.max(.18, body.eyes.x * 1.4);
-  let top = -Infinity, bottom = Infinity;
-  for (let k = 0; k < mesh.vertices.length; k += 6) {
-    if (Math.abs(mesh.vertices[k] - cx) > band) continue;
-    top = Math.max(top, mesh.vertices[k + 1]);
-    bottom = Math.min(bottom, mesh.vertices[k + 1]);
-  }
-  const target = [cx - half, Number.isFinite(bottom) ? bottom : box[1], box[2],
-    cx + half, Number.isFinite(top) ? top : box[4], box[5]];
-  const scale = [0, 1, 2].map(i => (target[i+3] - target[i]) / (source[i+3] - source[i]));
-  const move = scale.map((s, i) => target[i] - s * source[i]);
-  const axes = [scale[0],0,0, 0,scale[1],0, 0,0,scale[2], ...move];
-  attachments.set(body, axes);
-  return axes;
-}
-
 /** A pose and eyes this close to the ones drawn keep their picture: how far the body's edge or an eye has moved, device px. */
 const SAME_VIEW = 0.25;
 /**
@@ -108,6 +85,8 @@ export function reachOf(mesh: CoatMesh, warp: CoatWarp | undefined): number {
 
 /** Bodies whose mesh is made (coatMesh keeps it): only those are painted in a frame. */
 const ready = new WeakSet<Body>();
+// A material change can replace the layer while keeping the same on-screen avatar.
+const lastPaintedBody = new WeakMap<SVGPathElement, Body>();
 /** Bodies whose mesh is waiting in soon() to be made, ahead of their coat (see warm). */
 const warming = new WeakSet<Body>();
 
@@ -277,7 +256,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!on) { on = true; el.style.display = ''; shown?.(); }
   };
 
-  const paint = () => {
+  const paint = (immediate = false) => {
     const now = latest, c = now?.d.coat;
     if (!now || !c || c.opacity <= OFF || !coatable()) { hide(); return; }
     const el = canvasOf();
@@ -295,7 +274,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     // In a change of shape near half way, the two bodies' coats: in a frame, each only once its mesh is made. With one
     // of the two made, that one shows alone, whole, and soon() makes the other's mesh and paints both (see draw).
     const crossing = !!c.also && c.also.share > OFF;
-    const base = ready.has(c.body) || !inFrame() ? { body: c.body, warp: c.warp } : crossing && ready.has(c.also!.body) ? c.also! : null;
+    const base = immediate || ready.has(c.body) || !inFrame() ? { body: c.body, warp: c.warp } : crossing && ready.has(c.also!.body) ? c.also! : null;
     if (!base) { hide(); return; }
     const mesh = coatMesh(base.body);
     ready.add(base.body);
@@ -306,15 +285,16 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
     const extra = style && !style.character && !style.catalogId && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
-    const mountKey = extra && style && !base.body.wardrobeHost ? base.body.id + '/' + style.extra : undefined;
+    const mountKey = extra && style ? (base.body.wardrobeHost ? 'dot-rounded-triangle' : base.body.id) + '/' + style.extra : undefined;
     const fit = mountKey && style && dotRenderer
       ? dotRenderer.builderFittings[mountKey + '/' + style.glasses] ?? dotRenderer.builderFittings[mountKey]
       : undefined;
     const model = base.body.wardrobeHost && style && style.extra !== 'None' && dotRenderer?.dotMesh('dot-rounded-triangle');
     const transferred = model && base.body.wardrobeHost ? bodyAttachment(base.body.wardrobeHost, mesh, model.box) : undefined;
-    const ornament: DotSolid | undefined = extra && style ? {
-      mesh: fit && dotRenderer ? dotRenderer.fittedMesh(extra, fit) : extra, tint: tint!,
-      axes: transferred ?? (fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT), metal: style.extra === 'Crown',
+    const ornamentMesh = extra && fit && dotRenderer ? dotRenderer.fittedMesh(extra, fit) : extra;
+    const ornament: DotSolid | undefined = ornamentMesh && style ? {
+      mesh: ornamentMesh, tint: tint!,
+      axes: transferred && model && base.body.wardrobeHost ? rigidAttachment(base.body.wardrobeHost, transferred, model.box, ornamentMesh, style.extra) : (fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT), metal: style.extra === 'Crown',
     } : undefined;
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
@@ -329,10 +309,18 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const field = glossy || style && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
+      const field = glossy || style && !base.body.wardrobeHost && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
       const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
-      if (transferred && style?.extra === 'Headphones') {
-        for (const solid of solids) if (!solid.finish) solid.axes = transferred;
+      if (transferred && base.body.wardrobeHost && style?.extra === 'Headphones') {
+        const [band, ...pads] = solids.filter(solid => !solid.finish);
+        band.mesh = fitHeadband(base.body.wardrobeHost, band.mesh, transferred);
+        band.axes = transferred;
+        for (const pad of pads) {
+          const [, y0, z0, , y1, z1] = pad.mesh.box, scale = transferred[0];
+          pad.axes = [scale,0,0, 0,scale,0, 0,0,scale, transferred[9],
+            transferred[10] + (transferred[4]-scale)*(y0+y1)/2,
+            transferred[11] + (transferred[8]-scale)*(z0+z1)/2];
+        }
       }
       if (ornament) solids.push(ornament);
       const frame = { glossy, solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
@@ -360,6 +348,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       // (A stretched picture is never kept: the next frame's outline is another.)
       held = base.warp || c.dotFace?.playback ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
+    lastPaintedBody.set(body, base.body);
     show(c, box, now.size);
   };
 
@@ -369,6 +358,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
 
   return {
     draw(d, size, fill) {
+      const previous = latest?.d.coat?.body ?? lastPaintedBody.get(body);
       latest = { d, size, fill };
       const c = d.coat;
       if (!c || c.opacity <= OFF || !mightCoat()) {
@@ -378,6 +368,13 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       // When a lost context comes back the coat is painted again, moving or not.
       restored ??= onRestored(lost);
       const crossing = !!c.also && c.also.share > OFF;
+      // A selection replaces the visible avatar as one picture. Waiting behind the thumbnail
+      // queue here would expose the flat fallback or the previous face for several frames.
+      if (previous && (previous.dotStyle || c.body.dotStyle) && (previous !== c.body || !on && lastPaintedBody.has(body)) && !c.warp && !c.also) {
+        drop?.(); drop = null;
+        paint(true);
+        return;
+      }
       if (inFrame() && (ready.has(c.body) || (crossing && ready.has(c.also!.body)))) {
         paint();
         // A coat that shows but whose mesh is not made yet waits for soon(), which makes it and paints both. The other

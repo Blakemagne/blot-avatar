@@ -1,6 +1,6 @@
 import { finishMesh } from './coat-surface';
 import { dotDepth } from './dot-depth';
-import { coversEyes, wardrobeDepth } from './dot-parts';
+import { coversEyes, FRAME_CURVE, frameMount, wardrobeDepth } from './dot-parts';
 import { eyeSurfaces } from './dot-eye-surfaces';
 import { eyeSurfaceMesh } from './dot-eye-mesh';
 import { catalogFittings } from './dot-catalog-fittings';
@@ -44,9 +44,8 @@ const opticalSurfaces = new WeakMap<FeatureSection, string>();
 for (const [name, entries] of Object.entries(eyeSurfaces)) {
   entries.forEach((entry, i) => opticalSurfaces.set(featureSections[name][i], entry));
 }
-function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): Surface {
-  const saved = surfaces.get(section);
-  if (saved) return saved;
+/** Signed distance to the measured outer contour and its holes, in section radii. */
+function contourDistance(section: FeatureSection) {
   const edges: number[] = [];
   for (const loop of section.outline) {
     for (let i = 0, j = loop.length - 2; i < loop.length; j = i, i += 2) {
@@ -55,7 +54,7 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
       edges.push(x,y,dx,dy,1/(dx*dx+dy*dy || 1));
     }
   }
-  function distance(x: number, y: number) {
+  return (x: number, y: number) => {
     let d = Infinity, inside = false;
     for (let i = 0; i < edges.length; i += 5) {
       const u = x-edges[i], v = y-edges[i+1], dx = edges[i+2], dy = edges[i+3];
@@ -65,7 +64,29 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
       d = Math.min(d,ax*ax+ay*ay);
     }
     return (inside ? 1 : -1)*Math.sqrt(d);
-  }
+  };
+}
+
+const rigidFrames = new WeakMap<FeatureSection, CoatMesh>();
+
+/** A closed rim or lens with a rounded bevel. Its curve is independent of the wearer's cheeks. */
+function frameMesh(section: FeatureSection): CoatMesh {
+  const cached = rigidFrames.get(section);
+  if (cached) return cached;
+  const [cx, cy, , radius] = section.origin;
+  const distance = contourDistance(section), bevel = .018 / radius;
+  const mesh = sectionMesh([cx, cy, 0], radius, 100, (x, y) => {
+    const d = Math.min(distance(x, y), bevel);
+    return d * (2 * bevel - d);
+  }, x => -FRAME_CURVE * DOT_RADIUS * (cx + radius * x) ** 2 / radius);
+  rigidFrames.set(section, mesh);
+  return mesh;
+}
+
+function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): Surface {
+  const saved = surfaces.get(section);
+  if (saved) return saved;
+  const distance = contourDistance(section);
   function sample(grid: readonly number[], x: number, y: number) {
     const n = section.grid;
     const u = Math.max(0,Math.min(n-1,(x/(17/16)+1)*(n-1)/2));
@@ -109,7 +130,7 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
 }
 
 // Keep the depth of each optical surface relative to the triangle it was measured on.
-// The same offset field seats a pupil, its highlights and the surrounding frame together.
+// The same offset field seats a pupil and its highlights together.
 const wardrobeFits = new WeakMap<Body, WeakMap<CoatMesh, CoatMesh>>();
 const EYE_X = .209375 * DOT_RADIUS, EYE_Y = .178125 * DOT_RADIUS;
 
@@ -130,9 +151,9 @@ function fitToHost(host: Body, mesh: CoatMesh): CoatMesh {
       const x = x0 + col * dx, y = y0 + row * dy;
       const z = wardrobeDepth(host, cx + scale * x, host.eyes.y + scale * (y - EYE_Y));
       const reference = dotDepth('dot-rounded-triangle', x, y) ?? .4;
-      // Temples and chains that extend past the cheek keep their depth at the rim.
+      // At the silhouette keep the insert seated on the last part of the cheek.
       const cheek = Math.max(z ?? face - .22, face - .22);
-      offsets[row * stride + col] = (cheek + .018) / scale - reference;
+      offsets[row * stride + col] = (cheek + .05) / scale - reference;
     }
   }
 
@@ -169,7 +190,7 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
   const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
   const glasses = featureSections[style.glasses] ?? [];
   const eyes = coversEyes(style) || style.originalEyes ? [] : featureSections[frog ? 'Raised sockets' : style.eyes];
-  const phones = style.extra === 'Headphones' ? featureSections[body.wardrobeHost ? 'Headphones/rounded-triangle' : 'Headphones/' + body.id.slice(4)] ?? [] : [];
+  const phones = style.extra === 'Headphones' ? featureSections[body.wardrobeHost ? 'Headphones/circle' : 'Headphones/' + body.id.slice(4)] ?? [] : [];
   const pieces = fixed ?? [...eyes,...glasses,...phones];
   const fits = fixed || body.wardrobeHost ? undefined : faceFits[body.id];
   const gazeKey = style.catalogId ? 'catalog/' + style.catalogId : style.character ? 'portrait/' + style.character
@@ -185,7 +206,8 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
     const fit = s.role === 'glass' ? fits?.[style.glasses]?.[0]
       : isEye && !frog ? fits?.[style.eyes]?.[s.side < 0 ? 0 : 1] : undefined;
     const [sx,sy,zx,zy,sz,dx,dy,dz] = fit ?? IDENTITY;
-    const lid = isEye ? Math.max(.055, s.side < 0 ? motion.left : motion.right) : 1;
+    const blinking = isEye || frog && s.role === 'socket';
+    const lid = blinking ? Math.max(.055, s.side < 0 ? motion.left : motion.right) : 1;
     const pivot = s.role === 'catch' ? pieces.find(part => part.role === 'eye' && part.side === s.side) : s;
     const lidPivot = (pivot ?? s).origin[1]*DOT_RADIUS;
     let axes = [sx,0,zx, 0,sy*lid,zy, 0,0,sz,
@@ -197,12 +219,18 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
     }
     const frame = s.role === 'glass' && mountedFrames && mountedFrames[index-eyes.length];
     if (frame) axes = [...frame.slice(0,9), ...frame.slice(9).map(offset => offset * DOT_RADIUS)];
+    if (frog && !fixed && s.role === 'eye') {
+      // Keep the printed pupil ahead of the quantized socket as gaze and blink vary.
+      axes[11] += .0018;
+    }
     const host = !fixed && s.role !== 'extra' ? body.wardrobeHost : undefined;
+    const rigidFrame = !!host && s.role === 'glass';
     if (host) {
-      const scale = host.eyes.x / EYE_X;
+      const scale = rigidFrame ? frameMount(host).scale : host.eyes.x / EYE_X;
       axes = axes.map(v => v*scale);
       axes[9] += host.eyes.cx ?? 0;
       axes[10] += host.eyes.y - scale*EYE_Y;
+      if (rigidFrame) axes[11] += frameMount(host).depth;
     }
     const gaze = isEye || s.role === 'socket' ? gazeTransform(gazeKey, index, axes, eyeX/.0391, eyeY/.0512) : undefined;
     if (!gaze && isEye) {
@@ -221,12 +249,21 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
       const phones = featureSections['Headphones/rounded-triangle'];
       template = surfaceOf(phones[fitting.piece],phones).mesh;
     } else if (fitting) template = dotMesh(fitting.mesh);
-    const mesh = template && fitting ? fittedMesh(template,fitting) : style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh;
+    let mesh: CoatMesh;
+    if (template && fitting) mesh = fittedMesh(template, fitting);
+    else if (style.character === 'Thelma' && s.role === 'extra') mesh = dotMesh('Thelma bulb')!;
+    else if (rigidFrame) mesh = frameMesh(s);
+    else mesh = surfaceOf(s, pieces).mesh;
+    let insetSurface: number | undefined;
+    if (!fixed && index < eyes.length) {
+      if (frog && s.role === 'socket') insetSurface = 0;
+      else if (!frog && style.eyes === 'Crescent inset') insetSurface = index % 3;
+    }
     result.push({
-      mesh: host ? fitToHost(host,mesh) : mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
+      mesh: host && !rigidFrame ? fitToHost(host,mesh) : mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
       material: (index < eyes.length && materials ? materials[index] : undefined) ?? s.material,
-      insetSurface: !fixed && !frog && style.eyes === 'Crescent inset' && eyes.includes(s) ? eyes.indexOf(s) % 3 : undefined,
+      insetSurface,
       catalogCrownLayer: fitting?.mesh === 'Crown' ? (s.material === 10 ? 13 : 12) : undefined,
       portraitSection: style.character ? index : undefined,
       finish: s.role === 'extra' ? undefined : s.light ? 'white' : !fixed ? 'ink' : s.role === 'glass' ? 'portrait-glass' : 'portrait-ink',

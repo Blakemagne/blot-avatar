@@ -14,6 +14,14 @@ Each set contains a control image. Six editor starter portraits also appear in t
 
 The wardrobe integration was checked against the preceding port at commit `fa11315`. Both versions rendered the same 96 builder and starter cases, 83 rotation and depth cases, and 109 catalog cases through the public mount in headless Chromium using the same graphics backend. All 288 pairs had identical decoded RGBA bytes. The live-renderer scores above are a separate comparison. The transferred parts also have a [Blot body review plate](dot-review/blot-wardrobe.webp).
 
+### Eyes, frames and shape changes
+
+The Frog headphone mesh included a second pair of eye sockets. The headphone dye reached those sockets and the two surfaces competed for the same pixels. On the Blot Egg, the tall oval rims followed the changing depth of the cheek, which folded the upper rims during a turn. The fixes remove the duplicate sockets and seat a rigid pair of frames on the face. Both comparisons below use the same pose, colour and material before and after the change. [Frog and Egg close-ups](dot-review/frog-eyes-egg-frames.webp)
+
+The editable Frog now uses the measured pale inset finish on its sockets. Against the two labelled socket regions in the archived neutral frame, the mean absolute RGB channel error fell from 7.71 to 1.74 on the left and from 13.66 to 1.91 on the right, on a 0–255 scale. On the four additional turns, near-white pixel error improved in the oblique, top and turned views. In the extreme side view it increased from 10.70 to 14.40 across 94 near-white pixels. The matte catalog retains its separately measured lighting.
+
+The browser regression changes the Frog's headphones from charcoal to pink and checks every pixel in the region around both eyes. It also samples the first three frames after six successive shape selections with motion enabled and again under reduced motion. All 36 frames retained the material canvas. Run `npm run site` and `node scripts/wardrobe-check.mjs` with `PLAYWRIGHT_CORE` and `CHROMIUM` pointing to the local installations.
+
 ## What the gate measures
 
 1. **Silhouette agreement** divides the intersection of the two masks by their union, using alpha ≥ 128.

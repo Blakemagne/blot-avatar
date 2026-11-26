@@ -1,5 +1,5 @@
 import { prepare, surfaceTop, type Body, type Piece, type Sphere } from './body';
-import { dotDepth } from './dot-depth';
+import { dotDepth, DOT_RADIUS } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, project, type Mat3 } from './math';
 import { silhouette } from './silhouette';
@@ -60,6 +60,7 @@ interface Part {
   fill: string;
   front: boolean;
   solid?: boolean;
+  overEyes?: boolean;
   polys: Float64Array[];
 }
 const INK = '#272727';
@@ -79,7 +80,7 @@ const sockets: Readonly<Record<string, readonly [number, number, number]>> = {
   'dot-rounded-diamond': [29, 229, 1],
   'dot-twelve-scalloped-rosette': [29, 228, 1],
   'dot-circle-with-two-ears': [21.5, 289.5, .75],
-  'dot-rounded-head-with-two-ears': [60.5, 189, 1],
+  'dot-rounded-head-with-two-ears': [65, 189, 1],
 };
 
 /** Depth of the Blot face that normally carries the eyes, in body coordinates. */
@@ -87,6 +88,21 @@ export function wardrobeDepth(body: Body, x: number, y: number) {
   const hit = {z:0,nx:0,ny:0,nz:1};
   return surfaceTop(prepare(body),x,y,hit) ? hit.z : undefined;
 }
+
+const frameMounts = new WeakMap<Body, { scale: number; depth: number }>();
+
+/** A rigid frame curves around the bridge. Fit it once to the wearer's width and brow. */
+export function frameMount(host: Body) {
+  const saved = frameMounts.get(host);
+  if (saved) return saved;
+  const cx = host.eyes.cx ?? 0, { x, y } = host.eyes;
+  const bridge = Math.max(...[cx - x, cx, cx + x].map(u => wardrobeDepth(host, u, y) ?? 0));
+  const mount = { scale: x / (.28 * DOT_RADIUS), depth: bridge + .075 };
+  frameMounts.set(host, mount);
+  return mount;
+}
+
+export const FRAME_CURVE = .38 / DOT_RADIUS;
 
 /** Eye inserts follow the wearer's surface. The glasses stand forward of the eyes on a curved, rigid frame. */
 export function dotFace(
@@ -120,11 +136,13 @@ export function dotFace(
     const gazeX = body.eyes.slideX * state.eye.x, gazeY = body.eyes.slideY * state.eye.y;
     function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false) {
       const polys: Float64Array[] = [];
+      // The resting frog pupils sit slightly toward the bridge of the nose.
+      const centre = frog && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
       for (const loop of loops) {
         const poly = new Float64Array(loop.length);
         let facing = 0;
         for (let i = 0; i < loop.length; i += 2) {
-          const u = x + (fixed ? 0 : gazeX) + loop[i] * scale / DESIGN_RADIUS;
+          const u = centre + (fixed ? 0 : gazeX) + loop[i] * scale / DESIGN_RADIUS;
           const v = eyeY + (fixed ? 0 : gazeY) - loop[i+1] * open * scale / DESIGN_RADIUS;
           const z = (depth(u,v) ?? depth(x,eyeY) ?? .55) + .025;
           facePoint(u, v, z, poly, i);
@@ -140,7 +158,7 @@ export function dotFace(
       if (polys.length) parts.push({ id, part: id, front: true, solid: true, fill, polys });
     }
     if (frog) {
-      insert(name + '-socket', LIGHT, [circle(23.5, 24)], 1, true);
+      insert(name + '-socket', LIGHT, [circle(23.5, 24)], Math.max(.06, lid), true);
       insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid));
     } else if (lid < .10) {
       insert(name, INK, [circle(14, Math.max(1.5, 120 / size))], 1);
@@ -152,18 +170,21 @@ export function dotFace(
     }
   }
   if (glasses && rotation[8] > 0) {
+    const mount = body.wardrobeHost && frameMount(body.wardrobeHost);
+    const frameScale = mount?.scale ?? scale;
+    const bridge = mount?.depth ?? (depth(cx,eyeY) ?? .76) + .12;
     for (const frame of glasses) {
       const polys = frame.loops.map(loop => {
         const result = new Float64Array(loop.length);
         for (let i = 0; i < loop.length; i += 2) {
-          const u = cx + loop[i] / DESIGN_RADIUS * scale, v = eyeY - loop[i + 1] / DESIGN_RADIUS * scale;
+          const u = cx + loop[i] / DESIGN_RADIUS * frameScale, v = eyeY - loop[i + 1] / DESIGN_RADIUS * frameScale;
           // The temples wrap back toward the cheeks while the bridge clears the brow.
-          const z = (depth(cx,eyeY) ?? .76) + .12 - .42 * (u - cx) ** 2;
+          const z = bridge - (mount ? FRAME_CURVE / frameScale : .42) * (u - cx) ** 2;
           facePoint(u, v, z, result, i);
         }
         return result;
       });
-      parts.push({ id: frame.id, part: frame.id, front: true, solid: true, fill: '#232323', polys });
+      parts.push({ id: frame.id, part: frame.id, front: true, solid: true, overEyes: style.originalEyes && !coversEyes(style), fill: '#232323', polys });
     }
   }
   return parts;

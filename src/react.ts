@@ -4,7 +4,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { coatLayer, type CoatLayer } from './coat/layer';
 import { glossyFill } from './gloss';
-import { writeLayers, type Paint } from './layers';
+import { clipEyes, writeLayers, type Paint } from './layers';
 import { createLive, type Live, type LiveProps } from './live';
 import type { Drawing } from './engine/draw';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
@@ -117,6 +117,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     body.current?.setAttribute('d', d.body);
     left.current?.setAttribute('d', d.eyes[0]);
     right.current?.setAttribute('d', d.eyes[1]);
+    clipEyes(left.current, right.current, d);
     writeLayers(under.current, over.current, d, paint.current, layer.current?.showing);
     const c = fxPaint.current;
     layer.current?.draw(d, size.current, c?.fill);

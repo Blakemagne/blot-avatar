@@ -30,3 +30,52 @@ export function writeLayers(under: SVGGElement | null, over: SVGGElement | null,
     while (g.children.length > at) g.lastChild!.remove();
   }
 }
+
+let nextMask = 0;
+const frameMasks = new WeakMap<SVGPathElement, { mask: SVGMaskElement; previous: (string | null)[] }>();
+
+/** Leave the original eye ink behind the frames, including when the glasses are in the material canvas. */
+export function clipEyes(left: SVGPathElement | null, right: SVGPathElement | null, d: Drawing): void {
+  const svg = left?.ownerSVGElement;
+  if (!svg || !left || !right) return;
+  const frames = d.layers?.filter(layer => layer.overEyes);
+  const saved = frameMasks.get(left);
+  let mask = saved?.mask;
+  if (!frames?.length || !d.eyes.some(Boolean)) {
+    if (saved) {
+      saved.mask.remove();
+      [left,right].forEach((eye, i) => {
+        const previous = saved.previous[i];
+        if (previous === null) eye.removeAttribute('mask');
+        else eye.setAttribute('mask', previous);
+      });
+      frameMasks.delete(left);
+    }
+    return;
+  }
+  const doc = svg.ownerDocument;
+  if (!mask) {
+    mask = doc.createElementNS(SVG, 'mask');
+    mask.id = 'blot-frames-' + ++nextMask;
+    const paper = doc.createElementNS(SVG, 'rect');
+    for (const attr of ['x','y']) paper.setAttribute(attr, '-100%');
+    for (const attr of ['width','height']) paper.setAttribute(attr, '300%');
+    paper.setAttribute('fill', 'white');
+    mask.appendChild(paper);
+    svg.appendChild(mask);
+    const previous = [left.getAttribute('mask'), right.getAttribute('mask')];
+    for (const eye of [left, right]) eye.setAttribute('mask', `url(#${mask.id})`);
+    frameMasks.set(left, { mask, previous });
+  }
+  frames.forEach((frame, i) => {
+    let rim = mask.children[i+1];
+    if (!rim) {
+      rim = doc.createElementNS(SVG, 'path');
+      rim.setAttribute('fill', 'black');
+      rim.setAttribute('fill-rule', 'evenodd');
+      mask.appendChild(rim);
+    }
+    rim.setAttribute('d', frame.d);
+  });
+  while (mask.children.length > frames.length + 1) mask.lastElementChild!.remove();
+}

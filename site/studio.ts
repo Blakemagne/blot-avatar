@@ -266,8 +266,8 @@ export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf
   const d = drawAvatar(body, colour, stillState(shape, size), size), c = colours(colour);
   const layers = d.layers ?? [];
   return croppedSvg([
-    ...layers.filter(l => !l.front), { d: d.body, fill: c.fill }, ...layers.filter(l => l.front),
-    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? c.eyeFill })),
+    ...layers.filter(l => !l.front), { d: d.body, fill: c.fill }, ...layers.filter(l => l.front && !l.overEyes),
+    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? c.eyeFill })), ...layers.filter(l => l.overEyes),
   ], size, d.viewBox);
 }
 

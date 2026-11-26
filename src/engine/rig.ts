@@ -648,8 +648,8 @@ export class Rig {
   setBody(body: Body): void {
     this.visiting = null;
     if (body === this.state.body) return;
-    // A wardrobe edit on the same geometry keeps the current pose and any in-flight transition.
-    if ((body.dotStyle || this.state.body?.dotStyle) && body.pieces === this.state.body?.pieces) {
+    // A wardrobe edit on settled geometry keeps its pose and any landing already in flight.
+    if ((body.dotStyle || this.state.body?.dotStyle) && body.pieces === this.state.body?.pieces && !this.state.morph) {
       this.state.body = body;
       this.bodies++;
       return;
@@ -660,16 +660,23 @@ export class Rig {
   private morphTo(body: Body): void {
     const s = this.state;
     if (body === s.body) return;
-    const from: Source | undefined = s.morph ? caught(s.morph.from, s.body!, s.morph.k) : s.body;
+    const previous = s.body;
+    const fitted = !!(previous?.dotStyle || body.dotStyle);
     s.body = body;
     this.bodies++;
-    // The new body may turn a different way for the same look.
     if (this.target && !this.driven) this.face();
-    if (!from) return;
-    s.morph = { from, k: 0 };
-    // (If the eyes are already dots from a change that was under way, they stay dots.)
-    this.dotting = start(CLIPS.dots, { from: this.change ? s.dot ?? 0 : 0 });
-    this.change = { at: 0, dir: this.settleDir, pushed: 0 };
+    if (!previous) return;
+    if (fitted) {
+      // Radial warping cannot carry the rigid parts. Land the complete assembly in its own projection.
+      s.morph = null;
+      s.dot = 0;
+      this.dotting = null;
+    } else {
+      const from: Source = s.morph ? caught(s.morph.from, previous, s.morph.k) : previous;
+      s.morph = { from, k: 0 };
+      this.dotting = start(CLIPS.dots, { from: this.change ? s.dot ?? 0 : 0 });
+    }
+    this.change = { at: fitted ? LAND_AT : 0, dir: this.settleDir, pushed: 0 };
     this.settleDir = -this.settleDir;
   }
 
