@@ -136,6 +136,13 @@ void main() {
   // (The pile is fixed to the mesh at rest, so it goes where a figure's piece goes.)
   scenePlace = (rotation * (P * poseScale) + poseOffset) / ${(.54945*512/296).toFixed(9)};
   groomPoint = position;
+  if (portraitCoat && !ornament) {
+    // Project the observed optical surface back onto its rest-space density field.
+    vec3 look = normalize(transpose(rotation)*vec3(0.,0.,1.)/poseScale);
+    float incidence = max(.22,dot(look,Nm));
+    vec3 parallax = look/incidence-Nm;
+    groomPoint += .022*${(.54945*512/296).toFixed(9)}*parallax*smoothstep(.08,.38,dot(look,Nm));
+  }
   groomSide = Nm.z;
   opticalPlace = rotation * ((position * opticalFrame.w - opticalFrame.xyz) * poseScale) + poseOffset * opticalFrame.w;
   pilePosition = FLIP * position * UNIT;
@@ -243,7 +250,9 @@ uniform highp sampler2DArray dotGroom;
 uniform vec3 groomAmplitude[8];
 uniform highp sampler2D contactField;
 uniform highp sampler2DShadow portraitShadow;
-uniform vec3 directLight[9];
+uniform vec3 directLight[9], feltGain[9];
+uniform vec4 feltScale;
+uniform mat3 rotation;
 uniform vec4 shadowWeights[2];
 ${dotLightProjection}
 uniform float contactExtent;
@@ -423,11 +432,17 @@ void main() {
     vec3 variationRGB = grain * (.23 + .77 * base);
     if (portraitLayer >= 0) {
       vec2 uv = .5 + groomPoint.xy / (2.18 * ${(.54945*512/296).toFixed(9)});
-      float front = texture(portraitDensity, vec3(uv, float(portraitLayer))).r;
-      float back = texture(portraitDensity, vec3(uv, float(portraitLayer + 1))).r;
-      float density = (255. * mix(back, front, smoothstep(-.12,.12,groomSide)) - 128.) / 58.;
-      vec3 amplitude = max(vec3(.001), groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3]);
-      variationRGB = 1.55 * density * amplitude + .09 * variationRGB;
+      vec4 front = texture(portraitDensity,vec3(uv,float(portraitLayer)));
+      vec4 back = texture(portraitDensity,vec3(uv,float(portraitLayer+1)));
+      front = (front*255.-128.)*feltScale/127.;
+      back = (back*255.-128.)*feltScale/127.;
+      vec3 key = normalize(vec3(-.6,.8,1.)), incoming = transpose(rotation)*key;
+      float relief = mix(dot(back,vec4(1.,incoming-key*vec3(1.,1.,-1.))),
+        dot(front,vec4(1.,incoming-key)),smoothstep(-.12,.12,groomSide));
+      vec3 gain = feltGain[0]+n.x*feltGain[1]+n.y*feltGain[2]+n.z*feltGain[3]
+        +n.x*n.x*feltGain[4]+n.x*n.y*feltGain[5]+n.y*n.y*feltGain[6]
+        +n.x*n.z*feltGain[7]+n.y*n.z*feltGain[8];
+      variationRGB = relief*clamp(gain,vec3(0.),vec3(3.))+.025*variationRGB;
     } else if (groomLayer >= 0) {
       vec2 uv = .5 + groomPoint.xy / (2.125 * ${(.54945*512/296).toFixed(9)});
       vec2 front = texture(dotGroom,vec3(uv,float(groomLayer))).rg;

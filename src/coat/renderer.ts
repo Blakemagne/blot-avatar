@@ -125,7 +125,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const uniform = (name: string) => gl.getUniformLocation(program, name);
   const u = {
     poseScale: uniform('poseScale'), poseOffset: uniform('poseOffset'), rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
-    matteBodyLayer: uniform('matteBodyLayer'), feltExtent: uniform('feltExtent'), directLight: uniform('directLight[0]'), shadowWeights: uniform('shadowWeights[0]'),
+    matteBodyLayer: uniform('matteBodyLayer'), feltScale: uniform('feltScale'), feltGain: uniform('feltGain[0]'), feltExtent: uniform('feltExtent'), directLight: uniform('directLight[0]'), shadowWeights: uniform('shadowWeights[0]'),
     builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), portraitLayer: uniform('portraitLayer'), groomLayer: uniform('groomLayer'), groomResponse: uniform('groomAmplitude[0]'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
     glossCoefficients: uniform('glossCoefficients[0]'), pigmentControls: uniform('pigmentControls'), glossPigment: uniform('glossPigment'), finish: uniform('finish'), ornament: uniform('ornament'), axes: uniform('ornamentAxes'), offset: uniform('ornamentOffset'), metal: uniform('metal'),
     portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
@@ -221,21 +221,14 @@ function createRenderer(restored: () => void): Renderer | null {
   gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, null);
 
   const portraitLayer = (name: string, assets: NonNullable<typeof dotRenderer>) => {
-    const { portraitGroomSize, portraitGrooms } = assets;
     const known = portraitLayers.get(name);
     if (known !== undefined) return known;
-    const layer = 2 * portraitLayers.size;
-    const size = portraitGroomSize;
+    const layer = 2 * portraitLayers.size, size = assets.feltSize;
     gl.activeTexture(gl.TEXTURE6);
-    if (layer === 0) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, size, size,
-      2 * Object.keys(portraitGrooms).length, 0, gl.RED, gl.UNSIGNED_BYTE, null);
-    const packed = atob(portraitGrooms[name].field), density = new Uint8Array(packed.length * 2);
-    for (let i = 0; i < packed.length; i++) {
-      const value = packed.charCodeAt(i);
-      density[2*i] = value & 240;
-      density[2*i+1] = (value & 15) * 16;
-    }
-    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, size, size, 2, gl.RED, gl.UNSIGNED_BYTE, density);
+    if (layer === 0) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, size, size,
+      2 * Object.keys(assets.feltReliefs).length, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const optical = assets.feltField(assets.feltReliefs[name].field,size);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,size,size,2,gl.RGBA,gl.UNSIGNED_BYTE,optical);
     gl.activeTexture(gl.TEXTURE2);
     portraitLayers.set(name, layer);
     return layer;
@@ -370,12 +363,13 @@ function createRenderer(restored: () => void): Renderer | null {
     }
     gl.uniform1i(u.builderPile, groom >= 0 ? 1 : 0);
     gl.uniform1i(u.groomLayer, 2*groom);
-    const portrait = f.character && !f.glossy ? assets?.portraitGrooms[f.character] : undefined;
+    const portrait = f.character && !f.glossy ? assets?.feltReliefs[f.character] : undefined;
     gl.uniform1i(u.portraitLayer, portrait && assets && f.character ? portraitLayer(f.character, assets) : -1);
     const felt = portrait && f.character && assets ? assets.feltLayers[f.character] : undefined;
     gl.uniform1i(u.furLightLayer, assets && (felt !== undefined || groom >= 0) ? tintLayer(f.colour,2,assets,felt) : -1);
     if (portrait && f.character && assets) {
-      gl.uniform3fv(u.groomResponse, portrait.amplitude);
+      gl.uniform4fv(u.feltScale,portrait.scale);
+      gl.uniform3fv(u.feltGain,portrait.gain);
       const [centre, width] = assets.feltExtent[f.character];
       gl.uniform2f(u.feltExtent,centre*DOT_RADIUS/140.6592,width*DOT_RADIUS/140.6592);
     }

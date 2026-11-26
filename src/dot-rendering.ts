@@ -15,7 +15,8 @@ import { feltShadow } from './coat/dot-felt-shadow';
 import { feltLayers, feltRadiance } from './coat/dot-felt-radiance';
 import { furRadiance, groomResponse } from './coat/dot-fur-radiance';
 import { groomBodies, groomFields, groomSize } from './coat/dot-groom';
-import { portraitGrooms, portraitGroomSize } from './coat/dot-portrait-groom';
+import { feltField } from './coat/dot-felt-field';
+import { feltReliefs, feltSize } from './coat/dot-felt-relief';
 import { portraitParts, portraitMaterials } from './coat/dot-portrait-materials';
 import { portraitLight } from './coat/dot-portrait-light';
 
@@ -46,5 +47,5 @@ export const dotRendering = {
   feltExtent: { 'Felipe flower': [.09,.86], Josh: [.15,.67], Alfred: [.11,.90], Blossie: [-.01,.89],
     Iris: [.11,.91], Thelma: [.08,.87], Todd: [.16,.89], Iggy: [.15,.64], Jojo: [.12,.89], Felipe: [.14,.67] } as Readonly<Record<string, readonly number[]>>,
   furRadiance: { ...furRadiance, layers: [...furRadiance.layers, ...feltRadiance] },
-  portraitGrooms, portraitGroomSize, portraitParts, portraitMaterials, portraitLight,
+  feltReliefs, feltSize, feltField, portraitParts, portraitMaterials, portraitLight,
 };
