@@ -514,7 +514,7 @@ function cellFor(e: Entry): HTMLLIElement {
   let label = named(e);
   if (SHAPES.includes(label)) {
     if (e.kind === 'gallery') label += ' (outline)';
-    else if (e.id.startsWith('dot-')) label += ' (Dot)';
+    else if (e.id.startsWith('dot-')) label += ' (dot)';
   }
   const b = make('button', { type: 'button', className: 'bot-cell', title: label });
   b.setAttribute('aria-label', label);
@@ -663,10 +663,10 @@ function select(key: string, carryColour = true): void {
 }
 
 const characterMenu = $<HTMLSelectElement>('[data-characters]');
-const starters = make('optgroup', { label: 'Starter portraits' });
-for (const name of Object.keys(DOT_CHARACTERS)) starters.append(new Option(name, name));
-const collection = make('optgroup', { label: 'Character catalog' });
-for (const item of DOT_CATALOG) collection.append(new Option(item.name, 'catalog/' + item.id));
+const starters = make('optgroup', { label: 'starter portraits' });
+for (const name of Object.keys(DOT_CHARACTERS)) starters.append(new Option(name.toLowerCase(), name));
+const collection = make('optgroup', { label: 'character catalog' });
+for (const item of DOT_CATALOG) collection.append(new Option(item.name.toLowerCase(), 'catalog/' + item.id));
 characterMenu.append(starters, collection);
 characterMenu.addEventListener('change', () => {
   preset = characterMenu.value;
@@ -686,8 +686,8 @@ characterMenu.addEventListener('change', () => {
 });
 const motionMenu = $<HTMLSelectElement>('[data-dot-motion]');
 for (const category of ['idle', 'thinking'] as const) {
-  const group = make('optgroup', { label: category === 'idle' ? 'Idle' : 'Thinking' });
-  for (const motion of DOT_MOTIONS) if (motion.category === category) group.append(new Option(motion.name, motion.id));
+  const group = make('optgroup', { label: category });
+  for (const motion of DOT_MOTIONS) if (motion.category === category) group.append(new Option(motion.name.toLowerCase(), motion.id));
   motionMenu.append(group);
 }
 const playMotion = $<HTMLButtonElement>('[data-play-dot]');
@@ -715,7 +715,7 @@ for (const key of Object.keys(choices) as PartKey[]) {
     preview.setAttribute('aria-hidden', 'true');
     if (value === 'None') preview.textContent = '∅';
     else preview.innerHTML = partSvg(shape, sample, key === 'eyes');
-    button.append(preview, make('span', { textContent: value }));
+    button.append(preview, make('span', { textContent: value.toLowerCase() }));
     box.append(button);
     partButtons.set(button, { key, value });
     button.addEventListener('click', () => {
@@ -729,8 +729,9 @@ for (const key of Object.keys(choices) as PartKey[]) {
 }
 const extraPalette = $('[data-extra-palette]');
 for (const [hex, name] of DOT_EXTRA_COLOURS) {
-  const button = make('button', { type: 'button', title: name });
-  button.setAttribute('aria-label', name);
+  const label = name.toLowerCase();
+  const button = make('button', { type: 'button', title: label });
+  button.setAttribute('aria-label', label);
   button.dataset.hex = hex;
   button.style.backgroundColor = hex;
   extraPalette.append(button);
@@ -893,11 +894,11 @@ function appearanceLink() {
 }
 doButton('link').addEventListener('click', () => {
   const url = appearanceLink().href;
-  void copy(url,'Copy this link: '+url);
+  void copy(url,'copy this link: '+url);
 });
 $('[data-save-look]').addEventListener('click', () => {
   const saved = stored.set('blot-avatar:saved-look', appearanceLink().search);
-  said(saved ? 'Avatar saved in this browser.' : 'Browser storage is unavailable. Use Copy link to keep this avatar.');
+  said(saved ? 'avatar saved in this browser.' : 'browser storage is unavailable. use copy link to keep this avatar.');
 });
 doButton('remove').addEventListener('click', () => {
   const e = entry(pg.key);
@@ -980,7 +981,7 @@ function add(text: string): void {
   redrawYours();
   select(`yours:${r.values[r.values.length - 1].id}`);
   const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name.toLowerCase());
-  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and saved in this browser under New → Imported shapes.`, ...r.notes];
+  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and saved in this browser under new → imported shapes.`, ...r.notes];
   if (replaced.length) lines.push(`it took the place of the one you had with the same id: ${replaced.join(', ')}.`);
   importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: calm(t) })));
   importText.value = '';
@@ -1046,14 +1047,14 @@ importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.cl
 }
 
 /** The waggle's definition as the page shows it under "Moves are data", for code that plays the waggle. */
-const waggleSource = ((t) => t.slice(t.indexOf('// A waggle'), t.indexOf('\n]);', t.indexOf('const waggle')) + 4))($('#wave-code').textContent ?? '');
+const waggleSource = ((t) => t.slice(t.indexOf('// a waggle'), t.indexOf('\n]);', t.indexOf('const waggle')) + 4))($('#wave-code').textContent ?? '');
 
 /** Use it's code for any page and for React, as written there, and with the finish picked when it is fluffy. */
 const useCode = { page: $('#mount-code'), react: $('#react-code') };
 const useFlat = { page: useCode.page.textContent ?? '', react: useCode.react.textContent ?? '' };
 function writeUse(): void {
   const coated = pg.material !== 'flat';
-  useCode.page.textContent = coated ? useFlat.page.replace("label: 'Ada',", `label: 'Ada', material: '${pg.material}',`) : useFlat.page;
+  useCode.page.textContent = coated ? useFlat.page.replace("label: 'ada',", `label: 'ada', material: '${pg.material}',`) : useFlat.page;
   useCode.react.textContent = !coated ? useFlat.react : useFlat.react
     .replace("const { host, paths, first } = useLiveAvatar({ shape: 'star', size, follow: true });",
       "const { host, paths, coat, first } = useLiveAvatar({\n    shape: 'star', size, follow: true, material: 'fluffy',\n  });")

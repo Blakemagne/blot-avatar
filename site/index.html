@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>blot avatar</title>
-  <meta name="description" content="a 3D body with eyes on its surface, drawn as three SVG paths, with a WebGL2 coat of fur if you want one. it looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. pure typescript, no dependencies.">
+  <meta name="description" content="a 3D body with eyes on its surface, drawn as three SVG paths, with a webgl2 coat of fur if you want one. it looks at your pointer, blinks, morphs between shapes and plays moves you can add yourself. pure typescript, no dependencies.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#FD690F">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -33,7 +33,7 @@
     <!-- The studio: one avatar, and a card of tabs to pick it, play with it, or make a new one. -->
     <section id="studio" class="view" data-view="studio" aria-labelledby="studio-title">
       <div class="view-head">
-        <h1 id="studio-title" tabindex="-1">Avatar studio</h1>
+        <h1 id="studio-title" tabindex="-1">avatar studio</h1>
       </div>
       <div class="studio">
         <div class="stage-col">
@@ -43,7 +43,7 @@
             <p class="hint" aria-hidden="true">click it. keys 1 to 6 pick what it does.</p>
           </div>
           <div class="actions">
-            <button type="button" class="button small" data-save-look>Save avatar</button>
+            <button type="button" class="button small" data-save-look>save avatar</button>
             <div class="menu" data-menu="export">
               <button type="button" class="button small" aria-expanded="false">export</button>
               <div class="menu-list" hidden>
@@ -73,7 +73,7 @@
         <div class="card-panel">
           <div class="tabs">
             <div class="tablist" role="tablist" aria-label="studio" data-tabs="card">
-              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">Appearance</button>
+              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">appearance</button>
               <button type="button" role="tab" id="tab-play" aria-controls="panel-play">play</button>
               <button type="button" role="tab" id="tab-new" aria-controls="panel-new">new</button>
             </div>
@@ -89,17 +89,17 @@
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
-            <div class="wardrobe-tabs" data-tabs="appearance" role="tablist" aria-label="Appearance categories">
-              <button type="button" id="choose-Shape" role="tab" aria-controls="wardrobe-Shape">Shape</button>
-              <button type="button" id="choose-Eyes" role="tab" aria-controls="wardrobe-Eyes">Eyes</button>
-              <button type="button" id="choose-Glasses" role="tab" aria-controls="wardrobe-Glasses">Glasses</button>
-              <button type="button" id="choose-Extras" role="tab" aria-controls="wardrobe-Extras">Extras</button>
-              <button type="button" id="choose-Textures" role="tab" aria-controls="wardrobe-Textures">Textures</button>
+            <div class="wardrobe-tabs" data-tabs="appearance" role="tablist" aria-label="appearance categories">
+              <button type="button" id="choose-Shape" role="tab" aria-controls="wardrobe-Shape">shape</button>
+              <button type="button" id="choose-Eyes" role="tab" aria-controls="wardrobe-Eyes">eyes</button>
+              <button type="button" id="choose-Glasses" role="tab" aria-controls="wardrobe-Glasses">glasses</button>
+              <button type="button" id="choose-Extras" role="tab" aria-controls="wardrobe-Extras">extras</button>
+              <button type="button" id="choose-Textures" role="tab" aria-controls="wardrobe-Textures">textures</button>
             </div>
             <section id="wardrobe-Shape" role="tabpanel" aria-labelledby="choose-Shape">
-              <label class="preset-choice">Character <select data-characters><option value="">Custom</option></select></label>
+              <label class="preset-choice">character <select data-characters><option value="">custom</option></select></label>
               <div class="bots-box">
-                <ul class="bots" data-shapes aria-label="Shapes"></ul>
+                <ul class="bots" data-shapes aria-label="shapes"></ul>
               </div>
               <p class="sub-label pick-note" data-pick-note></p>
               <div class="colour-row">
@@ -108,7 +108,7 @@
               </div>
             </section>
             <section id="wardrobe-Eyes" role="tabpanel" aria-labelledby="choose-Eyes">
-              <p data-fixed-eye hidden>Round inset eyes are built into this shape.</p>
+              <p data-fixed-eye hidden>round inset eyes are built into this shape.</p>
               <div data-parts="eyes"></div>
               <div data-eye-colours>
                 <div data-picker="eyes"></div>
@@ -120,24 +120,24 @@
             </section>
             <section id="wardrobe-Extras" role="tabpanel" aria-labelledby="choose-Extras">
               <div data-parts="extra"></div>
-              <div data-extra-palette role="group" aria-label="Extra colour"></div>
+              <div data-extra-palette role="group" aria-label="extra colour"></div>
             </section>
             <section id="wardrobe-Textures" role="tabpanel" aria-labelledby="choose-Textures">
               <div class="sub finish">
                 <span class="sub-label" id="finish-label">finish</span>
                 <div class="seg" role="group" aria-labelledby="finish-label" data-material>
-                  <button type="button" data-matte aria-pressed="true" disabled hidden>Matte</button>
-                  <button type="button" data-material-is="glossy" aria-pressed="false">Glossy</button>
-                  <button type="button" data-material-is="flat" aria-pressed="true">Flat</button>
-                  <button type="button" data-material-is="fluffy" aria-pressed="false">Fur</button>
+                  <button type="button" data-matte aria-pressed="true" disabled hidden>matte</button>
+                  <button type="button" data-material-is="glossy" aria-pressed="false">glossy</button>
+                  <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
+                  <button type="button" data-material-is="fluffy" aria-pressed="false">fur</button>
                 </div>
-                <span class="sub-label" data-material-note hidden>no WebGL2 here, so it stays flat.</span>
+                <span class="sub-label" data-material-note hidden>no webgl2 here, so it stays flat.</span>
               </div>
             </section>
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-play" aria-labelledby="tab-play">
-            <span class="sub-label" id="activity-label">Activity</span>
+            <span class="sub-label" id="activity-label">activity</span>
             <div class="chips doing" data-choice="activity" role="group" aria-labelledby="activity-label"></div>
             <div class="sub" data-form-row hidden>
               <span class="sub-label" id="form-label">turns into</span>
@@ -160,7 +160,7 @@
               </div>
             </div>
             <div role="tabpanel" id="play-moves" aria-labelledby="seg-moves">
-              <div class="preset-choice"><label>Motion <select data-dot-motion></select></label><button type="button" data-play-dot>Play motion</button></div>
+              <div class="preset-choice"><label>motion <select data-dot-motion></select></label><button type="button" data-play-dot>play motion</button></div>
               <div class="chips" data-moves></div>
               <div class="row">
                 <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> the other way</label>
@@ -197,7 +197,7 @@
             </div>
             <div role="tabpanel" id="new-import" aria-labelledby="seg-import">
               <label class="field-label" for="import-text">paste the reply, or drop a .json file here</label>
-              <textarea id="import-text" rows="5" spellcheck="false" data-import-text placeholder='{"version":1,"id":"teapot","name":"Teapot","body":{"path":"M… Z"},"eyes":{…}}'></textarea>
+              <textarea id="import-text" rows="5" spellcheck="false" data-import-text placeholder='{"version":1,"id":"teapot","name":"teapot","body":{"path":"M… Z"},"eyes":{…}}'></textarea>
               <div class="row">
                 <button type="button" class="button small primary" data-import>add it</button>
                 <button type="button" class="button small" data-open-file>open a file</button>
@@ -206,7 +206,7 @@
               <div class="import-out" data-import-out role="status"></div>
             </div>
             <div data-imported hidden>
-              <h2 class="field-label" id="imported-label">Imported shapes</h2>
+              <h2 class="field-label" id="imported-label">imported shapes</h2>
               <div class="bots-box">
                 <ul class="bots" data-imported-shapes aria-labelledby="imported-label"></ul>
               </div>
@@ -245,7 +245,7 @@
                 <pre><code id="wave-code">import { mount } from '@blot/avatar';
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 
-// A waggle: a swing and a half from side to side, dying away, the eyes going with it.
+// a waggle: a swing and a half from side to side, dying away, the eyes going with it.
 const waggle = cue(900, [
   head.lean(toward, 7).along(wave(1.5).dwindling()),
   eyes.glance(toward, 0.15).along(wave(1.5).dwindling()),
@@ -286,7 +286,7 @@ bot.play('waggle', { dir: -1 });</code></pre>
 
 const bot = mount(document.getElementById('bot'), {
   shape: 'heart', size: 96, color: 'tomato', eyeFill: '#FFF4D6',
-  follow: true, pokeable: true, label: 'Ada',
+  follow: true, pokeable: true, label: 'ada',
 });
 
 bot.play('bounce');
