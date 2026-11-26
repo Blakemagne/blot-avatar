@@ -67,6 +67,8 @@ The extra palette repeats Pink, Orchid, Violet, Blue, Cyan, Teal, Lime, Yellow, 
 | Sleepy lids | A wide horizontal brow over a shorter vertical pupil. |
 | Round inset, fixed | Pale raised sockets and dark pupils on the frog-shaped head. |
 
+The individual eye and eyewear pieces were measured from the front and back in isolation. The port uses 41 fitted surfaces with independently measured normals and a 2,048-pixel silhouette per piece. The pale socket, dark pupil and pale insert of each crescent eye were also measured under twelve lighting orientations.
+
 The monocle has an open rim and a hanging chain. Tall oval frames have two open rims and retain visible eyes. The separate trapezoid lenses are unbridged. Classic sunglasses have a heavy continuous brow. Round sunglasses have two round lenses and a shaped bridge. The three opaque styles cover the builder eyes. None leaves the selected eyes visible.
 
 The positioning data includes the differences between wearers. For example, the same oval pair sits lower and closer together on Circle with two ears. Printed highlights follow the eye’s curved surface through a blink. The lenses and temples stay with the head. Pointer tracking is specific to the insert. On Highlight capsules the dark supports stay in place while the white catches move. On the frog, the pupils travel across the raised pale sockets.
@@ -85,7 +87,7 @@ The positioning data includes the differences between wearers. For example, the 
 | Tuft | Three rounded, offset lobes with separate protruding tips. |
 | Crown | A hollow band with front and rear walls, pointed rises and rounded tip beads. Metallic reflection changes with the viewing angle. |
 
-Both eared shapes accept Headphones and Bow tie. The other six extras were unavailable on those two wearers. Across the eleven editor bodies this gives 76 valid body–extra pairings before counting None or colour. The renderer-only flower adds eight pairings. The reconstructed beanie, hat, beret and crown were reviewed using 38 directions per fitting. The twelve extra colours were measured separately on the matte bulb and polished crown under eight combinations of orientation and wearer.
+Both eared shapes accept Headphones and Bow tie. The other six extras were unavailable on those two wearers. Across the eleven editor bodies this gives 76 valid body–extra pairings before counting None or colour. The renderer-only flower adds eight pairings. The beanie, hat, beret and crown were reconstructed from 38 directions per fitting. A second pass used 55 enlarged depth and surface-normal observations per fitting, with five further views held out. Across these four pieces, median held-out depth errors ranged from 0.000014 to 0.000017 body units. The twelve extra colours were measured separately on the matte bulb and polished crown under eight combinations of orientation and wearer.
 
 ## Starter characters
 

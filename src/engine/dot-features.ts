@@ -1,3 +1,5 @@
+import { eyeSurfaces } from './dot-eye-surfaces';
+import { eyeSurfaceMesh } from './dot-eye-mesh';
 import { catalogFittings } from './dot-catalog-fittings';
 import { fittedMesh } from './dot-fitted-mesh';
 import { gazeTransform, transformAxes } from './dot-gaze';
@@ -34,6 +36,10 @@ interface Surface {
   front(x: number, y: number): number | undefined;
 }
 const surfaces = new WeakMap<FeatureSection, Surface>();
+const opticalSurfaces = new WeakMap<FeatureSection, string>();
+for (const [name, entries] of Object.entries(eyeSurfaces)) {
+  entries.forEach((entry, i) => opticalSurfaces.set(featureSections[name][i], entry));
+}
 function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): Surface {
   const saved = surfaces.get(section);
   if (saved) return saved;
@@ -84,7 +90,8 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
     const z = parent?.front(cx + radius*x, cy + radius*y);
     return z === undefined ? own : Math.max(own, (z + .0018 - cz) / radius);
   };
-  const mesh = sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
+  const measured = opticalSurfaces.get(section);
+  const mesh = measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
   const surface = {
     mesh,
