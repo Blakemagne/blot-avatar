@@ -98,16 +98,7 @@ export function sectionMesh(origin: readonly number[], radius: number, steps: nu
     const key = Math.min(a, b) * values.length + Math.max(a, b);
     const saved = edges.get(key);
     if (saved !== undefined) return saved;
-    let t = values[a] / (values[a] - values[b]);
-    if (normals) {
-      let lo = 0, hi = 1;
-      const ax = coord(a % stride), ay = coord(Math.floor(a / stride));
-      const dx = coord(b % stride) - ax, dy = coord(Math.floor(b / stride)) - ay;
-      for (let j = 0; j < 9; j++) {
-        if ((q(ax+dx*t, ay+dy*t)>0) === (values[a]>0)) lo=t; else hi=t;
-        t = (lo+hi)*.5;
-      }
-    }
+    const t = values[a] / (values[a] - values[b]);
     const x = coord((a % stride) * (1 - t) + (b % stride) * t);
     const y = coord(Math.floor(a / stride) * (1 - t) + Math.floor(b / stride) * t);
     const at = vertex(x, y, 0);
