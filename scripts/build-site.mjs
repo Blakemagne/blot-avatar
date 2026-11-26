@@ -11,7 +11,7 @@ import { watch } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
-import { BODIES, GALLERY, colours, drawAvatar, outlineBody, stillState, VIEW_BOX } from '../src/index.ts';
+import { BODIES, DOT_SHAPES, GALLERY, colours, drawAvatar, outlineBody, stillState, VIEW_BOX } from '../src/index.ts';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const site = path.join(root, 'site');
@@ -46,9 +46,9 @@ function icon() {
  */
 function thumbs() {
   const out = {};
-  for (const { definition: def } of GALLERY) {
+  for (const def of [...GALLERY.map(item => item.definition), ...DOT_SHAPES]) {
     const d = drawAvatar(outlineBody(def), '#000000', stillState(def, THUMB), THUMB);
-    out[def.id] = [d.body, d.eyes[0], d.eyes[1]];
+    out[(DOT_SHAPES.includes(def) ? 'body:' : 'gallery:') + def.id] = [d.body, d.eyes[0], d.eyes[1]];
   }
   return out;
 }
@@ -56,7 +56,7 @@ function thumbs() {
 const THUMB = 56;
 
 const options = {
-  entryPoints: { app: path.join(site, 'main.ts'), dots: path.join(site, 'dots.ts') },
+  entryPoints: { app: path.join(site, 'main.ts') },
   outdir: out,
   bundle: true,
   format: 'iife',

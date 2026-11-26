@@ -3,7 +3,7 @@ import type { DotFaceMotion } from './dot-features';
 
 import type { Body, Decal } from './body';
 import { antennaPieces, decalOutline } from './decals';
-import { dotFace, dotExtra } from './dot-parts';
+import { coversEyes, dotFace, dotExtra } from './dot-parts';
 import { smooth } from './ease';
 import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
@@ -295,7 +295,7 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
 function compose(given: Body, state: RigState, size: number, coat = false): { coatRotation: Mat3; body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; reach: Float64Array | null; shape: FigureShape | null } {
   const body = state.body ?? given, d = detail(size);
   const unanimated = state;
-  const playback = body.dotStyle && !state.figure && !state.morph ? state.dotPlayback : undefined;
+  const playback = !state.figure && !state.morph ? state.dotPlayback : undefined;
   if (playback) {
     // The SVG fallback uses a projected stretch and an eye centre per side.
     const [sx, sy] = playback.scale, stretch = Math.sqrt(sy / sx);
@@ -392,8 +392,9 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
   if (wearer.dotStyle && !fig && !morph) {
     const face = dotFace(wearer, wearer.dotStyle, state, R, size);
     layers.push(...face, ...dotExtra(wearer, wearer.dotStyle, R, d.rim));
-    if (coat) dotMask = face.flatMap(p => p.polys.map(poly => poly.slice()));
-    eyes = [[], []];
+    const style = wearer.dotStyle;
+    if (!style.originalEyes || coversEyes(style)) eyes = [[], []];
+    if (coat) dotMask = [...eyes[0], ...eyes[1], ...face.flatMap(p => p.polys.map(poly => poly.slice()))];
   }
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 
@@ -605,7 +606,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   if (bare) {
     const [a, , , d, e, f] = affine, { figure, ...wears } = coatOf(body, state, size, reach);
     const move: DrawnCoat['affine'] = [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f];
-    const dotFace = wears.body.dotStyle && !figure && !state.morph ? {
+    const dotFace = (wears.body.dotStyle || state.dotPlayback) && !figure && !state.morph ? {
       playback: state.dotPlayback, x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
     } : undefined;
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)

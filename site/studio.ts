@@ -166,14 +166,14 @@ export function freeId(yours: readonly AvatarDefinition[], d: AvatarDefinition):
 //   &color=blue           one of blot's colours by name, or a hex colour with or without #
 //   &doing=working        what it is doing: idle, thinking, working, waiting, speaking or sleeping
 //   &def=…                a whole definition as base64url JSON (or JSON as it is): checked like an import, then added to yours
-//   &material=fluffy      its finish, flat or fluffy; a link without one leaves the finish the visitor chose
+//   &material=fluffy      its finish (flat, glossy or fluffy); a link without one leaves the finish the visitor chose
 
 export interface Shared { avatar?: string; gallery?: string; definition?: AvatarDefinition; colour?: string; doing?: string; material?: Material; problem?: string }
 
-/** A finish named in a link or kept in a browser: 'flat' or 'fluffy'. Anything else is undefined. */
+/** A finish named in a link or kept in a browser. Anything else is undefined. */
 export function readMaterial(v: string | null | undefined): Material | undefined {
   const t = v?.trim().toLowerCase();
-  return t === 'flat' || t === 'fluffy' ? t : undefined;
+  return t === 'flat' || t === 'glossy' || t === 'fluffy' ? t : undefined;
 }
 
 /** A definition as compact JSON in base64url, UTF-8 safe, without padding. */
@@ -246,22 +246,36 @@ export function shareLink(base: string, pick: { id: string; kind: 'body' | 'gall
 
 // ---- A still to download
 
-/** The avatar as a standalone SVG file, facing you, in this colour, its view cut to the body and a little room. It is always flat: the coat is pixels. */
-export function stillSvg(shape: Shape, colour: string, size = 512): string {
-  const d = drawAvatar(bodyOf(shape), colour, stillState(shape, size), size), c = colours(colour);
-  const layers = d.layers ?? [];
-  const xy = [d.body, ...layers.map((l) => l.d)].join(' ').match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+interface SvgPath { d: string; fill: string }
+
+/** A square view of the visible paths, including a little breathing room around their edges. */
+function croppedSvg(paths: SvgPath[], size: number, fallback: string): string {
+  const xy = paths.map(p => p.d).join(' ').match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i + 1 < xy.length; i += 2) {
     x0 = Math.min(x0, xy[i]); x1 = Math.max(x1, xy[i]); y0 = Math.min(y0, xy[i + 1]); y1 = Math.max(y1, xy[i + 1]);
   }
   const side = Math.max(x1 - x0, y1 - y0) * 1.12, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const box = xy.length ? [cx - side / 2, cy - side / 2, side, side].map((v) => Math.round(v * 100) / 100).join(' ') : d.viewBox;
-  const path = (dd: string, fill: string) => (dd ? `<path d="${dd}" fill="${fill}"/>` : '');
-  // Under the body, the body, over it, then the eyes: the order a drawing is painted in.
-  const parts = [
-    ...layers.filter((l) => !l.front).map((l) => path(l.d, l.fill)), path(d.body, c.fill),
-    ...layers.filter((l) => l.front).map((l) => path(l.d, l.fill)), ...d.eyes.map((e) => path(e, c.eyeFill)),
-  ];
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${box}">${parts.join('')}</svg>\n`;
+  const box = xy.length ? [cx - side / 2, cy - side / 2, side, side].map(v => Math.round(v * 100) / 100).join(' ') : fallback;
+  const content = paths.filter(p => p.d).map(p => `<path d="${p.d}" fill="${p.fill}"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${box}">${content}</svg>\n`;
+}
+
+/** The avatar as a standalone SVG still, including its selected wardrobe. */
+export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf(shape), eyeFill?: string): string {
+  const d = drawAvatar(body, colour, stillState(shape, size), size), c = colours(colour);
+  const layers = d.layers ?? [];
+  return croppedSvg([
+    ...layers.filter(l => !l.front), { d: d.body, fill: c.fill }, ...layers.filter(l => l.front),
+    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? c.eyeFill })),
+  ], size, d.viewBox);
+}
+
+/** Preview the selected eye pair, frame or accessory at the scale of the whole tile. */
+export function partSvg(shape: Shape, body: ReturnType<typeof bodyOf>, eyes: boolean, size = 54): string {
+  const d = drawAvatar(body, '#FFFFFF', stillState(shape, 16), size);
+  const layers = (d.layers ?? []).filter(l => /^(left|right)(-|$)/.test(l.id) === eyes);
+  const paths: SvgPath[] = [...layers];
+  if (eyes) paths.push(...d.eyes.map(path => ({ d: path, fill: '#202024' })));
+  return croppedSvg(paths, size, d.viewBox);
 }

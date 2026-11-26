@@ -21,7 +21,7 @@
 // slowly from side to side; speaking bobs with each syllable. Left idle, it breathes.
 
 import { dotRenderer } from './dot-renderer-registry';
-import type { Body } from './body';
+import { usesDotRig, type Body } from './body';
 import { BLINK_MS, CLIPS, PERSONALITY, PICKUP_STAR, POKES, TAU, advance, checkClips, start, type Channels, type Clip, type Personality, type Playing, type View } from './clips';
 import { inOut, smooth, track } from './ease';
 import { ACTIVITY_FACES, FACES, FACE_KEYS, MANNER_KEYS, PLAIN, faceFor, mannerFor, mixFace, type Face, type Manner } from './faces';
@@ -443,8 +443,8 @@ export class Rig {
     let far = Math.hypot(x, y);
     // (An infinite one has no direction to keep: it is a full look to that side, or along that diagonal.)
     if (far === Infinity) { x = Math.max(-1, Math.min(1, x)); y = Math.max(-1, Math.min(1, y)); far = Math.hypot(x, y); }
-    if (this.state.body?.dotStyle && this.readyAt === undefined) this.readyAt = 0;
-    this.target = this.state.body?.dotStyle
+    if (usesDotRig(this.state.body) && this.readyAt === undefined) this.readyAt = 0;
+    this.target = usesDotRig(this.state.body)
       ? { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }
       : far > 1 ? { x: x / far, y: y / far } : { x, y };
     this.away = false;
@@ -554,7 +554,7 @@ export class Rig {
    * look the same way. A body may turn less than all the way for a look (see Body.look).
    */
   private face(): void {
-    if (this.target && this.state.body?.dotStyle) {
+    if (this.target && usesDotRig(this.state.body)) {
       const eye = this.state.body.eyes;
       this.aim(this.target.x * this.flipTo * .0391 / eye.slideX, this.target.y * .0512 / eye.slideY, 0);
     } else if (this.target) this.aim(this.target.x * this.flipTo * this.most(), this.target.y, 0);
@@ -649,7 +649,7 @@ export class Rig {
     this.visiting = null;
     if (body === this.state.body) return;
     // A wardrobe edit on the same geometry keeps the current pose and any in-flight transition.
-    if (body.dotStyle && this.state.body?.dotStyle && body.pieces === this.state.body.pieces) {
+    if ((body.dotStyle || this.state.body?.dotStyle) && body.pieces === this.state.body?.pieces) {
       this.state.body = body;
       this.bodies++;
       return;
@@ -774,7 +774,7 @@ export class Rig {
       // Coming to rest: eyes to the middle, whatever they were told to look at.
       this.aim(0, 0, home.roll);
     } else if (act === 'idle') {
-      if (this.idle && !this.target && !s.body?.dotStyle) {
+      if (this.idle && !this.target && !usesDotRig(s.body)) {
         this.driftIn -= dtMs;
         if (this.driftIn <= 0) {
           if (this.away) {
@@ -843,7 +843,7 @@ export class Rig {
     } else s.figure = null;
 
     const dt = dtMs / 1000;
-    const dotGaze = !!s.body?.dotStyle && !this.driven;
+    const dotGaze = usesDotRig(s.body) && !this.driven;
     this.eyeX.step(dt, dotGaze ? 55 : EYE_RATE); this.eyeY.step(dt, dotGaze ? 55 : EYE_RATE);
     // The body turns toward where the eyes are now, not toward the target: while the eyes are still setting
     // off it has nothing to follow, so it starts a beat (about 60 ms) after them.
@@ -1047,7 +1047,7 @@ export class Rig {
     // Idle or not, it breathes: a little taller and back, slowly. (Not with idle off: then a rig left alone
     // is still. And not as a loading figure: a ring stays round.) A lively face breathes quicker, a sleeper slower and deeper.
     const dotIdle = this.idle && dotGaze && act === 'idle' && !this.cueing.some(Boolean);
-    if (this.readyAt !== undefined && !s.body?.dotStyle) this.readyAt = undefined;
+    if (this.readyAt !== undefined && !usesDotRig(s.body)) this.readyAt = undefined;
     if (dotIdle && this.readyAt !== undefined && dotRenderer && awake > .001) {
       this.readyAt += dtMs;
       this.readyFree += ((this.target ? 0 : 1) - this.readyFree) * (1-Math.exp(-dtMs/140));

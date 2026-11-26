@@ -8,6 +8,7 @@
 // doing under it, Export and Copy, and a card of tabs to pick one, play with it, or have a model make a new one.
 
 import {
+  avatarParts, dotAvatar, dotStageLayout, DOT_SHAPES, DOT_COLOURS, DOT_EXTRA_COLOURS, DOT_CLIPS, DOT_MOTIONS, DOT_CHARACTERS, DOT_CATALOG, DOT_EYES, DOT_GLASSES, DOT_EXTRAS, dotExtras, type AvatarParts, type DotAppearance,
   ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, coatMesh, coatable, colours, drawAvatar, galleryColour,
   mount, onMotion, reducedMotion, stillState, svgBox,
   type AvatarDefinition, type Material, type MountOptions, type Mounted, type Personality, type Shape,
@@ -16,7 +17,7 @@ import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 import { colorPicker, contrast } from './picker';
 import PROMPT from './prompt.md';
 import {
-  AGENTS, designBrief, freeId, isAgent, parseImport, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
+  AGENTS, designBrief, freeId, isAgent, parseImport, partSvg, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
 } from './studio';
 
 /** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
@@ -24,7 +25,7 @@ const waggle = cue(900, [
   head.lean(toward, 7).along(wave(1.5).dwindling()),
   eyes.glance(toward, 0.15).along(wave(1.5).dwindling()),
 ]);
-const clips = { waggle };
+const clips = { ...DOT_CLIPS, waggle };
 
 interface Move { name: string; lane: 'poke' | 'cue'; here?: boolean }
 const MOVES: Move[] = [
@@ -67,7 +68,10 @@ const VISITS = ['teardrop', 'hex', 'wedge', 'star'];
 
 /** blot's Bot colours, named in lowercase as the page writes. Black is drawn as blot draws it: in the page's ink, light on the dark theme. */
 const BLACK = '#000000';
-const COLOURS = BOT_COLOURS.map(([hex, name]) => [hex, name.toLowerCase(), hex === BLACK ? 'var(--ink)' : undefined] as const);
+const COLOURS = [
+  ...DOT_COLOURS,
+  ...BOT_COLOURS.map(([hex, name]) => [hex, DOT_COLOURS.some(([, dotName]) => dotName === name) ? 'Blot ' + name : name] as const),
+].map(([hex, name]) => [hex, name.toLowerCase(), hex === BLACK ? 'var(--ink)' : undefined] as const);
 const DEFAULT_COLOUR = '#FD690F';
 /** The colours the galleries go through: blot's, from orange on, and no black. */
 const CYCLE = [...BOT_COLOURS.slice(3), ...BOT_COLOURS.slice(1, 3)].map(([hex]) => hex);
@@ -101,7 +105,7 @@ const make = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTML
 /** localStorage, which a private window or a blocked site may refuse: then nothing is kept, and the page works the same. */
 const stored = {
   get(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
-  set(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* kept for this visit only */ } },
+  set(key: string, value: string): boolean { try { localStorage.setItem(key, value); return true; } catch { return false; } },
 };
 
 /** Every move button on the page, turned off together under reduced motion (a move would do nothing). */
@@ -166,6 +170,7 @@ interface Entry {
 }
 
 const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
+for (const shape of DOT_SHAPES) BODY_ENTRIES.push({ key: 'body:' + shape.id, id: shape.id, name: shape.name, kind: 'body', shape: shape.id, own: '#FFFFFF', definition: shape });
 /** The gallery by its colours in blot's order, then by name. */
 const GALLERY_ENTRIES: Entry[] = GALLERY.map((g): Entry => ({
   key: `gallery:${g.definition.id}`, id: g.definition.id, name: g.definition.name, kind: 'gallery', shape: g.definition, own: galleryColour(g), definition: g.definition,
@@ -182,7 +187,7 @@ const yoursEntry = (d: AvatarDefinition): Entry => ({ key: `yours:${d.id}`, id: 
 
 const YOURS_KEY = 'blot-avatar:yours';
 let yours: AvatarDefinition[] = (() => { try { return reviveYours(JSON.parse(stored.get(YOURS_KEY) ?? '[]')); } catch { return []; } })();
-const keepYours = (): void => stored.set(YOURS_KEY, JSON.stringify(yours));
+const keepYours = (): void => { stored.set(YOURS_KEY, JSON.stringify(yours)); };
 // Another tab of this page changed yours: take its list, so a change here does not write over it.
 addEventListener('storage', (e) => {
   if (e.key !== YOURS_KEY) return;
@@ -206,15 +211,40 @@ const pg = {
 };
 /** The colour picked for each avatar this visit; one with none shows its own. */
 const picked = new Map<string, string>();
-const options = (): MountOptions => ({
-  shape: entry(pg.key).shape, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
+const initialQuery = location.search || stored.get('blot-avatar:saved-look') || '';
+const appearanceQuery = new URLSearchParams(initialQuery);
+pg.eyes = readColour(appearanceQuery.get('eyeFill')) ?? null;
+const wardrobe: AvatarParts = {};
+for (const [key, values] of Object.entries({ eyes: DOT_EYES, glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {
+  const v = appearanceQuery.get(key);
+  if (v && (values as readonly string[]).includes(v)) Object.assign(wardrobe, { [key]: v });
+}
+const extraColour = readColour(appearanceQuery.get('extraColour'));
+if (extraColour) wardrobe.extraColour = extraColour;
+const recipes: Record<string, DotAppearance> = {
+  ...DOT_CHARACTERS,
+  ...Object.fromEntries(DOT_CATALOG.map(item => ['catalog/' + item.id, item.appearance])),
+};
+let preset = appearanceQuery.get('preset') ?? '';
+if (!Object.hasOwn(recipes, preset)) preset = '';
+function outfit() {
+  const shape = entry(pg.key).shape;
+  const recipe = recipes[preset];
+  if (recipe && recipe.shape === shape) return dotAvatar(recipe);
+  const customParts = wardrobe.eyes || (wardrobe.extra && wardrobe.extra !== 'None') || (wardrobe.glasses && wardrobe.glasses !== 'None');
+  if (customParts || typeof shape === 'string' && shape.startsWith('dot-')) return avatarParts(shape, wardrobe);
+  return { shape, body: bodyOf(shape) };
+}
+const avatarOptions = (): MountOptions => ({
+  ...outfit(), clips, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, progress: pg.progress, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
 // A link's query picks the avatar, its colour and what it is doing, once, as the page opens; then it is cleared,
 // so a reload starts afresh. A definition in it is checked like an import and added to yours (under another id
 // when one of yours already has its id, so a link never takes the place of one of yours).
-const shared = readShare(location.search, ACTIVITIES);
+const shared = readShare(initialQuery, ACTIVITIES);
+let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY));
 {
   if (shared.definition) {
     const d = freeId(yours, shared.definition);
@@ -227,14 +257,50 @@ const shared = readShare(location.search, ACTIVITIES);
     const found = [...BODY_ENTRIES, ...yours.map(yoursEntry), ...GALLERY_ENTRIES].find((e) => e.id === shared.avatar);
     if (found) pg.key = found.key;
   }
+  if (recipes[preset]?.shape !== entry(pg.key).shape) preset = '';
   if (shared.colour) picked.set(pg.key, shared.colour);
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
+  else if (!chosenTexture && outfit().body?.dotStyle) pg.material = 'glossy';
   pg.color = picked.get(pg.key) ?? entry(pg.key).own;
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
 }
 
-const bot = mount($('[data-avatar="play"]'), { ...options(), followIn: $('[data-stage]'), pokeable: true, label: 'the studio\'s avatar', seed: 7, clips });
+const stage = $('[data-stage]'), stageHost = $('[data-avatar="play"]'), ground = $('[data-ground]');
+let stageSize = pg.size;
+let stageLayout: ReturnType<typeof dotStageLayout> | undefined;
+function stageOptions(): MountOptions {
+  const options = avatarOptions();
+  const { body } = options;
+  const width = stage.clientWidth || Infinity, height = stage.clientHeight || Infinity;
+  if (body?.dotStyle && !body.wardrobeHost) {
+    const side = Math.min(2 * pg.size, width, height * 1.5);
+    const appearance = recipes[preset] ?? { shape: body.id, ...body.dotStyle };
+    stageLayout = dotStageLayout(appearance, side);
+    const { background, groundOrigin, x, y } = stageLayout;
+    Object.assign(ground.style, {
+      width: side + 'px', height: side + 'px', margin: -side/2 + 'px', backgroundImage: background,
+      transformOrigin: groundOrigin, transform: '',
+    });
+    stageHost.style.translate = `${x}px ${y}px`;
+    options.size = stageLayout.size;
+  } else {
+    stageLayout = undefined;
+    const extra = body?.dotStyle?.extra ?? 'None';
+    options.size = Math.min(pg.size, width / 1.5, height / (extra === 'None' ? 1.35 : 1.75));
+    const shift = extra === 'None' ? 0 : options.size * (extra === 'Bow tie' ? -.05 : .07);
+    stageHost.style.translate = shift ? `0 ${shift}px` : '';
+  }
+  stageSize = options.size;
+  ground.hidden = !stageLayout;
+  return options;
+}
+const bot = mount(stageHost, {
+  ...stageOptions(), followIn: $('[data-stage]'), pokeable: true, label: "the studio's avatar", seed: 7,
+  onDraw: drawing => {
+    if (stageLayout) ground.style.transform = stageLayout.groundTransform(drawing.coat?.dotFace?.playback);
+  },
+});
 
 /** A row of buttons, one pressed. */
 function chips(box: HTMLElement, values: readonly (string | null)[], now: () => string | null, pick: (v: string | null) => void, name = (v: string | null) => v ?? 'none'): () => void {
@@ -249,7 +315,8 @@ function chips(box: HTMLElement, values: readonly (string | null)[], now: () => 
   return sync;
 }
 
-const changed = (): void => { bot.update(options()); writeCode(); };
+const changed = (): void => { bot.update(stageOptions()); writeCode(); };
+new ResizeObserver(() => { if (stage.clientWidth) changed(); }).observe(stage);
 
 // ---- What the studio says, for a moment, beside the actions (and to a screen reader).
 
@@ -374,6 +441,7 @@ const showCard = tabs('card', (id) => { if (id === 'tab-bot') marked(); });
 /** Which of the Bot tab's three lists holds each kind. */
 const LIST: Record<Entry['kind'], string> = { body: 'seg-bodies', gallery: 'seg-outlines', yours: 'seg-yours' };
 const showList = tabs('bots', () => marked());
+tabs('appearance');
 tabs('play');
 const showStep = tabs('new');
 tabs('lanes');
@@ -408,7 +476,7 @@ function thumb(e: Entry): SVGSVGElement {
     const d = drawAvatar(bodyOf(e.shape), BLACK, stillState(e.shape, __THUMB__), __THUMB__);
     return [d.body, d.eyes[0], d.eyes[1]];
   };
-  const paths = (e.kind === 'gallery' && __THUMBS__[e.id]) || drawn();
+  const paths = (e.kind !== 'yours' && __THUMBS__[(e.kind === 'body' ? 'body:' : 'gallery:') + e.id]) || drawn();
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', box.viewBox);
   svg.setAttribute('width', String(box.width));
@@ -431,8 +499,10 @@ const paintThumb = (cell: HTMLElement, colour: string): void => {
 const cells = new Map<string, HTMLButtonElement>();
 const botsBox = $('[data-bots]'), pickNote = $('[data-pick-note]');
 function cellFor(e: Entry): HTMLLIElement {
-  const b = make('button', { type: 'button', className: 'bot-cell', title: named(e) });
-  b.setAttribute('aria-label', named(e));
+  const duplicate = e.kind === 'body' && e.id.startsWith('dot-') && SHAPES.includes(named(e));
+  const label = duplicate ? named(e) + ' (Dot)' : named(e);
+  const b = make('button', { type: 'button', className: 'bot-cell', title: label });
+  b.setAttribute('aria-label', label);
   const slot = make('span', { className: 'bot-thumb' });
   slot.style.width = slot.style.height = `${__THUMB__}px`;
   slot.append(thumb(e));
@@ -507,7 +577,7 @@ function coloured(): void {
 const previews: Mounted[] = [];
 const faint = $('[data-eye-note]');
 function paint(): void {
-  for (const p of previews) p.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material });
+  for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, pg.eyes ?? undefined), material: pg.material });
   // The eyes as drawn: the picked colour, or the automatic one.
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
   const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
@@ -516,7 +586,7 @@ function paint(): void {
 }
 const bodyPicker = colorPicker($('[data-picker="body"]'), {
   label: 'body colour', value: pg.color, presets: COLOURS,
-  onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
+  onInput: (v) => { preset = ''; syncWardrobe(); pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
 });
 {
   const eyePicker = colorPicker($('[data-picker="eyes"]'), {
@@ -524,9 +594,10 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
     onInput: (v) => { pg.eyes = v; paint(); },
   });
   for (const [i, p] of [bodyPicker, eyePicker].entries()) {
-    previews.push(mount(p.preview, { shape: entry(pg.key).shape, size: 40, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material, seed: 300 + i }));
+    previews.push(mount(p.preview, { ...outfit(), size: 40, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material, seed: 300 + i }));
   }
   resetColour.addEventListener('click', () => {
+    preset = '';
     picked.delete(pg.key);
     select(pg.key);
     // The button is hidden now: focus goes to the colour it went back to.
@@ -539,30 +610,44 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
 // stay flat: a coat for each would make 38 meshes as the page opens, about 3 s of work in all (in Node).
 const materialNote = $('[data-material-note]');
 const materialButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-material-is]')];
+function syncTexture(): void {
+  const matte = !!recipes[preset]?.catalogId;
+  $('[data-matte]').hidden = !matte;
+  for (const button of materialButtons) {
+    button.setAttribute('aria-pressed', String(!matte && button.dataset.materialIs === pg.material));
+  }
+}
 function finished(): void {
   // Where no coat can be drawn (no WebGL2, or it fails) the body stays flat, the switch says so and there is no PNG.
   // (Asked only once fur is: it sets up WebGL2.)
-  const noGl = pg.material === 'fluffy' && !coatable();
-  for (const b of materialButtons) b.setAttribute('aria-pressed', String(b.dataset.materialIs === pg.material));
+  const noGl = pg.material !== 'flat' && !coatable();
+  syncTexture();
   materialNote.hidden = !noGl;
-  doButton('png').hidden = pg.material !== 'fluffy' || noGl;
-  $('[data-svg-says]').textContent = pg.material === 'fluffy' ? 'SVG still, flat: no fur' : 'SVG still, this colour';
+  doButton('png').hidden = pg.material === 'flat' || noGl;
+  $('[data-svg-says]').textContent = pg.material !== 'flat' ? 'SVG still, flat' : 'SVG still, this colour';
   writeUse();
 }
 for (const b of materialButtons) {
   b.addEventListener('click', () => {
     const m = readMaterial(b.dataset.materialIs);
-    if (!m || m === pg.material) return;
-    pg.material = m;
+    if (!m) return;
+    chosenTexture = true;
     stored.set(MATERIAL_KEY, m);
+    if (m === pg.material && !recipes[preset]?.catalogId) return;
+    preset = '';
+    pg.material = m;
+    syncWardrobe();
     finished();
     paint();
   });
 }
 
 /** Put an avatar on the stage, in the colour picked for it, or its own. */
-function select(key: string): void {
+function select(key: string, carryColour = true): void {
+  if (carryColour && key !== pg.key && picked.has(pg.key)) picked.set(key, pg.color);
   pg.key = key;
+  if (recipes[preset]?.shape !== entry(key).shape) preset = '';
+  syncWardrobe();
   pg.color = picked.get(key) ?? entry(key).own;
   bodyPicker.set(pg.color);
   // The list that holds it (Bodies, Outlines or Yours) shows, if another one was showing.
@@ -574,6 +659,117 @@ function select(key: string): void {
   // Another tab can change yours while Moves is open: its avatar is the studio's, so it changes too.
   if (view === 'moves') moversTurn();
 }
+
+const characterMenu = $<HTMLSelectElement>('[data-characters]');
+const starters = make('optgroup', { label: 'Starter portraits' });
+for (const name of Object.keys(DOT_CHARACTERS)) starters.append(new Option(name, name));
+const collection = make('optgroup', { label: 'Character catalog' });
+for (const item of DOT_CATALOG) collection.append(new Option(item.name, 'catalog/' + item.id));
+characterMenu.append(starters, collection);
+characterMenu.addEventListener('change', () => {
+  preset = characterMenu.value;
+  const recipe = recipes[preset];
+  if (recipe) {
+    Object.assign(wardrobe, {
+      eyes: recipe.eyes ?? 'Oval', glasses: recipe.glasses ?? 'None',
+      extra: recipe.extra ?? 'None', extraColour: recipe.extraColour ?? '#1F1F1F',
+    });
+    chosenTexture = true;
+    pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
+    const key = 'body:' + recipe.shape;
+    picked.set(key, recipe.colour ?? '#FFFFFF');
+    finished();
+    select(key, false);
+  } else { syncWardrobe(); paint(); }
+});
+const motionMenu = $<HTMLSelectElement>('[data-dot-motion]');
+for (const category of ['idle', 'thinking'] as const) {
+  const group = make('optgroup', { label: category === 'idle' ? 'Idle' : 'Thinking' });
+  for (const motion of DOT_MOTIONS) if (motion.category === category) group.append(new Option(motion.name, motion.id));
+  motionMenu.append(group);
+}
+const playMotion = $<HTMLButtonElement>('[data-play-dot]');
+moveButtons.push(playMotion);
+playMotion.addEventListener('click', () => {
+  pg.last = { name: motionMenu.value, lane: 'cue' };
+  bot.play(motionMenu.value, { dir: pg.dir, amount: pg.amount });
+  writeCode();
+});
+type PartKey = 'eyes' | 'glasses' | 'extra';
+const choices = {
+  eyes: ['Original', ...DOT_EYES],
+  glasses: DOT_GLASSES,
+  extra: DOT_EXTRAS,
+};
+const partButtons = new Map<HTMLButtonElement, { key: PartKey; value: string }>();
+for (const key of Object.keys(choices) as PartKey[]) {
+  const box = $(`[data-parts="${key}"]`);
+  for (const value of choices[key]) {
+    const button = make('button', { type: 'button', className: 'part-tile' });
+    const original = value === 'Original';
+    const shape = original ? 'blob' : 'dot-rounded-triangle';
+    const sample = original ? bodyOf(shape) : avatarParts(shape, { [key]: value, extraColour: '#CB8E68' }).body;
+    const preview = make('span', { className: 'part-sample' });
+    preview.setAttribute('aria-hidden', 'true');
+    if (value === 'None') preview.textContent = '∅';
+    else preview.innerHTML = partSvg(shape, sample, key === 'eyes');
+    button.append(preview, make('span', { textContent: value }));
+    box.append(button);
+    partButtons.set(button, { key, value });
+    button.addEventListener('click', () => {
+      preset = '';
+      if (original) delete wardrobe.eyes;
+      else Object.assign(wardrobe, { [key]: value });
+      syncWardrobe();
+      paint();
+    });
+  }
+}
+const extraPalette = $('[data-extra-palette]');
+for (const [hex, name] of DOT_EXTRA_COLOURS) {
+  const button = make('button', { type: 'button', title: name });
+  button.setAttribute('aria-label', name);
+  button.dataset.hex = hex;
+  button.style.backgroundColor = hex;
+  extraPalette.append(button);
+  button.addEventListener('click', () => {
+    preset = '';
+    wardrobe.extraColour = hex;
+    syncWardrobe();
+    paint();
+  });
+}
+function syncWardrobe() {
+  const body = outfit().body;
+  const id = body?.id ?? '';
+  const style = body?.dotStyle;
+  const native = !!style && !body?.wardrobeHost;
+  if (!chosenTexture && !preset) {
+    const finish = style ? 'glossy' : 'flat';
+    if (pg.material !== finish) { pg.material = finish; finished(); }
+  }
+  $('[data-eye-colours]').hidden = !!style && !style.originalEyes;
+  characterMenu.value = preset;
+  syncTexture();
+  const fixedEye = native && id === 'dot-rounded-head-with-two-ears';
+  $('[data-fixed-eye]').hidden = !fixedEye;
+  const selected = {
+    eyes: style && !style.originalEyes ? style.eyes : 'Original',
+    glasses: style?.glasses ?? 'None',
+    extra: style?.extra ?? 'None',
+  };
+  for (const [button, { key, value }] of partButtons) {
+    const unavailableExtra = key === 'extra' && native && !dotExtras(id).some(extra => extra === value);
+    button.hidden = key === 'eyes' && (fixedEye || native && value === 'Original');
+    button.disabled = unavailableExtra;
+    button.setAttribute('aria-pressed', String(value === selected[key]));
+  }
+  extraPalette.hidden = !style || style.extra === 'None';
+  for (const button of extraPalette.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(button.dataset.hex === style?.extraColour));
+  }
+}
+syncWardrobe();
 
 // ---- Export, Copy and Remove.
 
@@ -594,7 +790,7 @@ async function copy(text: string, failed: string): Promise<void> {
   if (await copyText(text)) said('copied');
   else said(failed, true);
 }
-doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color)); });
+doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color, 512, outfit().body, pg.eyes ?? undefined)); });
 doButton('png').addEventListener('click', async () => {
   const e = entry(pg.key), png = await stagePng();
   if (png) download(`${e.id}.png`, 'image/png', png);
@@ -610,7 +806,7 @@ async function stagePng(): Promise<Blob | null> {
   try { return await drawStage(); } catch { return null; }
 }
 async function drawStage(): Promise<Blob | null> {
-  const host = $('[data-avatar="play"]'), box = svgBox(pg.size);
+  const host = $('[data-avatar="play"]'), box = svgBox(stageSize);
   const coat = [...host.children].find((c): c is HTMLCanvasElement => c instanceof HTMLCanvasElement && c.style.display !== 'none' && c.width > 0);
   const scale = coat ? coat.width / parseFloat(getComputedStyle(coat).width) : Math.max(2, devicePixelRatio || 1);
   // Room round the drawing box, half of it each way, for what reaches past it: a "!", the Zs, the glow.
@@ -683,10 +879,22 @@ doButton('code').addEventListener('click', async () => {
   said('no clipboard here: the code is open under the actions, to copy by hand.', true);
 });
 doButton('json').addEventListener('click', () => { const e = entry(pg.key); if (e.definition) void copy(json(e.definition), 'no clipboard here: use export instead.'); });
-doButton('link').addEventListener('click', () => {
+function appearanceLink() {
   const e = entry(pg.key);
-  const link = shareLink(`${location.origin}${location.pathname}`, { id: e.id, kind: e.kind, definition: e.definition }, pg.color, e.own, pg.activity, pg.material);
-  void copy(link, `no clipboard here. the link: ${link}`);
+  const url = new URL(shareLink(location.href.split(/[?#]/)[0], e, pg.color, e.own, pg.activity, pg.material));
+  for (const [key,v] of Object.entries(wardrobe)) url.searchParams.set(key,v);
+  if (pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
+  if (preset) url.searchParams.set('preset',preset);
+  url.searchParams.set('material',pg.material);
+  return url;
+}
+doButton('link').addEventListener('click', () => {
+  const url = appearanceLink().href;
+  void copy(url,'Copy this link: '+url);
+});
+$('[data-save-look]').addEventListener('click', () => {
+  const saved = stored.set('blot-avatar:saved-look', appearanceLink().search);
+  said(saved ? 'Avatar saved in this browser.' : 'Browser storage is unavailable. Use Copy link to keep this avatar.');
 });
 doButton('remove').addEventListener('click', () => {
   const e = entry(pg.key);
@@ -769,7 +977,7 @@ function add(text: string): void {
   redrawYours();
   select(`yours:${r.values[r.values.length - 1].id}`);
   const replaced = r.values.filter((d) => had.has(d.id)).map((d) => d.name.toLowerCase());
-  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and kept under bot, yours, in this browser.`, ...r.notes];
+  const lines = [`added ${r.values.map((d) => d.name.toLowerCase()).join(', ')}: on the stage now, and kept under Shape → Yours in this browser.`, ...r.notes];
   if (replaced.length) lines.push(`it took the place of the one you had with the same id: ${replaced.join(', ')}.`);
   importOut.replaceChildren(...lines.map((t) => make('p', { className: 'sub-label', textContent: calm(t) })));
   importText.value = '';
@@ -841,12 +1049,13 @@ const waggleSource = ((t) => t.slice(t.indexOf('// A waggle'), t.indexOf('\n]);'
 const useCode = { page: $('#mount-code'), react: $('#react-code') };
 const useFlat = { page: useCode.page.textContent ?? '', react: useCode.react.textContent ?? '' };
 function writeUse(): void {
-  const fluffy = pg.material === 'fluffy';
-  useCode.page.textContent = fluffy ? useFlat.page.replace("label: 'Ada',", "label: 'Ada', material: 'fluffy',") : useFlat.page;
-  useCode.react.textContent = !fluffy ? useFlat.react : useFlat.react
+  const coated = pg.material !== 'flat';
+  useCode.page.textContent = coated ? useFlat.page.replace("label: 'Ada',", `label: 'Ada', material: '${pg.material}',`) : useFlat.page;
+  useCode.react.textContent = !coated ? useFlat.react : useFlat.react
     .replace("const { host, paths, first } = useLiveAvatar({ shape: 'star', size, follow: true });",
       "const { host, paths, coat, first } = useLiveAvatar({\n    shape: 'star', size, follow: true, material: 'fluffy',\n  });")
     // The coat's canvas goes under the svg, hidden until a coat shows it (without WebGL2 the body stays flat).
+    .replace("material: 'fluffy'", `material: '${pg.material}'`)
     .replace(/(\n\s*)<svg /, "$1<canvas ref={coat} aria-hidden style={{ position: 'absolute', display: 'none' }} />$1<svg ");
 }
 
@@ -854,7 +1063,10 @@ function writeUse(): void {
 function writeCode(): void {
   const e = entry(pg.key);
   const shapeOption = e.kind === 'body' ? `shape: '${e.id}'` : e.kind === 'gallery' ? `shape: galleryAvatar('${e.id}').definition` : 'shape';
-  const o: string[] = [shapeOption, `size: ${pg.size}`];
+  const styled = outfit().body?.dotStyle;
+  const recipe = recipes[preset];
+  const initial = recipe ? `...dotAvatar(${JSON.stringify(recipe)})` : styled ? `...avatarParts(${shapeOption.replace(/^shape: /,'')}, ${JSON.stringify(wardrobe)})` : shapeOption;
+  const o: string[] = [initial, `size: ${Number((stageSize).toFixed(3))}`];
   if (pg.color !== DEFAULT_COLOUR) o.push(`color: '${pg.color}'`);
   if (pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
@@ -864,15 +1076,17 @@ function writeCode(): void {
   if (pg.follow) o.push('follow: true');
   if (pg.mark) o.push('mark: true');
   if (pg.ultra) o.push('ultra: true');
-  if (pg.material !== 'flat') o.push(`material: '${pg.material}'`);
+  if (pg.material !== 'flat' || recipe) o.push(`material: '${pg.material}'`);
   const feel = (Object.keys(PERSONALITY) as (keyof Personality)[]).filter((k) => pg.feel[k] !== PERSONALITY[k]).map((k) => `${k}: ${pg.feel[k]}`);
   if (feel.length) o.push(`personality: { ${feel.join(', ')} }`);
   o.push(`accent: '${ACCENT}'`);
   o.push('pokeable: true');
+  const dotClip = pg.last && Object.hasOwn(DOT_CLIPS, pg.last.name);
   if (pg.last?.here) o.push('clips: { waggle }');
+  else if (dotClip && !recipe) o.push('clips: DOT_CLIPS');
   const lines: string[] = [];
   for (let i = 0; i < o.length; i += 3) lines.push(`  ${o.slice(i, i + 3).join(', ')},`);
-  let text = `import { ${e.kind === 'gallery' ? 'galleryAvatar, mount' : 'mount'} } from '@blot/avatar';\n`;
+  let text = `import { ${dotClip && !recipe ? 'DOT_CLIPS, ' : ''}${recipe ? 'dotAvatar, ' : styled ? 'avatarParts, ' : ''}${e.kind === 'gallery' ? 'galleryAvatar, mount' : 'mount'} } from '@blot/avatar';\n`;
   if (pg.last?.here) text += `import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';\n\n${waggleSource}\n`;
   // One of yours is its definition, written out.
   if (e.kind === 'yours' && e.definition) text += `\n// ${e.name}: an outline and its eyes.\nconst shape = ${JSON.stringify(e.definition)};\n`;
@@ -893,11 +1107,11 @@ function writeCode(): void {
 
 const moveStage = $('[data-move-stage]'), moveSaid = $('[data-move-said]');
 const mover = mount($('[data-avatar="moves"]'), {
-  shape: entry(pg.key).shape, size: narrow.matches ? 120 : 150, ...inked(pg.color, pg.eyes ?? undefined), follow: true, followIn: moveStage,
+  ...outfit(), size: narrow.matches ? 120 : 150, ...inked(pg.color, pg.eyes ?? undefined), follow: true, followIn: moveStage,
   pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT, material: pg.material,
 });
 /** The moves are shown on the avatar in the studio, as it is now. */
-const moversTurn = (): void => mover.update({ shape: entry(pg.key).shape, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel, material: pg.material });
+const moversTurn = (): void => mover.update({ ...outfit(), clips, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel, material: pg.material });
 function moveRow(m: Move): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.name }), make('span', { textContent: SAYS[m.name] ?? `a ${m.lane}.` }));
   b.addEventListener('click', () => {

@@ -112,6 +112,8 @@ export interface Decal {
  */
 export interface Body {
   /** Independent permanent eye, eyewear and accessory design. */
+  /** Original Blot geometry when builder parts are fitted to an existing body. */
+  wardrobeHost?: Body;
   dotStyle?: Readonly<DotStyle>;
   id: string;
   pieces: readonly Piece[];
@@ -136,6 +138,11 @@ export interface Body {
   decals?: readonly Decal[];
   /** The body's own colours for its antennas and decals, by key. A renderer may paint any key over. */
   paint?: Readonly<Record<string, string>>;
+}
+
+/** Dots use a short cursor turn. A Blot body keeps its original range when dressed. */
+export function usesDotRig(body?: Body): body is Body & { dotStyle: Readonly<DotStyle> } {
+  return !!body?.dotStyle && !body.wardrobeHost;
 }
 
 /** Pieces, and nothing else: all that an outline is worked out from. */

@@ -1,7 +1,7 @@
-import type { Body, Piece, Sphere } from './body';
+import { prepare, surfaceTop, type Body, type Piece, type Sphere } from './body';
 import { dotDepth } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
-import { bounds, type Mat3 } from './math';
+import { bounds, project, type Mat3 } from './math';
 import { silhouette } from './silhouette';
 import type { RigState } from './rig';
 
@@ -37,6 +37,8 @@ export const DOT_EXTRAS = [
 export interface DotStyle {
   /** Local Z multiplier for an editable body and its mounted parts. */
   depthScale?: number;
+  /** Retain the host’s own expressive eyes with an accessory. */
+  originalEyes?: boolean;
   eyes: (typeof DOT_EYES)[number];
   glasses: (typeof DOT_GLASSES)[number];
   extra: (typeof DOT_EXTRAS)[number];
@@ -45,6 +47,11 @@ export interface DotStyle {
   catalogId?: string;
   /** Authored starter portrait. Custom builds leave this unset. */
   character?: 'Blossie' | 'Alfred' | 'Jojo' | 'Iris' | 'Todd' | 'Iggy' | 'Felipe' | 'Thelma' | 'Felipe flower' | 'Josh';
+}
+
+/** Opaque lenses cover the entire eye insert. */
+export function coversEyes(style: DotStyle): boolean {
+  return style.glasses.endsWith('sunglasses') || style.glasses === 'Separate trapezoid lenses';
 }
 
 interface Part {
@@ -75,24 +82,41 @@ const sockets: Readonly<Record<string, readonly [number, number, number]>> = {
   'dot-rounded-head-with-two-ears': [60.5, 189, 1],
 };
 
+/** Depth of the Blot face that normally carries the eyes, in body coordinates. */
+export function wardrobeDepth(body: Body, x: number, y: number) {
+  const hit = {z:0,nx:0,ny:0,nz:1};
+  return surfaceTop(prepare(body),x,y,hit) ? hit.z : undefined;
+}
+
 /** Eye inserts follow the wearer's surface. The glasses stand forward of the eyes on a curved, rigid frame. */
 export function dotFace(
   body: Body, style: DotStyle, state: RigState, rotation: Mat3, size: number,
 ): Part[] {
   const parts: Part[] = [];
-  const frog = body.id === 'dot-rounded-head-with-two-ears';
+  const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
   if (rotation[8] < -.55) return parts;
-  const [spacing, centreY, scale] = sockets[body.id] ?? sockets['dot-rounded-triangle'];
+  const native = !body.wardrobeHost && sockets[body.id];
+  const [spacing, centreY, scale] = native || [body.eyes.x*DESIGN_RADIUS,256-body.eyes.y*DESIGN_RADIUS,body.eyes.x/.2];
+  const cx = native ? 0 : body.eyes.cx ?? 0;
+  const depth = (x:number,y:number) => native ? dotDepth(body.id,x,y) : wardrobeDepth(body,x,y);
   const eyeY = (256 - centreY) / DESIGN_RADIUS;
   const glasses = frameProfiles[style.glasses];
   const circle = (rx: number, ry: number) => Array.from({ length: 64 }, (_, i) => [
     rx * Math.cos(i * Math.PI / 32), ry * Math.sin(i * Math.PI / 32),
   ]).flat();
+  function facePoint(x: number, y: number, z: number, out: Float64Array, i: number) {
+    if (body.wardrobeHost) project(rotation, x, y, z, out, i);
+    else {
+      out[i] = rotation[0]*x + rotation[1]*y + rotation[2]*z;
+      out[i+1] = -(rotation[3]*x + rotation[4]*y + rotation[5]*z);
+    }
+  }
   for (const side of [-1, 1] as const) {
+    if (style.originalEyes || coversEyes(style)) continue;
     const index = side < 0 ? 0 : 1;
     const name = side < 0 ? 'left' : 'right';
     const lid = Math.max(0, state.lid * (state.lids?.[index] ?? 1));
-    const x = side * (spacing + (glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
+    const x = cx + side * (spacing + (glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
     const gazeX = body.eyes.slideX * state.eye.x, gazeY = body.eyes.slideY * state.eye.y;
     function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false) {
       const polys: Float64Array[] = [];
@@ -102,13 +126,12 @@ export function dotFace(
         for (let i = 0; i < loop.length; i += 2) {
           const u = x + (fixed ? 0 : gazeX) + loop[i] * scale / DESIGN_RADIUS;
           const v = eyeY + (fixed ? 0 : gazeY) - loop[i+1] * open * scale / DESIGN_RADIUS;
-          const z = (dotDepth(body.id,u,v) ?? dotDepth(body.id,x,eyeY) ?? .55) + .025;
-          poly[i] = rotation[0]*u + rotation[1]*v + rotation[2]*z;
-          poly[i+1] = -(rotation[3]*u + rotation[4]*v + rotation[5]*z);
+          const z = (depth(u,v) ?? depth(x,eyeY) ?? .55) + .025;
+          facePoint(u, v, z, poly, i);
           if (rotation[8] >= .7) facing++;
           else {
-            const dx = ((dotDepth(body.id,u+.004,v) ?? z) - (dotDepth(body.id,u-.004,v) ?? z)) / .008;
-            const dy = ((dotDepth(body.id,u,v+.004) ?? z) - (dotDepth(body.id,u,v-.004) ?? z)) / .008;
+            const dx = ((depth(u+.004,v) ?? z) - (depth(u-.004,v) ?? z)) / .008;
+            const dy = ((depth(u,v+.004) ?? z) - (depth(u,v-.004) ?? z)) / .008;
             if (rotation[8]-dx*rotation[6]-dy*rotation[7] > 0) facing++;
           }
         }
@@ -133,11 +156,10 @@ export function dotFace(
       const polys = frame.loops.map(loop => {
         const result = new Float64Array(loop.length);
         for (let i = 0; i < loop.length; i += 2) {
-          const u = loop[i] / DESIGN_RADIUS * scale, v = eyeY - loop[i + 1] / DESIGN_RADIUS * scale;
+          const u = cx + loop[i] / DESIGN_RADIUS * scale, v = eyeY - loop[i + 1] / DESIGN_RADIUS * scale;
           // The temples wrap back toward the cheeks while the bridge clears the brow.
-          const z = (dotDepth(body.id,0,eyeY) ?? .76) + .12 - .42 * u * u;
-          result[i] = rotation[0]*u + rotation[1]*v + rotation[2]*z;
-          result[i+1] = -(rotation[3]*u + rotation[4]*v + rotation[5]*z);
+          const z = (depth(cx,eyeY) ?? .76) + .12 - .42 * (u - cx) ** 2;
+          facePoint(u, v, z, result, i);
         }
         return result;
       });
@@ -175,12 +197,13 @@ interface Ornament {
 const ornaments = new WeakMap<Body, Ornament[]>();
 
 function makeOrnament(body: Body, style: DotStyle): Ornament[] {
+  const cx = body.wardrobeHost?.eyes.cx ?? 0;
   const b = bounds(silhouette(body, FRONT, 48)),
     top = -b[1],
     base = -b[3],
-    half = (b[2] - b[0]) / 2;
+    half = body.wardrobeHost ? Math.min(cx - b[0], b[2] - cx) : (b[2] - b[0]) / 2;
   const groups: Ornament[] = [];
-  const ball = (x: number, y: number, r: number, z = 0): Sphere => [x, y, z, r];
+  const ball = (x: number, y: number, r: number, z = 0): Sphere => [cx + x, y, z, r];
   function part(id: string, pieces: Piece[], front = true, fill = style.extraColour) {
     groups.push({ id, fill, front, solid: { pieces } });
   }
@@ -265,7 +288,7 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
     case 'Headphones': {
       const ears = body.id === 'dot-circle-with-two-ears';
       const peak = ears ? top - 0.28 : top + 0.09;
-      const y = ears ? -0.2 : 0;
+      const y = ears ? -0.2 : body.wardrobeHost?.eyes.y ?? 0;
       const arc = Array.from({ length: 17 }, (_, i) =>
         ball(Math.cos((i * Math.PI) / 16) * half, y + (peak - y) * Math.sin((i * Math.PI) / 16), 0.03),
       );

@@ -23,7 +23,6 @@
       <a href="#studio" data-view-link="studio">studio</a>
       <a href="#moves" data-view-link="moves">moves</a>
       <a href="#use" data-view-link="use">use it</a>
-      <a href="dots.html">Dot studio</a>
       <a class="gh" href="https://github.com/Blakemagne/blot-avatar">github</a>
     </nav>
   </header>
@@ -34,28 +33,21 @@
     <!-- The studio: one avatar, and a card of tabs to pick it, play with it, or make a new one. -->
     <section id="studio" class="view" data-view="studio" aria-labelledby="studio-title">
       <div class="view-head">
-        <h1 id="studio-title" tabindex="-1">an avatar with a body</h1>
-        <p class="lede">eyes on a real 3D shape, drawn as three SVG paths (and a coat of fur in WebGL2, if you pick fluffy). pick one, or have a model draw you one.</p>
+        <h1 id="studio-title" tabindex="-1">Avatar studio</h1>
       </div>
       <div class="studio">
         <div class="stage-col">
           <div class="stage" data-stage>
+            <div class="stage-ground" data-ground aria-hidden="true" hidden></div>
             <div class="stage-avatar" data-avatar="play"></div>
             <p class="hint" aria-hidden="true">click it. keys 1 to 6 pick what it does.</p>
           </div>
-          <div class="chips doing" data-choice="activity" role="group" aria-label="what it is doing"></div>
-          <div class="sub" data-form-row hidden>
-            <span class="sub-label" id="form-label">turns into</span>
-            <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
-          </div>
-          <div class="sub" data-progress-row hidden>
-            <label class="range">how far <input type="range" min="0" max="1" step="0.05" value="0" data-progress autocomplete="off"><output data-progress-out aria-live="off">0</output></label>
-          </div>
           <div class="actions">
+            <button type="button" class="button small" data-save-look>Save avatar</button>
             <div class="menu" data-menu="export">
               <button type="button" class="button small" aria-expanded="false">export</button>
               <div class="menu-list" hidden>
-                <button type="button" data-do="png" hidden><strong>image, with fur</strong><span>PNG, as on the stage now</span></button>
+                <button type="button" data-do="png" hidden><strong>image, with texture</strong><span>PNG, as on the stage now</span></button>
                 <button type="button" data-do="svg"><strong>image</strong><span data-svg-says>SVG still, this colour</span></button>
                 <button type="button" data-do="json-file"><strong>definition</strong><span>JSON, geometry only</span></button>
               </div>
@@ -81,7 +73,7 @@
         <div class="card-panel">
           <div class="tabs">
             <div class="tablist" role="tablist" aria-label="studio" data-tabs="card">
-              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">bot</button>
+              <button type="button" role="tab" id="tab-bot" aria-controls="panel-bot">Appearance</button>
               <button type="button" role="tab" id="tab-play" aria-controls="panel-play">play</button>
               <button type="button" role="tab" id="tab-new" aria-controls="panel-new">new</button>
             </div>
@@ -97,37 +89,74 @@
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
-            <div class="seg" role="tablist" aria-label="which avatars" data-tabs="bots">
-              <button type="button" role="tab" id="seg-bodies" aria-controls="bots-bodies">bodies</button>
-              <button type="button" role="tab" id="seg-outlines" aria-controls="bots-outlines">outlines</button>
-              <button type="button" role="tab" id="seg-yours" aria-controls="bots-yours">yours <span class="count" data-yours-count></span></button>
+            <div class="wardrobe-tabs" data-tabs="appearance" role="tablist" aria-label="Appearance categories">
+              <button type="button" id="choose-Shape" role="tab" aria-controls="wardrobe-Shape">Shape</button>
+              <button type="button" id="choose-Eyes" role="tab" aria-controls="wardrobe-Eyes">Eyes</button>
+              <button type="button" id="choose-Glasses" role="tab" aria-controls="wardrobe-Glasses">Glasses</button>
+              <button type="button" id="choose-Extras" role="tab" aria-controls="wardrobe-Extras">Extras</button>
+              <button type="button" id="choose-Textures" role="tab" aria-controls="wardrobe-Textures">Textures</button>
             </div>
-            <div class="bots-box" data-bots>
-              <div role="tabpanel" id="bots-bodies" aria-labelledby="seg-bodies"></div>
-              <div role="tabpanel" id="bots-outlines" aria-labelledby="seg-outlines"></div>
-              <div role="tabpanel" id="bots-yours" aria-labelledby="seg-yours"></div>
-            </div>
-            <p class="sub-label pick-note" data-pick-note></p>
-            <div class="colour-row">
-              <div data-picker="body"></div>
-              <button type="button" class="link" data-reset-colour hidden>back to its own colour</button>
+            <section id="wardrobe-Shape" role="tabpanel" aria-labelledby="choose-Shape">
+              <label class="preset-choice">Character <select data-characters><option value="">Custom</option></select></label>
+              <div class="seg" role="tablist" aria-label="which avatars" data-tabs="bots">
+                <button type="button" role="tab" id="seg-bodies" aria-controls="bots-bodies">bodies</button>
+                <button type="button" role="tab" id="seg-outlines" aria-controls="bots-outlines">outlines</button>
+                <button type="button" role="tab" id="seg-yours" aria-controls="bots-yours">yours <span class="count" data-yours-count></span></button>
+              </div>
+              <div class="bots-box" data-bots>
+                <div role="tabpanel" id="bots-bodies" aria-labelledby="seg-bodies"></div>
+                <div role="tabpanel" id="bots-outlines" aria-labelledby="seg-outlines"></div>
+                <div role="tabpanel" id="bots-yours" aria-labelledby="seg-yours"></div>
+              </div>
+              <p class="sub-label pick-note" data-pick-note></p>
+              <div class="colour-row">
+                <div data-picker="body"></div>
+                <button type="button" class="link" data-reset-colour hidden>back to its own colour</button>
+              </div>
+            </section>
+            <section id="wardrobe-Eyes" role="tabpanel" aria-labelledby="choose-Eyes">
+              <p data-fixed-eye hidden>Round inset eyes are built into this shape.</p>
+              <div data-parts="eyes"></div>
+              <div data-eye-colours>
+                <div data-picker="eyes"></div>
+                <p class="sub-label note" data-eye-note hidden>these eyes barely show on this body. pick an eye colour further from it.</p>
+              </div>
+            </section>
+            <section id="wardrobe-Glasses" role="tabpanel" aria-labelledby="choose-Glasses">
+              <div data-parts="glasses"></div>
+            </section>
+            <section id="wardrobe-Extras" role="tabpanel" aria-labelledby="choose-Extras">
+              <div data-parts="extra"></div>
+              <div data-extra-palette role="group" aria-label="Extra colour"></div>
+            </section>
+            <section id="wardrobe-Textures" role="tabpanel" aria-labelledby="choose-Textures">
               <div class="sub finish">
                 <span class="sub-label" id="finish-label">finish</span>
                 <div class="seg" role="group" aria-labelledby="finish-label" data-material>
-                  <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
-                  <button type="button" data-material-is="fluffy" aria-pressed="false">fluffy</button>
+                  <button type="button" data-matte aria-pressed="true" disabled hidden>Matte</button>
+                  <button type="button" data-material-is="glossy" aria-pressed="false">Glossy</button>
+                  <button type="button" data-material-is="flat" aria-pressed="true">Flat</button>
+                  <button type="button" data-material-is="fluffy" aria-pressed="false">Fur</button>
                 </div>
                 <span class="sub-label" data-material-note hidden>no WebGL2 here, so it stays flat.</span>
               </div>
-            </div>
+            </section>
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-play" aria-labelledby="tab-play">
+            <span class="sub-label" id="activity-label">Activity</span>
+            <div class="chips doing" data-choice="activity" role="group" aria-labelledby="activity-label"></div>
+            <div class="sub" data-form-row hidden>
+              <span class="sub-label" id="form-label">turns into</span>
+              <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
+            </div>
+            <div class="sub" data-progress-row hidden>
+              <label class="range">how far <input type="range" min="0" max="1" step="0.05" value="0" data-progress autocomplete="off"><output data-progress-out aria-live="off">0</output></label>
+            </div>
             <div class="seg" role="tablist" aria-label="play with" data-tabs="play">
               <button type="button" role="tab" id="seg-face" aria-controls="play-face">face</button>
               <button type="button" role="tab" id="seg-moves" aria-controls="play-moves">moves</button>
               <button type="button" role="tab" id="seg-feel" aria-controls="play-feel">feel</button>
-              <button type="button" role="tab" id="seg-eyes" aria-controls="play-eyes">eyes</button>
             </div>
             <div role="tabpanel" id="play-face" aria-labelledby="seg-face">
               <div class="chips" data-choice="face"></div>
@@ -138,6 +167,7 @@
               </div>
             </div>
             <div role="tabpanel" id="play-moves" aria-labelledby="seg-moves">
+              <div class="preset-choice"><label>Motion <select data-dot-motion></select></label><button type="button" data-play-dot>Play motion</button></div>
               <div class="chips" data-moves></div>
               <div class="row">
                 <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> the other way</label>
@@ -151,10 +181,6 @@
             <div role="tabpanel" id="play-feel" aria-labelledby="seg-feel">
               <div class="feel" data-feel></div>
               <p class="sub-label note">the engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. try a hop or a bounce.</p>
-            </div>
-            <div role="tabpanel" id="play-eyes" aria-labelledby="seg-eyes">
-              <div data-picker="eyes"></div>
-              <p class="sub-label note" data-eye-note hidden>these eyes barely show on this body. pick an eye colour further from it.</p>
             </div>
           </div>
 

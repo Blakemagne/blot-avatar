@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
+  BODIES,
+  GALLERY,
+  avatarParts,
   DOT_COLOURS,
   DOT_EYES,
   DOT_EXTRA_COLOURS,
@@ -18,6 +21,8 @@ import {
   VIEW_UNIT,
 } from './index.ts';
 import { flattenPath, insideRow, parsePath } from './engine/outline/path.ts';
+import { dotFeatures } from './engine/dot-features.ts';
+import { coatMesh } from './engine/coat.ts';
 import { BOX_SCALE } from './engine/outline/inflate.ts';
 
 const reference = JSON.parse(readFileSync(new URL('../golden/dots/front-rows.json', import.meta.url)));
@@ -49,6 +54,55 @@ function overlap(path, ref, centre, extent) {
   }
   return intersection / union;
 }
+
+test('the shared wardrobe preserves each Blot outline and its original eyes, then fits replacement parts', () => {
+  const imported = { ...GALLERY[0].definition, id: 'my-avatar' };
+  for (const shape of [...Object.keys(BODIES), ...GALLERY.map(g => g.definition), imported]) {
+    const original = bodyOf(shape);
+    const draw = body => drawAvatar(body, '#FFFFFF', front, 96);
+    const glasses = avatarParts(shape, { glasses: 'Monocle' }).body;
+    assert.equal(glasses.wardrobeHost, original);
+    assert.equal(glasses.eyes, original.eyes);
+    assert.equal(avatarParts(shape, { glasses: 'Monocle' }).body, glasses);
+    const plain = draw(original), fitted = draw(glasses);
+    assert.equal(fitted.body, plain.body, original.id);
+    assert.deepEqual(fitted.eyes, plain.eyes, original.id);
+    assert.ok(fitted.layers.some(layer => layer.solid && layer.d), original.id);
+    const dressed = avatarParts(shape, { eyes: 'Sparkle capsules', extra: 'Crown' }).body;
+    const drawing = draw(dressed);
+    assert.deepEqual(drawing.eyes, ['', '']);
+    assert.ok(drawing.layers.some(layer => layer.id === 'crown-band' && layer.d));
+    assert.ok(drawing.layers.some(layer => layer.id === 'right' && layer.d));
+    assert.ok(dotFeatures(dressed).every(part => part.axes.every(Number.isFinite)), original.id);
+  }
+  const customBody = { ...bodyOf('star'), id: 'my-rig', look: .4 };
+  const custom = avatarParts(customBody, { extra: 'Beanie' });
+  assert.equal(custom.shape, 'my-rig');
+  assert.equal(custom.body.wardrobeHost, customBody);
+  assert.equal(custom.body.look, .4);
+  assert.equal(coatMesh(avatarParts('star', { extra: 'Crown' }).body), coatMesh(bodyOf('star')));
+  assert.deepEqual(drawAvatar(avatarParts('star', { glasses: 'Round sunglasses' }).body, '#FFF', front, 96).eyes, ['', '']);
+  const native = avatarParts('dot-rounded-triangle', { extra: 'Crown' }).body;
+  assert.equal(native.wardrobeHost, undefined);
+  assert.equal(native, dotAvatar({ shape: 'dot-rounded-triangle', extra: 'Crown' }).body);
+});
+
+test('changing an outfit on a Blot body keeps its pointer rig and its in-flight pose', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const original = bodyOf('star'), dressed = avatarParts('star', { glasses: 'Monocle' }).body;
+  const before = new Rig({ body: original, seed: 5 }), after = new Rig({ body: original, seed: 5 });
+  for (const rig of [before, after]) rig.look(.8, -.45);
+  for (let frame=0; frame<180; frame++) {
+    if (frame === 20) after.setBody(dressed);
+    if (frame === 80) for (const rig of [before, after]) rig.stop();
+    if (frame === 120) after.setBody(original);
+    before.step(1000/60);
+    after.step(1000/60);
+    assert.deepEqual(before.state.eye, after.state.eye);
+    assert.deepEqual(before.state.pose, after.state.pose);
+    assert.equal(after.state.morph, before.state.morph);
+  }
+});
 
 test('every Dot contour fits its measured native-aspect silhouette before and after inflation', () => {
   assert.equal(DOT_PICKER_SHAPES.length, reference.length);

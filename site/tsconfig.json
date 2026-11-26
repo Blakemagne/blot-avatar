@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": { "noEmit": true },
-  "include": ["main.ts", "dots.ts", "studio.ts", "globals.d.ts"]
+  "include": ["main.ts", "studio.ts", "globals.d.ts"]
 }

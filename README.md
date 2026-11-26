@@ -486,7 +486,7 @@ These look like mistakes and are not. Do not undo them.
 
 ## The demo page and GitHub Pages
 
-`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script, a favicon the engine draws, and `prompt.md`, the design prompt, which a short prompt in an agent app's link points at. The studio's plain parts (reading a model's reply, share links, prompts, agent links, the still to download) are in `site/studio.ts`, tested by `site/studio.test.mjs`. The studio's Finish switch (Flat, Fluffy) is kept in the browser and carried in a share link as `?material=fluffy`; with fur on, Export offers a PNG of the stage as it is, and the SVG stays flat. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
+`site/` is a static page built with esbuild into `_site/`: `index.html`, `style.css`, one classic script, a favicon the engine draws, and `prompt.md`, the design prompt, which a short prompt in an agent app's link points at. The studio's plain parts (reading a model's reply, share links, prompts, agent links, the still to download) are in `site/studio.ts`, tested by `site/studio.test.mjs`. The studio’s texture choice (Flat, Glossy, Fur) is kept in the browser and carried in a share link as `?material=fluffy`; with fur on, Export offers a PNG of the stage as it is, and the SVG stays flat. Every path in it is relative, so it works at a domain's root, under `/blot-avatar/`, and opened from disk.
 
 `.github/workflows/pages.yml` checks, builds and publishes it on every push to `main`, but only while the repository is public: a Pages site is public even when its repository is private, and on a free account GitHub does not serve Pages from a private repository at all. While the repository is private the workflow skips itself. When it is made public, turn Pages on (Settings, Pages, Source: GitHub Actions) and the next push publishes it.
 
@@ -494,9 +494,9 @@ These look like mistakes and are not. Do not undo them.
 
 MIT, see `LICENSE`. Where the bodies' proportions came from is in `THIRD_PARTY_NOTICES.md`.
 
-## Dot studio
+## Avatar wardrobe
 
-Build with `npm run site` and open `_site/dots.html` to try the eleven picker shapes, the six-lobed flower, eight starter portraits and the 108 named renderer entries. The studio has independent eye, glasses, extra, colour and finish controls, plus playback for 41 idle and 13 thinking motions. The measured dimensions and customizations are in the [survey](docs/dot-survey.md). The [visual parity report](docs/dot-parity.md) gives per-case scores and reproduction commands.
+Build with `npm run site` and open `_site/index.html` to try the eleven picker shapes, the six-lobed flower, eight starter portraits and the 108 named renderer entries. Use Shape, Eyes, Glasses, Extras and Textures in the main studio to dress built-in bodies, gallery outlines and imports. In code, pass `...avatarParts(shape, { glasses: 'Monocle', extra: 'Crown' })` to `mount` to keep a Blot body’s native eyes and fit those accessories. The studio includes independent body and accessory colours, plus playback for 41 idle and 13 thinking motions. The measured dimensions and customizations are in the [survey](docs/dot-survey.md). The [visual parity report](docs/dot-parity.md) gives per-case scores and reproduction commands.
 
 `DOT_PICKER_SHAPES` follows the editor. `DOT_SHAPES` also contains the flower. Use `dotAvatar(DOT_CATALOG.find(item => item.id === id).appearance)` to select a named character. `curatedDot(42n)` selects Rio using the studio’s version 14 seed mapping. Pass its `appearance` to `dotAvatar` to render the selection. Editing a recipe releases its fixed portrait rig and applies the builder controls. The optional `depth` setting runs from 0 to 1 on builder and matte catalog characters, with a default of 0.5. It changes body thickness, including the depth of mounted eyes and accessories. Fixed fur portraits retain their original depth.
 
@@ -512,6 +512,6 @@ const avatar = mount(host, {
 });
 ```
 
-To reproduce the live preview inside a square, call `dotStageLayout(appearance, sideInPixels)`. Centre the mount using the returned slot `size`, then translate it by `x` and `y` pixels. A separate full-size element behind the mount takes the returned `background` and `groundOrigin` as its CSS background image and transform origin. The studio updates that element’s transform through `onDraw` using `layout.groundTransform(drawing.coat?.dotFace?.playback)`. [Studio implementation](site/dots.ts)
+To reproduce the live preview inside a square, call `dotStageLayout(appearance, sideInPixels)`. Centre the mount using the returned slot `size`, then translate it by `x` and `y` pixels. A separate full-size element behind the mount takes the returned `background` and `groundOrigin` as its CSS background image and transform origin. Update the ground transform through `onDraw` using `layout.groundTransform(drawing.coat?.dotFace?.playback)`.
 
 The same options supply `shape`, `body` and `material` to the React hook. Attach its layer groups to display the styled face and accessories and pass the chosen body colour in `fxPaint.fill` for glossy or furry finishes. Low-level drawing consumers should paint `Drawing.layers` in order.

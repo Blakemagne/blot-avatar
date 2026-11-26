@@ -128,6 +128,12 @@ Stepping the cursor from centre to the horizontal edge produced head yaw of 0.00
 
 The renderer advertised 41 named idle motions and 13 thinking motions. Their body and left/right eye transforms were observed during clocked playback. The port exposes their names, measured durations, loop metadata and playback IDs in DOT_MOTIONS. A clip can be played using the mounted avatar’s play method. The material renderer applies local three-axis body scale before rotation, then moves each eye independently with its measured affine transform. Reduced motion holds the still portrait.
 
+## Applying the wardrobe to Blot bodies
+
+The main Blot studio uses the same five appearance categories for the 15 original bodies, 23 gallery outlines, imported definitions and the Dot shapes. Blot wearers retain their original pointer travel and idle motion. They can keep their own eyes under an accessory or switch to a builder eye design. Eyewear follows the host’s eye line and front surface. Hats and headphones use the span around the face so an asymmetric feature such as the mug handle does not shift the fitting sideways.
+
+The review plate shows eight eye styles on Star, all six glasses choices on Pebble, and all nine extra choices on the gallery Mug. These are PNG exports from the unified studio with the glossy finish. Each series holds body, colour and pose fixed. [Blot wardrobe review plate](dot-review/blot-wardrobe.webp)
+
 ## Scope of the measurements
 
 The archived native images, exact foreground and component comparisons, fitting errors and held-out rotations have their own report. A percentage measured on the picker contour, a neutral render or a material probe only describes that particular test. [Parity report and reproduction commands](dot-parity.md)

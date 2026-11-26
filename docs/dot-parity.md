@@ -10,6 +10,10 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 
 Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
 
+## Unified studio regression check
+
+The wardrobe integration was checked against the preceding port at commit `fa11315`. Both versions rendered the same 96 builder and starter cases, 83 rotation and depth cases, and 109 catalog cases through the public mount in headless Chromium using the same graphics backend. All 288 pairs had identical decoded RGBA bytes. The live-renderer scores above are a separate comparison. The transferred parts also have a [Blot body review plate](dot-review/blot-wardrobe.webp).
+
 ## What the gate measures
 
 1. **Silhouette agreement** divides the intersection of the two masks by their union, using alpha ≥ 128.

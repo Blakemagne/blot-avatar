@@ -87,6 +87,7 @@ const meshes = new WeakMap<Solid, CoatMesh>();
  * pieces). Worked out once per body and kept. The same body always gives the same arrays, value for value.
  */
 export function coatMesh(body: Body): CoatMesh {
+  if (body.wardrobeHost) return coatMesh(body.wardrobeHost);
   if (body.dotStyle) {
     const fitted = dotRenderer?.dotMesh(body.dotStyle.catalogId ? 'catalog-' + body.id : body.dotStyle.character ?? body.id);
     if (fitted) return fitted;

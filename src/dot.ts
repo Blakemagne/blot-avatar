@@ -1,3 +1,4 @@
+import { bodyOf, type Shape } from './still';
 import { dotRendering } from './dot-rendering';
 import { enableDotRenderer } from './engine/dot-renderer-registry';
 import { matteCatalog } from './dot-catalog-data';
@@ -8,7 +9,7 @@ import { DOT_CLIPS } from './engine/dot-motion';
 import { DOT_SHAPES } from './dot-shapes';
 import type { MountOptions } from './mount';
 
-export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale'>> {
+export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'originalEyes'>> {
   /** Builder depth from 0 to 1, with a neutral setting of 0.5. Fixed furry portraits retain their depth. */
   depth?: number;
   /** A DOT_SHAPES definition id, e.g. 'dot-rounded-triangle'. */
@@ -25,6 +26,42 @@ export function dotExtras(shape: string): readonly DotStyle['extra'][] {
 }
 
 const cache = new WeakMap<Body, Map<string, Body>>();
+
+function styledBody(source: Body, style: DotStyle, wardrobeHost?: Body): Body {
+  let styles = cache.get(source);
+  if (!styles) {
+    styles = new Map();
+    cache.set(source, styles);
+  }
+  const key = JSON.stringify(style);
+  let body = styles.get(key);
+  if (!body) {
+    body = { ...source, dotStyle: style, ...(wardrobeHost ? { wardrobeHost } : {}) };
+    if (styles.size >= 32) styles.delete(styles.keys().next().value!);
+    styles.set(key, body);
+  }
+  return body;
+}
+
+export type AvatarParts = Partial<Pick<DotStyle, 'eyes' | 'glasses' | 'extra' | 'extraColour'>>;
+
+/** Fit the builder wardrobe to a built-in body, gallery outline, or imported shape. */
+export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
+  enableDotRenderer(dotRendering);
+  const custom = typeof wearer === 'object' && 'pieces' in wearer;
+  const shape = custom ? wearer.id : wearer;
+  const source = custom ? wearer.wardrobeHost ?? wearer : bodyOf(shape);
+  const definition = DOT_SHAPES.find(item => item.id === source.id);
+  const native = definition && bodyOf(definition) === source;
+  const style: DotStyle = {
+    ...(!native && !parts.eyes ? { originalEyes: true } : {}),
+    eyes: native && source.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : parts.eyes ?? 'Oval',
+    glasses: parts.glasses ?? 'None',
+    extra: parts.extra && (!native || dotExtras(source.id).includes(parts.extra)) ? parts.extra : 'None',
+    extraColour: parts.extraColour ?? '#1F1F1F',
+  };
+  return { shape, body: styledBody(source, style, native ? undefined : source) };
+}
 
 /** Options for mount or createLive. Repeated colour and material edits keep the same body and rig. */
 export function dotAvatar(
@@ -52,18 +89,7 @@ export function dotAvatar(
     extra: options.extra && dotExtras(shape.id).includes(options.extra) ? options.extra : 'None',
     extraColour: options.extraColour ?? '#1F1F1F',
   };
-  let styles = cache.get(source);
-  if (!styles) {
-    styles = new Map();
-    cache.set(source, styles);
-  }
-  const key = JSON.stringify(style);
-  let body = styles.get(key);
-  if (!body) {
-    body = { ...source, dotStyle: style };
-    if (styles.size >= 32) styles.delete(styles.keys().next().value!);
-    styles.set(key, body);
-  }
+  const body = styledBody(source, style);
   return {
     shape,
     body,

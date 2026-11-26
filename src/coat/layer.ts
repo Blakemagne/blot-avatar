@@ -47,6 +47,30 @@ export interface CoatLayer {
 /** A coat fainter than this is not shown. */
 const OFF = 0.004;
 const NEUTRAL_ATTACHMENT = [1,0,0, 0,1,0, 0,0,1, 0,0,0] as const;
+const attachments = new WeakMap<Body, readonly number[]>();
+
+/** Fit accessories around the face. Handles and off-centre limbs can extend beyond it. */
+function bodyAttachment(body: Body, mesh: CoatMesh, source: CoatMesh['box']) {
+  const saved = attachments.get(body);
+  if (saved) return saved;
+  const box = mesh.box, cx = body.eyes.cx ?? 0;
+  const half = Math.min(cx - box[0], box[3] - cx);
+  const band = Math.max(.18, body.eyes.x * 1.4);
+  let top = -Infinity, bottom = Infinity;
+  for (let k = 0; k < mesh.vertices.length; k += 6) {
+    if (Math.abs(mesh.vertices[k] - cx) > band) continue;
+    top = Math.max(top, mesh.vertices[k + 1]);
+    bottom = Math.min(bottom, mesh.vertices[k + 1]);
+  }
+  const target = [cx - half, Number.isFinite(bottom) ? bottom : box[1], box[2],
+    cx + half, Number.isFinite(top) ? top : box[4], box[5]];
+  const scale = [0, 1, 2].map(i => (target[i+3] - target[i]) / (source[i+3] - source[i]));
+  const move = scale.map((s, i) => target[i] - s * source[i]);
+  const axes = [scale[0],0,0, 0,scale[1],0, 0,0,scale[2], ...move];
+  attachments.set(body, axes);
+  return axes;
+}
+
 /** A pose and eyes this close to the ones drawn keep their picture: how far the body's edge or an eye has moved, device px. */
 const SAME_VIEW = 0.25;
 /**
@@ -282,18 +306,20 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
     const extra = style && !style.character && !style.catalogId && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
-    const mountKey = extra && style ? base.body.id + '/' + style.extra : undefined;
+    const mountKey = extra && style && !base.body.wardrobeHost ? base.body.id + '/' + style.extra : undefined;
     const fit = mountKey && style && dotRenderer
       ? dotRenderer.builderFittings[mountKey + '/' + style.glasses] ?? dotRenderer.builderFittings[mountKey]
       : undefined;
+    const model = base.body.wardrobeHost && style && style.extra !== 'None' && dotRenderer?.dotMesh('dot-rounded-triangle');
+    const transferred = model && base.body.wardrobeHost ? bodyAttachment(base.body.wardrobeHost, mesh, model.box) : undefined;
     const ornament: DotSolid | undefined = extra && style ? {
       mesh: fit && dotRenderer ? dotRenderer.fittedMesh(extra, fit) : extra, tint: tint!,
-      axes: fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT, metal: style.extra === 'Crown',
+      axes: transferred ?? (fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT), metal: style.extra === 'Crown',
     } : undefined;
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
-    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.depthScale,style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
+    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.originalEyes,style.depthScale,style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
@@ -303,10 +329,13 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const field = glossy || style ? null : fieldFor(c.eyes, points, detail, perUnit);
+      const field = glossy || style && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
       const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
+      if (transferred && style?.extra === 'Headphones') {
+        for (const solid of solids) if (!solid.finish) solid.axes = transferred;
+      }
       if (ornament) solids.push(ornament);
-      const frame = { glossy, solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const frame = { glossy, solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;

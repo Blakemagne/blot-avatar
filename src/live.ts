@@ -1,7 +1,7 @@
 // A live avatar without a framework: one rig, drawn from the shared frame loop into whatever `out` writes to.
 // React's useLiveAvatar (react.ts) and mount() (mount.ts) are both this, wired to a page in their own way.
 
-import type { Body } from './engine/body';
+import { usesDotRig, type Body } from './engine/body';
 import { PERSONALITY, type Clip, type Personality } from './engine/clips';
 import { drawAvatar, type Drawing } from './engine/draw';
 import { ACTIVITY_FACES, FACES, faceFor } from './engine/faces';
@@ -279,7 +279,7 @@ export function createLive(p: LiveProps): Live {
           } else if (pointer.x >= a.left && pointer.x <= a.right && pointer.y >= a.top && pointer.y <= a.bottom) {
             const dx = pointer.x - cx, dy = cy - pointer.y;
             const reach = { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy };
-            const to = w.body.dotStyle
+            const to = usesDotRig(w.body)
               ? { x: dx / Math.max(1, dx >= 0 ? reach.right : reach.left) * (w.feel.most ?? 1),
                   y: dy / Math.max(1, dy >= 0 ? reach.up : reach.down) * (w.feel.most ?? 1) }
               : lookWithin(w.size, dx, dy, reach, w.feel);

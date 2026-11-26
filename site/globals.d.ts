@@ -6,7 +6,7 @@ declare module '*.md' {
   export default text;
 }
 
-/** Each gallery avatar's still, drawn at the build: its body and its two eyes, by id. */
+/** Prebuilt gallery and Dot thumbnails, keyed by collection and shape id. */
 declare const __THUMBS__: Record<string, [string, string, string]>;
 /** The size the thumbnails were drawn for. */
 declare const __THUMB__: number;
