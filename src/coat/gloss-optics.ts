@@ -11,7 +11,7 @@ const right = panel(opticalFit[8], opticalFit[9]), left = panel(opticalFit[10], 
 /** A positional studio-light fit. A normal on a wide cheek and the same normal on a
  * narrow nose see different distances to the lamp and reflector panels. */
 export const glossOptics = `
-uniform vec3 glossCoefficients[14], glossPigment;
+uniform vec3 glossCoefficients[20], glossPigment;
 uniform vec3 pigmentControls;
 
 vec3 toDisplay(vec3 linearRGB) {
@@ -36,16 +36,22 @@ vec3 measuredGloss(vec3 normal, vec3 position) {
   float stripe = dot(reflection,${streak});
   float specular = exp(18.*angle - stripe*stripe);
   float grazing = 1.-normal.z;
+  float rightAngle = dot(reflection,${right})-1.;
+  float rightReflect = exp(${f(opticalFit[12])}*rightAngle);
+  float rightPanel = panelResponse(${right}*${f(opticalFit[14])}-position,${f(opticalFit[14])},normal);
   vec3 linearRGB = glossCoefficients[0] + glossCoefficients[1]*normal.x +
     glossCoefficients[2]*normal.y + glossCoefficients[3]*normal.z +
     glossCoefficients[4]*lambert*lambert + glossCoefficients[5]*grazing*grazing +
     glossCoefficients[6]*exp(${f(opticalFit[6])}*angle - stripe*stripe) +
     glossCoefficients[7]*exp(${f(opticalFit[7])}*angle) +
-    glossCoefficients[8]*exp(${f(opticalFit[12])}*(dot(reflection,${right})-1.)) +
+    glossCoefficients[8]*rightReflect +
     glossCoefficients[9]*exp(${f(opticalFit[13])}*(dot(reflection,${left})-1.)) +
-    glossCoefficients[10]*panelResponse(${right}*${f(opticalFit[14])}-position,${f(opticalFit[14])},normal) +
+    glossCoefficients[10]*rightPanel +
     glossCoefficients[11]*panelResponse(${left}*${f(opticalFit[15])}-position,${f(opticalFit[15])},normal) +
-    glossCoefficients[12]*((lambert+${f(opticalFit[18])})/(${f(opticalFit[19])}+distance2)) + glossCoefficients[13]*specular;
+    glossCoefficients[12]*((lambert+${f(opticalFit[18])})/(${f(opticalFit[19])}+distance2)) + glossCoefficients[13]*specular +
+    glossCoefficients[14]*(rightReflect*rightAngle) + glossCoefficients[15]*(rightPanel*position.z) +
+    glossCoefficients[16]*(normal.z*position.z) + glossCoefficients[17]*(normal.y*position.y) +
+    glossCoefficients[18]*(normal.x*position.z) + glossCoefficients[19]*(rightPanel*grazing);
   float shine = specular*${f(chromaFit[0])};
   vec3 swatch = toDisplay(max(vec3(0.), linearRGB - shine));
   float peak = max(swatch.r,max(swatch.g,swatch.b));
