@@ -1,5 +1,6 @@
 import type { Body, Piece, Sphere } from './body';
-import { eyePolys } from './eyes';
+import { dotDepth } from './dot-depth';
+import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, type Mat3 } from './math';
 import { silhouette } from './silhouette';
 import type { RigState } from './rig';
@@ -38,6 +39,10 @@ export interface DotStyle {
   glasses: (typeof DOT_GLASSES)[number];
   extra: (typeof DOT_EXTRAS)[number];
   extraColour: string;
+  /** A named matte catalog rig, retained while its appearance matches the recipe. */
+  catalogId?: string;
+  /** Authored starter portrait. Custom builds leave this unset. */
+  character?: 'Blossie' | 'Alfred' | 'Jojo' | 'Iris' | 'Todd' | 'Iggy' | 'Felipe' | 'Thelma' | 'Felipe flower' | 'Josh';
 }
 
 interface Part {
@@ -45,169 +50,101 @@ interface Part {
   part: string;
   fill: string;
   front: boolean;
+  solid?: boolean;
   polys: Float64Array[];
 }
-type Point = readonly [number, number];
+const INK = '#272727';
+const LIGHT = '#FFFFFF';
+const DESIGN_RADIUS = 148;
 
-function oval(w: number, h: number, x = 0, y = 0): Point[] {
-  return Array.from({ length: 32 }, (_, i) => {
-    const a = (i * Math.PI) / 16;
-    return [x + w * Math.cos(a), y + h * Math.sin(a)];
-  });
-}
+// The eye centres in the neutral camera. Width and height of the design scale together.
+const sockets: Readonly<Record<string, readonly [number, number, number]>> = {
+  'dot-blossie': [28.5, 228, 1],
+  'dot-six-lobed-flower': [28.5, 230.5, 1],
+  'dot-circle': [29, 228, 1],
+  'dot-rounded-triangle': [29.5, 231, 1],
+  'dot-capsule': [28.5, 237, 1],
+  'dot-heart': [29, 230, 1],
+  'dot-four-lobed-butterfly': [29, 234, 1],
+  'dot-hexagon': [27.5, 233.5, .94],
+  'dot-rounded-diamond': [29, 229, 1],
+  'dot-twelve-scalloped-rosette': [29, 228, 1],
+  'dot-circle-with-two-ears': [21.5, 289.5, .75],
+  'dot-rounded-head-with-two-ears': [60.5, 189, 1],
+};
 
-const INK = '#202024',
-  LIGHT = '#FFFFFF';
-const SPARK: Point[] = [
-  [0, 0.085],
-  [-0.023, 0.03],
-  [-0.067, 0],
-  [-0.023, -0.027],
-  [0, -0.079],
-  [0.024, -0.027],
-  [0.067, 0],
-  [0.024, 0.03],
-];
-const TRAPEZOID: Point[] = [
-  [-0.19, 0.115],
-  [-0.2, 0.085],
-  [-0.17, -0.11],
-  [-0.14, -0.14],
-  [0.12, -0.14],
-  [0.16, -0.105],
-  [0.2, 0.085],
-  [0.19, 0.12],
-];
-
-/** Eye details lie on the same surface as blot's eyes. Frames stay anchored when the pupils shift or blink. */
+/** Eye inserts follow the wearer's surface. The glasses stand forward of the eyes on a curved, rigid frame. */
 export function dotFace(
-  body: Body,
-  style: DotStyle,
-  state: RigState,
-  rotation: Mat3,
-  size: number,
-  fence: Float64Array[],
+  body: Body, style: DotStyle, state: RigState, rotation: Mat3, size: number,
 ): Part[] {
-  const out: Part[] = [],
-    e = body.eyes;
+  const parts: Part[] = [];
   const frog = body.id === 'dot-rounded-head-with-two-ears';
-  const surface = frog ? frogSurface(body) : body;
-  const scale = body.id === 'dot-circle-with-two-ears' ? 0.76 : 1;
-  const trim = { outline: fence, rim: 0.005, thin: 0 };
-  function patch(
-    id: string,
-    x: number,
-    y: number,
-    points: readonly Point[],
-    fill: string,
-    sy = 1,
-    holes: Point[][] = [],
-  ) {
-    const project = (p: readonly Point[]) =>
-      eyePolys(
-        surface,
-        rotation,
-        x,
-        y,
-        Float64Array.from(p.flatMap(([u, v]) => [u * scale, v * sy * scale])),
-        trim,
-      );
-    const polys = project(points);
-    if (!polys.length) return;
-    for (const hole of holes) polys.push(...project(hole));
-    out.push({ id, part: id, fill, front: true, polys });
-  }
-  const glass = style.glasses;
-  const glassesY = e.y;
+  if (rotation[8] < -.55) return parts;
+  const [spacing, centreY, scale] = sockets[body.id] ?? sockets['dot-rounded-triangle'];
+  const eyeY = (256 - centreY) / DESIGN_RADIUS;
+  const glasses = frameProfiles[style.glasses];
+  const circle = (rx: number, ry: number) => Array.from({ length: 64 }, (_, i) => [
+    rx * Math.cos(i * Math.PI / 32), ry * Math.sin(i * Math.PI / 32),
+  ]).flat();
   for (const side of [-1, 1] as const) {
+    const index = side < 0 ? 0 : 1;
     const name = side < 0 ? 'left' : 'right';
-    const x = side * e.x + e.slideX * state.eye.x,
-      y = e.y + e.slideY * state.eye.y;
-    const lid = Math.max(0, state.lid * (state.lids?.[side < 0 ? 0 : 1] ?? 1));
-    const design = style.eyes;
-    const h =
-      design === 'Dots' ? 0.062 : design === 'Oval' ? 0.14 : design.endsWith('capsules') ? 0.17 : 0.113;
-    const w =
-      design === 'Dots' ? 0.061 : design === 'Oval' ? 0.093 : design.endsWith('capsules') ? 0.107 : 0.111;
+    const lid = Math.max(0, state.lid * (state.lids?.[index] ?? 1));
+    const x = side * (spacing + (glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
+    const gazeX = body.eyes.slideX * state.eye.x, gazeY = body.eyes.slideY * state.eye.y;
+    function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false) {
+      const polys: Float64Array[] = [];
+      for (const loop of loops) {
+        const poly = new Float64Array(loop.length);
+        let facing = 0;
+        for (let i = 0; i < loop.length; i += 2) {
+          const u = x + (fixed ? 0 : gazeX) + loop[i] * scale / DESIGN_RADIUS;
+          const v = eyeY + (fixed ? 0 : gazeY) - loop[i+1] * open * scale / DESIGN_RADIUS;
+          const z = (dotDepth(body.id,u,v) ?? dotDepth(body.id,x,eyeY) ?? .55) + .025;
+          poly[i] = rotation[0]*u + rotation[1]*v + rotation[2]*z;
+          poly[i+1] = -(rotation[3]*u + rotation[4]*v + rotation[5]*z);
+          if (rotation[8] >= .7) facing++;
+          else {
+            const dx = ((dotDepth(body.id,u+.004,v) ?? z) - (dotDepth(body.id,u-.004,v) ?? z)) / .008;
+            const dy = ((dotDepth(body.id,u,v+.004) ?? z) - (dotDepth(body.id,u,v-.004) ?? z)) / .008;
+            if (rotation[8]-dx*rotation[6]-dy*rotation[7] > 0) facing++;
+          }
+        }
+        if (facing * 2 >= loop.length / 2) polys.push(poly);
+      }
+      if (polys.length) parts.push({ id, part: id, front: true, solid: true, fill, polys });
+    }
     if (frog) {
-      patch(name + '-socket', side * e.x, e.y, oval(0.174, 0.184), LIGHT);
-      patch(name, x, y, oval(0.108, 0.144), INK, Math.max(0.12, lid));
-    } else if (lid < 0.17) {
-      patch(name, x, y, oval(w, Math.max(0.013, 0.75 / size)), INK);
-    } else if (design === 'Sleepy lids' || design === 'Swept lids') {
-      patch(name + '-pupil', x, y, oval(0.074, 0.103), INK, lid);
-      const swept = design === 'Swept lids';
-      patch(
-        name + '-lid',
-        x,
-        y + 0.044 * lid,
-        oval(0.172, 0.042).map(([u, v]) => [u, v + (swept ? side * u * 0.26 : 0)]),
-        INK,
-        lid,
-      );
+      insert(name + '-socket', LIGHT, [circle(23.5, 24)], 1, true);
+      insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid));
+    } else if (lid < .10) {
+      insert(name, INK, [circle(14, Math.max(1.5, 120 / size))], 1);
     } else {
-      patch(name, x, y, oval(w, h), INK, lid);
-      if (design === 'Sparkle capsules') patch(name + '-spark', x, y + 0.015 * lid, SPARK, LIGHT, lid);
-      if (design === 'Round highlights' || design === 'Highlight capsules')
-        patch(name + '-glint', x - 0.029, y + h * 0.37 * lid, oval(0.037, 0.041), LIGHT, lid);
-      if (design === 'Crescent inset') {
-        const crescent: Point[] = [
-          [0.052, 0.069],
-          [0.012, 0.082],
-          [-0.035, 0.062],
-          [-0.063, 0.028],
-          [-0.065, -0.018],
-          [-0.045, -0.052],
-          [-0.009, -0.071],
-          [0.027, -0.067],
-          [0.054, -0.048],
-          [0.019, -0.052],
-          [-0.011, -0.034],
-          [-0.021, -0.003],
-          [-0.012, 0.031],
-          [0.012, 0.055],
-        ];
-        patch(name + '-crescent', x, y, crescent, LIGHT, lid);
+      for (const layer of eyeProfiles[style.eyes][index]) {
+        insert(layer.id === 'eye' ? name : name + '-' + layer.id,
+          layer.white ? LIGHT : style.eyes === 'Crescent inset' ? '#191a18' : INK, layer.loops, lid);
       }
     }
   }
-  if (glass === 'None') return out;
-  if (glass === 'Round sunglasses' || glass === 'Classic sunglasses')
-    patch('bridge', 0, glassesY + 0.018, oval(e.x * 1.22, 0.025), INK);
-  for (const side of [-1, 1] as const) {
-    if (glass === 'Monocle' && side < 0) continue;
-    const x = side * e.x * 1.22;
-    if (glass === 'Monocle' || glass === 'Tall oval frames') {
-      const h = glass === 'Monocle' ? 0.22 : 0.3;
-      patch('rim' + side, x, glassesY, oval(0.209, h), INK, 1, [oval(0.182, h - 0.027).reverse()]);
-      if (glass === 'Monocle')
-        patch(
-          'chain',
-          x,
-          glassesY,
-          [
-            [0.185, -0.07],
-            [0.2, -0.16],
-            [0.26, -0.19],
-            [0.34, -0.19],
-            [0.34, -0.21],
-            [0.25, -0.21],
-            [0.18, -0.18],
-            [0.17, -0.09],
-          ],
-          INK,
-        );
-    } else {
-      const lens =
-        glass === 'Round sunglasses'
-          ? oval(0.215, 0.212)
-          : TRAPEZOID.map(([u, v]): Point => [u * 1.18, v * 1.18]);
-      patch('lens' + side, x, glassesY, lens, INK);
-      if (glass === 'Classic sunglasses') patch('brow' + side, x, glassesY + 0.096, oval(0.251, 0.036), INK);
+  if (glasses && rotation[8] > 0) {
+    for (const frame of glasses) {
+      const polys = frame.loops.map(loop => {
+        const result = new Float64Array(loop.length);
+        for (let i = 0; i < loop.length; i += 2) {
+          const u = loop[i] / DESIGN_RADIUS * scale, v = eyeY - loop[i + 1] / DESIGN_RADIUS * scale;
+          // The temples wrap back toward the cheeks while the bridge clears the brow.
+          const z = (dotDepth(body.id,0,eyeY) ?? .76) + .12 - .42 * u * u;
+          result[i] = rotation[0]*u + rotation[1]*v + rotation[2]*z;
+          result[i+1] = -(rotation[3]*u + rotation[4]*v + rotation[5]*z);
+        }
+        return result;
+      });
+      parts.push({ id: frame.id, part: frame.id, front: true, solid: true, fill: '#232323', polys });
     }
   }
-  return out;
+  return parts;
 }
+
 
 /** Solid pieces in body coordinates. Use the frontal bounds so headwear stays seated as the body rotates. */
 export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: number): Part[] {
@@ -220,6 +157,7 @@ export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: numbe
   return parts.map(({ id, front, fill, solid }) => ({
     id,
     part: id,
+    solid: true,
     fill,
     front,
     polys: silhouette(solid, rotation, rim),
@@ -344,13 +282,3 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
   return groups;
 }
 const FRONT = new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-const frogSurfaces = new WeakMap<Body, Body>();
-function frogSurface(body: Body): Body {
-  let surface = frogSurfaces.get(body);
-  if (!surface) {
-    // The raised sockets sit on the ear lobes, outside the central face piece.
-    surface = { ...body, pieces: body.outline?.pieces ?? body.pieces };
-    frogSurfaces.set(body, surface);
-  }
-  return surface;
-}

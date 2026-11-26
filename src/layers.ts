@@ -12,11 +12,11 @@ export type Paint = Readonly<Record<string, string>>;
  * Write a drawing's layers into `under` and `over`, reusing the path for a layer of the same id. A body with
  * none leaves both groups empty. `paint` overrides a layer's colour by its key.
  */
-export function writeLayers(under: SVGGElement | null, over: SVGGElement | null, d: Drawing, paint?: Paint): void {
+export function writeLayers(under: SVGGElement | null, over: SVGGElement | null, d: Drawing, paint?: Paint, paintedSolids = false): void {
   const layers = d.layers ?? [];
   for (const [g, front] of [[under, false], [over, true]] as const) {
     if (!g) continue;
-    const want = layers.filter((l) => l.front === front);
+    const want = layers.filter((l) => l.front === front && !(l.solid && paintedSolids));
     let at = 0;
     for (const l of want) {
       let p = g.children[at] as SVGPathElement | undefined;

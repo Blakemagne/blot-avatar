@@ -1,80 +1,107 @@
-# Dot avatar customization survey
+# Dots customization and geometry
 
-The reference was the signed-in web character editor on November 25, 2026. It has eight starter characters, a character builder and a separately labeled pet picker. The branch implements the geometric character builder in blot’s renderer. The studio opens with the observed cyan triangle, sleepy eyes, yellow crown and fur.
+The linked character opens as a cyan rounded triangle with sleepy lids, a yellow crown and fur. The signed-in editor displayed eleven body tiles, ten body colours, two finishes, eight selectable eye designs, six eyewear choices including None, and nine extras including None. Body and accessory colours are independent. Observations were made on November 25–26, 2026. [Reference character](https://chatgpt.com/dots/5c7d15af6e7a2420aef2950b1dcac542089e0f756ae39e54921d9f2d4e5782cf~6b07bce089908192b6d9f7043c33109b)
 
-## What the port adds to blot
-
-| Area | Before this branch | Added here |
-|---|---|---|
-| Bodies | Blob, wedge, tablet, heart, clover, flower and hex cover related forms. The library also accepts arbitrary inflated outlines. | Eleven separately addressable measured silhouettes, including both ear arrangements and the asymmetric blossom. Existing blot shapes keep their IDs. |
-| Colour and finish | Eleven blot swatches, arbitrary CSS fills, a WebGL fur coat and the animated Ultracode skin. | The sampled body and extra palettes, an independent extra tint and a selectable glossy finish. Fur uses the existing coat renderer. |
-| Face | Expressions reshape and animate the eyes. Decals can sit on the face. | Eight persistent eye designs with their own glints and lids, the raised-eye exception, and independently selected lens geometry. |
-| Extras | Bodies can carry custom decals and spring antennas. | Eight selectable modeled extras, fitted to the chosen body's bounds and projected with its rotation. |
-| Motion | Blot already blinks, tracks a pointer, eases its pose and supports reduced motion. | The Dot studio reuses the rig and limits pointer travel. Editing an accessory on the same body preserves the pose. |
-| Presets | Blot bodies and a gallery of outline definitions. | Eight named Dot character recipes and a studio for editing their individual components. |
+The live renderer also accepted **Six-lobed flower**. Its **Round inset** eye entry was available exclusively on **Rounded head with two ears**, where it was already selected. The editor represents that combination by hiding the Eyes control. The eight starter tiles, the renderer’s 108 catalog entries and the separate pet picker are different collections. [Catalog inventory](dot-catalog.csv)
 
 ## Body geometry
 
-![All eleven reconstructed bodies, each facing forward and turned 35 degrees](dot-geometry.png)
+The dimensions below are orthographic measurements of the bare solid, before adding fur, eyes or wardrobe. X runs right, Y runs up and Z points toward the viewer. Dimensions use the renderer’s body coordinates. The depth column includes both the front and the back. The picker paths use their own framing.
 
-Each picker tile contains a silhouette with its own aspect ratio and transparent margin. The measurements below use occupied pixels at half opacity in the native image. Each fitted contour is centered on its bounds and scaled uniformly to 80 units. Blot inflates the contour with its existing sphere-hull engine. Face placement uses the oval-eye thumbnails in the reference, with a separate raised-eye treatment for Todd.
+| Body | Width × height × depth | Geometry |
+|---|---:|---|
+| Blossie | 2.000 × 2.000 × 1.209 | Unequal petals and an off-centre crown. The front and back have different curvature. |
+| Circle | 2.000 × 2.000 × 1.759 | Circular face with a shallower depth axis. The highlight follows the ellipsoid as it turns. |
+| Rounded triangle | 2.000 × 1.771 × 1.600 | Short rounded apex, broad base and three convex corners. |
+| Capsule | 2.000 × 1.375 × 1.279 | Long horizontal axis with rounded ends and a flattened vertical section. |
+| Rounded head with two ears | 2.000 × 1.604 × 1.424 | Wide cheeks and separated upper sockets. The pupils lie on the pale socket surfaces. |
+| Heart | 2.000 × 1.833 × 1.603 | Two rounded upper lobes meet in a notch. The flanks taper into a rounded lower point. |
+| Four-lobed butterfly | 2.000 × 1.542 × 1.439 | Four wings with recesses on all four sides and wider upper lobes. |
+| Circle with two ears | 1.500 × 2.000 × 1.250 | Two projections rise above a smaller round face. The eye line sits below the centre of the full body. |
+| Twelve-scalloped rosette | 2.000 × 1.979 × 1.700 | Twelve shallow radial scallops. The valleys remain visible in profile. |
+| Hexagon | 1.896 × 2.000 × 1.573 | Rounded six-sided projection with unequal visible faces. The renderer records this as rounded_cube. |
+| Rounded diamond | 2.000 × 1.958 × 1.620 | Four rounded diagonal flanks, with broader top and bottom tips. |
+| Six-lobed flower | 2.000 × 1.833 × 1.650 | Six rounded lobes. The renderer accepts this body and uses it for catalog characters including Tavi and the flower-bodied Felipe. |
 
-Overlap is intersection area divided by union area, measured at native resolution. The first score compares the fitted 2D path with the reference. The second compares the actual front-facing solid rendered by blot at 200 px with the same reference. Depth, back geometry and shading require separate comparisons.
+The port reconstructs the two surfaces from measured midplanes and squared half-thickness. It samples the equator over 1,024 directions and retains a separate correction for the shading normals. Shared equator vertices close the front and back into one mesh. This distinction matters most at the heart notch, the ears and the rosette valleys. The starter portraits have their own sections. For instance, the central front of the starter Alfred is approximately 0.60 units deep, compared with 0.80 on the builder triangle.
 
-| Shape | Occupied W × H | Geometry visible in the picker | Path overlap | Rendered overlap |
-|---|---:|---|---:|---:|
-| Blossie | 162 × 162 | Unequal soft lobes around a nearly square envelope, with off-center top and bottom lobes | 99.65% | 98.87% |
-| Circle | 161 × 161 | Continuous circular perimeter | 99.69% | 99.02% |
-| Rounded triangle | 162 × 148 | Broad level base, rounded lower corners and a short rounded apex | 99.90% | 99.54% |
-| Capsule | 162 × 111 | Horizontal oval-ended body, about 1.46 times as wide as tall | 99.86% | 97.43% |
-| Rounded head with two ears | 162 × 135 | Broad cheeks with paired protrusions above the head. Todd places the white eye sockets on these protrusions | 99.64% | 98.81% |
-| Heart | 136 × 126 | Two upper lobes, a central notch and a rounded lower point | 99.71% | 99.10% |
-| Four lobed butterfly | 148 × 113 | Four broad wings, with recesses at the top, bottom and sides | 99.59% | 98.98% |
-| Circle with two ears | 121 × 158 | Tall asymmetric silhouette. Two short, overlapping projections rise from the upper half. The eye line sits below the box center | 99.66% | 98.91% |
-| Twelve scalloped rosette | 161 × 161 | Twelve shallow scallops around a round disc | 99.68% | 98.96% |
-| Hexagon | 161 × 162 | Six unequal projected sides, soft corners and a tilted top edge | 99.89% | 99.38% |
-| Rounded diamond | 162 × 162 | Four diagonal flanks with broad rounded tips | 99.96% | 99.41% |
+The diagram below shows the picker outlines in the SVG fallback. The validation report also includes the illuminated WebGL surfaces and rotated views. [Rendered comparisons](dot-parity.md)
 
-The stored reference consists of horizontal occupied spans, one row per native image row. The test fills the fitted path and projected body at those same pixel centers. This catches a stretched capsule, misplaced lobes or filled-in ear notches even when the outer width and height agree.
+![Front and side projections of the eleven picker silhouettes](dot-geometry.png)
 
-## Colour and material
+## Colour and finish
 
-| Body colour | sRGB | Body colour | sRGB |
+| Body swatch | sRGB | Body swatch | sRGB |
 |---|---|---|---|
-| White | `#FFFFFF` | Cyan | `#00B1FF` |
-| Pink | `#FA70AB` | Teal | `#04BB9F` |
-| Orchid | `#DD6ADC` | Lime | `#B6D80B` |
-| Violet | `#A25BFF` | Yellow | `#FFCC38` |
-| Blue | `#4778FF` | Coral | `#FF8066` |
+| White | #FFFFFF | Cyan | #00B1FF |
+| Pink | #FA70AB | Teal | #04BB9F |
+| Orchid | #DD6ADC | Lime | #B6D80B |
+| Violet | #A25BFF | Yellow | #FFCC38 |
+| Blue | #4778FF | Coral | #FF8066 |
 
-Each of the eight extras exposed its own palette. In display order it runs from Pink through Coral, then White, Charcoal (`#1F1F1F`) and Brown (`#8C4A2B`). Selecting None removes the extra colour control. Glasses have a style selector. The editor offers Glossy and Fur. Glossy shows a smooth body highlight and darker edge. Fur breaks up the surface with a fine pile. The port uses SVG shading for gloss and blot’s existing WebGL2 coat for fur. Lighting coefficients, fiber density and fiber length have not been matched numerically.
+The extra palette repeats Pink, Orchid, Violet, Blue, Cyan, Teal, Lime, Yellow, Coral and White, then adds Charcoal (#1F1F1F) and Brown (#8C4A2B). Choosing None removes the colour control. Thelma uses a separate light yellow. The displayed hex value for that preset is an approximation.
 
-## Face and wardrobe
+**Glossy** shows a broad studio reflection and a smaller bright reflection. Identically oriented normals on two different parts of the body can have different brightness. The position of the surface relative to the lights matters. The independent shader was calibrated from 30,000 position-and-normal samples per body swatch. On the mounted avatar, the body, eye inserts and fittings share the same depth buffer.
 
-| Control | Observed designs and distinguishing details |
+**Fur** breaks up the highlight with a short, fine pile. The builder coat is finer than the grain on the named furry portraits. The port combines shells and strands with a surface-bound density field measured by rotating a white probe through twenty orientations per builder shape. The field follows the solid under yaw, pitch and roll. The ten fixed portraits have separately measured colour responses and paired front/back density fields from 24 orientations. The review report measures the remaining difference in their grain.
+
+## Eyes and glasses
+
+| Eye design | Details visible close up |
 |---|---|
-| Eyes | Swept lids extend sideways. Oval is a plain upright pair. Sparkle capsules have bright star-shaped insets. Highlight capsules have small round glints. Dots are small and circular. Round highlights pair a round eye with a bright inset. Crescent inset has a curved internal mark. Sleepy lids have a wide horizontal lid over a short pupil. |
-| Shape-dependent eyes | Selecting Rounded head with two ears removes the Eyes tab. Its preset shows dark pupils in pale raised sockets. Circle with two ears keeps all eight eye choices. |
-| Glasses | None, a single monocle with a trailing chain, two tall open oval rims, two separate trapezoid lenses, classic sunglasses with a heavy brow, and round sunglasses with a bridge. |
-| Extras | None, headphones arching over the head with side pads, bow tie at the lower edge, close-fitting beanie, brimmed hat, asymmetrical beret, round bulb above the head, a small offset tuft, and a pointed crown with a band and tip beads. |
+| Swept lids | A rounded dark insert with an outer tapered sweep. |
+| Oval | Two upright dark inserts with curved fronts. |
+| Sparkle capsules | An elongated eye with a four-point white sparkle and a separate small white dot. |
+| Highlight capsules | An elongated eye with one round white inset. |
+| Dots | Two small dark circular inserts. |
+| Round highlights | A larger round eye with an offset catch of light. |
+| Crescent inset | A pale outer disc, a dark pupil and an offset pale inset. |
+| Sleepy lids | A wide horizontal brow over a shorter vertical pupil. |
+| Round inset, fixed | Pale raised sockets and dark pupils on the frog-shaped head. |
+
+The monocle has an open rim and a hanging chain. Tall oval frames have two open rims and retain visible eyes. The separate trapezoid lenses are unbridged. Classic sunglasses have a heavy continuous brow. Round sunglasses have two round lenses and a shaped bridge. The three opaque styles cover the builder eyes. None leaves the selected eyes visible.
+
+The positioning data includes the differences between wearers. For example, the same oval pair sits lower and closer together on Circle with two ears. Printed highlights follow the eye’s curved surface through a blink. The lenses and temples stay with the head. Pointer tracking is specific to the insert. On Highlight capsules the dark supports stay in place while the white catches move. On the frog, the pupils travel across the raised pale sockets.
+
+## Extras
+
+| Extra | Geometry and fit |
+|---|---|
+| None | Leaves the body and face exposed. |
+| Headphones | An arch, separate pads and side pieces. The arch changes shape around the ears. |
+| Bow tie | Two lobes meet below the face and follow the lower front of the body. |
+| Beanie | A rounded cap over a thick turned-up cuff. The inside of the cuff can occlude the forehead. |
+| Hat | A domed upper section and a broad, tilted brim with a visible underside. |
+| Beret | An asymmetric, sloping cap, a rim and a raised button. |
+| Bulb | A small round fitting above the crown of the head. Thelma’s bulb has a different size and placement. |
+| Tuft | Three rounded, offset lobes with separate protruding tips. |
+| Crown | A hollow band with front and rear walls, pointed rises and rounded tip beads. Metallic reflection changes with the viewing angle. |
+
+Both eared shapes accept Headphones and Bow tie. The other six extras were unavailable on those two wearers. Across the eleven editor bodies this gives 76 valid body–extra pairings before counting None or colour. The renderer-only flower adds eight pairings. The reconstructed beanie, hat, beret and crown were reviewed using 38 directions per fitting. The twelve extra colours were measured separately on the matte bulb and polished crown under eight combinations of orientation and wearer.
 
 ## Starter characters
 
-| Character | Shape and finish | Eyes | Glasses | Extra |
+| Character | Body and finish | Eyes | Glasses | Extra |
 |---|---|---|---|---|
-| Blossie | White Blossie, glossy | Oval | None | None |
+| Blossie | White blossom, fur | Oval | None | None |
 | Alfred | Yellow rounded triangle, fur | Sleepy lids | Tall oval frames | Bow tie |
 | Jojo | Orchid heart, fur | Oval | Round sunglasses | None |
 | Iris | Coral rosette, fur | Round highlights | Monocle | None |
-| Todd | Lime rounded head with two ears, fur | Fixed raised eyes | None | Bow tie |
+| Todd | Lime rounded head with two ears, fur | Fixed raised sockets | None | Bow tie |
 | Iggy | Pink circle with two ears, fur | Swept lids | None | Headphones |
 | Felipe | Blue hexagon, fur | Oval | None | Beret |
-| Thelma | Golden rounded diamond, fur | Oval | Classic sunglasses | Bulb |
+| Thelma | Light yellow rounded diamond, fur | Oval, behind lenses | Classic sunglasses | Bulb |
 
-Thelma’s body swatch showed no selected standard colour. The preset uses the nearest standard yellow in this port. Preset accessory colours are visual matches. The separate pet picker offered Create a pet, Codex, Dewey, Fireball, Hoots, Rocky, Seedy, Stacky, BSOD and Null Signal. These entries use a separate creation flow. They remain outside the implemented character catalog.
+The fixed portraits have different hulls, accessory fittings and surface responses from hand-built recipes with the same menu selections. The catalog’s original Felipe has a six-lobed body and a different rest rotation. The editor’s Felipe has a hexagonal body. Josh is a separate named catalog portrait. The 100 matte catalog characters also have distinct fits and tints. Selecting one in the studio shows its matte finish. The pet picker in this session listed Create a pet, Codex, Dewey, Fireball, Hoots, Rocky, Seedy, Stacky, BSOD and Null Signal.
 
-## Motion and remaining fidelity work
+## Idle and cursor movement
 
-In the live editor the crown and glasses kept their position as the eyes blinked. The sparkle eyes closed briefly into horizontal marks. The idle body remained near center. Hover samples on either side, above, below and outside the avatar showed too little directional change to infer an exact cursor response or easing curve. The studio uses blot’s blink and a restrained version of its pointer-follow rig. The selected follow strength is an implementation choice.
+The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. Blink timing and the longer named movements are separate from this small breath.
 
-The front-contour scores apply to the shape picker. Individual eye designs, accessory solids, depth and surface finishes are reconstructions. Their rendered pixels have not been scored across yaw, pitch, occlusion, blinking and lighting. During blot-specific loading figures and shape transitions the engine uses its standard transition face.
+Stepping the cursor from centre to the horizontal edge produced head yaw of 0.0092, 0.0237, 0.0355, 0.0463 and 0.0514 radians at frames 2, 4, 6, 9 and 12 at 60 Hz. The end yaw was approximately 0.055 radians (3.15°). Maximum vertical pitch was approximately 0.035 radians (2.01°). The eyes lead the head and traverse approximately 0.0391 and 0.0512 blot body units horizontally and vertically. The port uses separate critically damped responses for the eyes and head and supports diagonal targets and pointer exit. Each moving insert has a measured 3D transform, including the changes in width, shear and depth during a glance. Two intermediate gaze directions were held out per fit. On the builder, the median projected insert-centre error at 512 px was 0.02 px and the 95th percentile was 0.34 px.
+
+The renderer advertised 41 named idle motions and 13 thinking motions. Their body and left/right eye transforms were observed during clocked playback. The port exposes their names, measured durations, loop metadata and playback IDs in DOT_MOTIONS. A clip can be played using the mounted avatar’s play method. Reduced motion holds the still portrait.
+
+## Scope of the measurements
+
+The archived native images, exact foreground and component comparisons, fitting errors and held-out rotations have their own report. A percentage measured on the picker contour, a neutral render or a material probe only describes that particular test. [Parity report and reproduction commands](dot-parity.md)

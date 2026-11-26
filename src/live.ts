@@ -72,7 +72,7 @@ export interface LiveProps {
   /** What it is like to move (the engine's Personality, each 0..1); left out, the engine's own feel. */
   personality?: Partial<Personality>;
   /**
-   * The body's finish: 'flat' (the default), or 'fluffy', a coat of fur drawn with WebGL2 round the eyes. Where
+   * The body finish. Flat is the default. Fluffy draws a WebGL2 coat around the eyes and glossy draws a lit solid. Where
    * WebGL2 is missing or fails, and on a server, the body is flat. Changed on an attached avatar, it changes at once.
    */
   material?: Material;
@@ -207,7 +207,7 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: q.material === 'fluffy' ? COAT : undefined });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: q.material === 'fluffy' || q.material === 'glossy' ? COAT : undefined });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
@@ -277,7 +277,12 @@ export function createLive(p: LiveProps): Live {
             const to = lookFor(w.size, pointer.x - cx, cy - pointer.y, Math.max(window.innerWidth, window.innerHeight), w.feel);
             r.look(to.x, to.y);
           } else if (pointer.x >= a.left && pointer.x <= a.right && pointer.y >= a.top && pointer.y <= a.bottom) {
-            const to = lookWithin(w.size, pointer.x - cx, cy - pointer.y, { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy }, w.feel);
+            const dx = pointer.x - cx, dy = cy - pointer.y;
+            const reach = { left: cx - a.left, right: a.right - cx, up: cy - a.top, down: a.bottom - cy };
+            const to = w.body.dotStyle
+              ? { x: dx / Math.max(1, dx >= 0 ? reach.right : reach.left) * (w.feel.most ?? 1),
+                  y: dy / Math.max(1, dy >= 0 ? reach.up : reach.down) * (w.feel.most ?? 1) }
+              : lookWithin(w.size, dx, dy, reach, w.feel);
             r.look(to.x, to.y);
           } else r.stop();
         } else if (!w.follow && moves !== -2) { r.stop(); moves = -2; }

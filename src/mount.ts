@@ -81,7 +81,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       svg.insertBefore(over, paths[1]);
       grouped = true;
     }
-    writeLayers(under, over, d, opts.paint);
+    writeLayers(under, over, d, opts.paint, coat?.showing);
   };
   // The effects: what is behind the body, and what is in front of it.
   const back = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, front = host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement;
@@ -138,9 +138,12 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   /** Wear the material asked for: a fluffy one gets its coat; a flat one is one svg again. */
   const material = () => {
     // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
-    if (opts.material === 'fluffy') { coat ??= coatLayer(paths[0], canvasOf, () => powered(last)); return; }
     coat?.stop();
     coat = null;
+    if (opts.material === 'fluffy' || opts.material === 'glossy') {
+      coat = coatLayer(paths[0], canvasOf, () => { powered(last); layered(last); }, opts.material === 'glossy');
+      return;
+    }
     if (!split) return;
     svg.insertBefore(back, paths[0]);
     if (grouped) svg.insertBefore(under, paths[0]);

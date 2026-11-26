@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "description": "A 3D body with eyes on its surface, drawn as three SVG paths, and the clips that move it. No dependencies.",
   "license": "MIT",
   "author": "Blakemagne",

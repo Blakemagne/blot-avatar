@@ -1,3 +1,4 @@
+import type { DotSolid } from '../engine/dot-features';
 // One avatar's coat: a canvas under its body path, painted by the shared renderer and moved with the drawing.
 // mount() and React's useLiveAvatar both use it.
 //
@@ -16,6 +17,7 @@
 // coats are painted together, each at its share, once both meshes are made: until then the one that is made shows
 // alone, whole, and soon() makes the other and paints the two.
 
+import { dotRenderer } from '../engine/dot-renderer-registry';
 import type { Body } from '../engine/body';
 import { PILE_REACH, coatMesh, type CoatMesh } from '../engine/coat';
 import { VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
@@ -44,6 +46,7 @@ export interface CoatLayer {
 
 /** A coat fainter than this is not shown. */
 const OFF = 0.004;
+const NEUTRAL_ATTACHMENT = [1,0,0, 0,1,0, 0,0,1, 0,0,0] as const;
 /** A pose and eyes this close to the ones drawn keep their picture: how far the body's edge or an eye has moved, device px. */
 const SAME_VIEW = 0.25;
 /**
@@ -183,7 +186,7 @@ const NONE = new Float32Array(0);
  * one on its `coat` ref. The canvas is placed absolutely in the slot, as the svg is. `shown` is told whenever the
  * coat starts or stops showing, which can be outside a frame (a powered skin over it is then painted again).
  */
-export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void): CoatLayer {
+export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void, glossy = false): CoatLayer {
   let latest: { d: Drawing; size: number; fill?: string } | null = null;
   let drop: (() => void) | null = null;
   let canvas: HTMLCanvasElement | null = null;
@@ -276,10 +279,17 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (also) ready.add(also.body);
     // Stretched, a coat reaches as far as its stretch takes it: the square is made big enough for both. (A figure's
     // mesh is moved about: its square is the furthest any figure goes.)
-    const radius = c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
+    const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
+    const extra = style && !style.character && !style.catalogId && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
+    const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
+    const ornament: DotSolid | undefined = extra && style ? {
+      mesh: extra, tint: tint!,
+      axes: dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT, metal: style.extra === 'Crown',
+    } : undefined;
+    const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
-    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join();
+    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
@@ -289,8 +299,10 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const field = fieldFor(c.eyes, points, detail, perUnit);
-      const frame = { shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const field = glossy || style ? null : fieldFor(c.eyes, points, detail, perUnit);
+      const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
+      if (ornament) solids.push(ornament);
+      const frame = { glossy, solids, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;

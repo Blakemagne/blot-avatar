@@ -1,3 +1,6 @@
+import { finishMesh, ROOT_PASSES, type CoatMesh } from './coat-surface';
+export { ROOT_PASSES, ROOT_DENSITY, type CoatMesh } from './coat-surface';
+import { dotRenderer } from './dot-renderer-registry';
 // Ported from open-bot-avatar (MIT): the hair roots, their passes and the level of detail (dom/fluffy/mesh.ts, renderer.ts). The mesh is our own.
 //
 // A coat's geometry: the body as triangles, and the roots its hairs grow from. A renderer draws the fur over
@@ -35,14 +38,6 @@ export const COAT_UNIT = 1 / 42;
  * (Open-bot-avatar's grid step was 1.05, 0.025 here.)
  */
 export const MAX_EDGE = 0.06;
-/** The roots are stored in this many passes over the surface; any first few passes are an even share of the coat. */
-export const ROOT_PASSES = 8;
-/**
- * Hair roots per square body unit. Open-bot-avatar's 3.3 per square unit is 5821 here, but its bodies are
- * slabs at most 30 deep and ours are as deep as they are wide, with two to four times the surface; this gives
- * the blob's ball about 38,000 roots. To be judged by eye.
- */
-export const ROOT_DENSITY = 3600;
 /** The longest hair, body units (open-bot-avatar's 3.8). A root buried deeper than this in another piece is dropped. */
 export const STRAND_MAX = 3.8 * COAT_UNIT;
 /** The shortest hair (open-bot-avatar's 1.6). */
@@ -64,27 +59,6 @@ export const SHELLS = 5;
  * px on a 2x display, or 215 at 1x.
  */
 export const FULL_DETAIL = 2.56 / COAT_UNIT;
-
-/** A body as a coat's renderer needs it. Every array is the same from call to call: do not change them. */
-export interface CoatMesh {
-  /**
-   * Per vertex, 6 floats: position x, y, z, then the unit normal the coat stands along; body units, y up, z toward
-   * the viewer. The normal is the hull's own, eased toward another piece's within SEAM of it.
-   */
-  vertices: Float32Array;
-  /** Triangles, three vertex indices each, wound counter-clockwise seen from outside their piece. */
-  indices: Uint32Array;
-  /**
-   * Hair roots, 8 floats each: position x, y, z, unit normal, and two random numbers in [0, 1). Stored in
-   * ROOT_PASSES passes over the whole surface, pass p holding roots p, p + 8, p + 16... of the scatter: the first
-   * rootsIn(count, k) roots are an even k/8 share of the coat.
-   */
-  roots: Float32Array;
-  /** Bounds of the vertices: x0, y0, z0, x1, y1, z1, body units. */
-  box: readonly [number, number, number, number, number, number];
-  /** The furthest any vertex is from the body's origin (the point every pose turns about), body units. */
-  radius: number;
-}
 
 /** How many roots the first `passes` passes of `total` roots hold. */
 export function rootsIn(total: number, passes: number): number {
@@ -113,6 +87,10 @@ const meshes = new WeakMap<Solid, CoatMesh>();
  * pieces). Worked out once per body and kept. The same body always gives the same arrays, value for value.
  */
 export function coatMesh(body: Body): CoatMesh {
+  if (body.dotStyle) {
+    const fitted = dotRenderer?.dotMesh(body.dotStyle.catalogId ? 'catalog-' + body.id : body.dotStyle.character ?? body.id);
+    if (fitted) return fitted;
+  }
   const solid: Solid = body.outline ?? body;
   let m = meshes.get(solid);
   if (!m) { m = meshOf(solid); meshes.set(solid, m); }
@@ -421,9 +399,6 @@ function deeper(hull: Hull, px: number, py: number, pz: number, limit: number, h
 }
 
 /** Seeded, so a body always grows the same coat (open-bot-avatar's generator and seed). */
-function randomFrom(seed: number): () => number {
-  return () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
-}
 
 /** One piece as a closed mesh: positions and normals (6 per vertex) and triangles. */
 function pieceMesh(hull: Hull): { v: number[]; t: number[] } {
@@ -583,46 +558,10 @@ export function meshOf(solid: Solid, seam = SEAM): CoatMesh {
   spans.forEach(([start, count], piece) => { for (let i = start; i < start + count; i++) owner[idx[i]] = piece; });
   const sunk = new Int32Array(verts.length / 6).fill(-1);
   if (hulls.length > 1) for (let i = 0; i < sunk.length; i++) sunk[i] = seamAt(hulls, owner[i], verts, i * 6, seam);
-  // Roots by area, open-bot-avatar's way: per triangle, floor(area * density + a random share).
-  const random = randomFrom(51821);
-  const roots: number[] = [];
-  hulls.forEach((_, piece) => {
-    const [start, count] = spans[piece];
-    for (let i = start; i < start + count; i += 3) {
-      const sa = sunk[idx[i]];
-      if (sa >= 0 && sa === sunk[idx[i + 1]] && sa === sunk[idx[i + 2]]) continue;
-      const a = idx[i] * 6, b = idx[i + 1] * 6, c = idx[i + 2] * 6;
-      const abx = verts[b] - verts[a], aby = verts[b + 1] - verts[a + 1], abz = verts[b + 2] - verts[a + 2];
-      const acx = verts[c] - verts[a], acy = verts[c + 1] - verts[a + 1], acz = verts[c + 2] - verts[a + 2];
-      const area = 0.5 * Math.hypot(aby * acz - abz * acy, abz * acx - abx * acz, abx * acy - aby * acx);
-      const n = Math.floor(area * ROOT_DENSITY + random());
-      for (let k = 0; k < n; k++) {
-        const u = Math.sqrt(random()), w = u * random();
-        const wa = 1 - u, wb = u - w, wc = w;
-        const px = wa * verts[a] + wb * verts[b] + wc * verts[c], py = wa * verts[a + 1] + wb * verts[b + 1] + wc * verts[c + 1], pz = wa * verts[a + 2] + wb * verts[b + 2] + wc * verts[c + 2];
-        let nx = wa * verts[a + 3] + wb * verts[b + 3] + wc * verts[c + 3], ny = wa * verts[a + 4] + wb * verts[b + 4] + wc * verts[c + 4], nz = wa * verts[a + 5] + wb * verts[b + 5] + wc * verts[c + 5];
-        const nl = Math.hypot(nx, ny, nz) || 1;
-        nx /= nl; ny /= nl; nz /= nl;
-        const r0 = random(), r1 = random();
-        // A hair rooted deeper inside another piece than the longest hair never shows.
-        if (hulls.length > 1 && buriedIn(hulls, piece, px, py, pz, nx, ny, nz) >= 0) continue;
-        roots.push(px, py, pz, nx, ny, nz, r0, r1);
-      }
-    }
-  });
-  const total = roots.length / 8;
-  const passes = new Float32Array(roots.length);
-  let at = 0;
-  for (let pass = 0; pass < ROOT_PASSES; pass++) {
-    for (let i = pass; i < total; i += ROOT_PASSES) for (let k = 0; k < 8; k++) passes[at++] = roots[8 * i + k];
-  }
-  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity, radius = 0;
-  for (let i = 0; i < verts.length; i += 6) {
-    const x = verts[i], y = verts[i + 1], z = verts[i + 2];
-    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
-    radius = Math.max(radius, Math.hypot(x, y, z));
-  }
-  return { vertices: Float32Array.from(verts), indices: Uint32Array.from(idx), roots: passes, box: [x0, y0, z0, x1, y1, z1], radius };
+  return finishMesh(verts, idx,
+    i => sunk[idx[i]] >= 0 && sunk[idx[i]] === sunk[idx[i + 1]] && sunk[idx[i]] === sunk[idx[i + 2]],
+    hulls.length > 1 ? (i, x, y, z, nx, ny, nz) => buriedIn(hulls, owner[idx[i]], x, y, z, nx, ny, nz) >= 0 : undefined,
+  );
 }
 
 /** 1 at 0, 0 from 1, smoothly (flat at both ends). */

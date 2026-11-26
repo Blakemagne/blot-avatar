@@ -496,7 +496,9 @@ MIT, see `LICENSE`. Where the bodies' proportions came from is in `THIRD_PARTY_N
 
 ## Dot studio
 
-Build with `npm run site` and open `_site/dots.html` to try the eleven shapes, eight character presets and independent face, glasses, extra, colour and material controls. The geometry measurements and remaining differences are in the [customization survey](docs/dot-survey.md).
+Build with `npm run site` and open `_site/dots.html` to try the eleven picker shapes, the six-lobed flower, eight starter portraits and the 108 named renderer entries. The studio has independent eye, glasses, extra, colour and finish controls, plus playback for 41 idle and 13 thinking motions. The measured dimensions and customizations are in the [survey](docs/dot-survey.md). The [visual parity report](docs/dot-parity.md) gives per-case scores and reproduction commands.
+
+`DOT_PICKER_SHAPES` follows the editor. `DOT_SHAPES` also contains the flower. Use `dotAvatar(DOT_CATALOG.find(item => item.id === id).appearance)` to select a named character. Editing a recipe releases its fixed portrait rig and applies the builder controls.
 
 ```ts
 import { dotAvatar, mount } from '@blot/avatar';

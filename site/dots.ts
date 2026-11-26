@@ -1,10 +1,13 @@
 import {
   DOT_CHARACTERS,
+  DOT_CATALOG,
   DOT_COLOURS,
   DOT_EYES,
   DOT_EXTRAS,
   DOT_EXTRA_COLOURS,
   DOT_GLASSES,
+  DOT_MOTIONS,
+  dotExtras,
   DOT_SHAPES,
   dotAvatar,
   mount,
@@ -32,6 +35,10 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
   character.setAttribute('aria-label', 'Character');
   character.add(new Option('Custom', ''));
   for (const name of Object.keys(DOT_CHARACTERS)) character.add(new Option(name, name));
+  const catalog = document.createElement('optgroup');
+  catalog.label = 'Renderer catalog';
+  for (const item of DOT_CATALOG) catalog.append(new Option(item.name, 'catalog/' + item.id));
+  character.append(catalog);
   characterLabel.append('Character', character);
   controls.appendChild(characterLabel);
   const fields = new Map<keyof DotAppearance, HTMLSelectElement>();
@@ -48,7 +55,9 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
     fields.set(key, select);
     select.value = appearance[key]!;
     select.addEventListener('change', () => {
-      appearance[key] = values[select.selectedIndex][0];
+      appearance[key] = select.value as NonNullable<DotAppearance[K]>;
+      delete appearance.character;
+      delete appearance.catalogId;
       character.value = '';
       sync();
     });
@@ -68,14 +77,50 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
   choice('Extra', 'extra', names(DOT_EXTRAS));
   const colour = choice('Extra colour', 'extraColour', DOT_EXTRA_COLOURS);
   function sync() {
-    for (const [key, field] of fields) field.value = appearance[key]!;
+    const extras = dotExtras(appearance.shape);
+    if (appearance.extra && !extras.includes(appearance.extra)) appearance.extra = 'None';
+    for (const option of Array.from(fields.get('extra')!.options)) {
+      option.disabled = !extras.includes(option.value as typeof extras[number]);
+    }
+    for (const [key, field] of fields) {
+      field.querySelector('option[data-preset]')?.remove();
+      const value = appearance[key]!;
+      if (key === 'texture' && appearance.catalogId) {
+        const current = new Option('Matte (catalog)', 'catalog-matte');
+        current.dataset.preset = 'true'; current.disabled = true;
+        field.add(current); field.value = current.value;
+        continue;
+      }
+      if ((key === 'colour' || key === 'extraColour') && value && !Array.from(field.options).some(o => o.value === value)) {
+        const option = new Option('Light yellow', value);
+        option.dataset.preset = 'true'; field.add(option);
+      }
+      field.value = value;
+    }
     fields.get('eyes')!.parentElement!.hidden = appearance.shape === 'dot-rounded-head-with-two-ears';
     colour.parentElement!.hidden = appearance.extra === 'None';
     avatar.update(dotAvatar(appearance));
   }
+  const motionLabel = document.createElement('label'), motion = document.createElement('select');
+  motionLabel.textContent = 'Motion';
+  motion.setAttribute('aria-label', 'Motion');
+  for (const category of ['idle', 'thinking'] as const) {
+    const group = document.createElement('optgroup');
+    group.label = category === 'idle' ? 'Idle' : 'Thinking';
+    for (const item of DOT_MOTIONS) if (item.category === category) group.append(new Option(item.name, item.id));
+    motion.append(group);
+  }
+  const play = document.createElement('button');
+  play.type = 'button'; play.textContent = 'Play motion';
+  play.addEventListener('click', () => avatar.play(motion.value));
+  motionLabel.appendChild(motion); controls.append(motionLabel, play);
   character.addEventListener('change', () => {
-    const preset = DOT_CHARACTERS[character.value as keyof typeof DOT_CHARACTERS];
-    if (!preset) return;
+    const preset = character.value.startsWith('catalog/')
+      ? DOT_CATALOG.find(item => item.id === character.value.slice(8))?.appearance
+      : DOT_CHARACTERS[character.value as keyof typeof DOT_CHARACTERS];
+    delete appearance.catalogId;
+    delete appearance.character;
+    if (!preset) { sync(); return; }
     Object.assign(
       appearance,
       { eyes: 'Oval', glasses: 'None', extra: 'None', extraColour: '#1F1F1F' },

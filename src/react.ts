@@ -104,9 +104,9 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     const el = coat.current;
     if (el) { el.style.position = 'absolute'; el.style.display = 'none'; }
     // (motion() draws again at once, as mount() does on a new material; before attach it does nothing.)
-    if (p.material !== 'fluffy' || !body.current || !el) { live.motion(); return; }
+    if ((p.material !== 'fluffy' && p.material !== 'glossy') || !body.current || !el) { live.motion(); return; }
     // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
-    const l = coatLayer(body.current, () => coat.current, () => { if (last.current) powered(last.current); });
+    const l = coatLayer(body.current, () => coat.current, () => { if (last.current) { powered(last.current); writeLayers(under.current, over.current, last.current, paint.current, layer.current?.showing); } }, p.material === 'glossy');
     layer.current = l;
     live.motion();
     return () => { l.stop(); layer.current = null; };
@@ -117,7 +117,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     body.current?.setAttribute('d', d.body);
     left.current?.setAttribute('d', d.eyes[0]);
     right.current?.setAttribute('d', d.eyes[1]);
-    writeLayers(under.current, over.current, d, paint.current);
+    writeLayers(under.current, over.current, d, paint.current, layer.current?.showing);
     const c = fxPaint.current;
     layer.current?.draw(d, size.current, c?.fill);
     // (After the coat: the skin is blended into it only while it shows.)
@@ -151,7 +151,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   // ... and the antennas' and decals' (as mount() does).
   useEffect(() => {
     const d = last.current;
-    if (d) writeLayers(under.current, over.current, d, paint.current);
+    if (d) writeLayers(under.current, over.current, d, paint.current, layer.current?.showing);
   }, [JSON.stringify(p.paint ?? null)]);
 
   return { host, paths: [body, left, right] as const, layers: [under, over] as const, fx: [back, front] as const, skin, coat, first: live.first, reduced, live };

@@ -1,3 +1,4 @@
+import type { DotFaceMotion } from './dot-features';
 // One frame: (body, colour, rig state, drawn size) in, everything a renderer needs out.
 
 import type { Body, Decal } from './body';
@@ -84,6 +85,7 @@ const PRESS = 0.15;
  * in front, the eyes. The body path is the flat body: while a coat shows, fill it at 1 - opacity (none at 1).
  */
 export interface DrawnCoat {
+  dotFace?: DotFaceMotion;
   /** The body the coat is of: coatMesh(body). Not always the body drawn: in a morph it is the one it leaves, then the one it becomes. */
   body: Body;
   /**
@@ -137,6 +139,7 @@ export interface DrawnCoat {
 
 /** One more path of a drawing: an antenna, a decal. */
 export interface Layer {
+  solid?: boolean;
   /** The antenna's or the decal's name, the same from frame to frame. */
   id: string;
   /** Its colour key (see Body.paint); a renderer may paint the key over. */
@@ -209,7 +212,6 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   const d = detail(size), e = body.eyes;
   const dot = state.dot ?? 0, grow = state.eyeScale ?? 1;
   if (grow <= 0.02) return [[], []];
-  rotation(state.pose, R);
   const look = seen(e, state);
   const cu = (e.cx ?? 0) + look.x * e.slideX, cv = e.y + look.y * e.slideY;
   // How far round the body is, as a share of a full look: 1 turned right, -1 turned left, 0 facing (or backing) us.
@@ -292,7 +294,16 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  */
 function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; reach: Float64Array | null; shape: FigureShape | null } {
   const body = state.body ?? given, d = detail(size);
-  rotation(state.pose, R);
+  const portrait = body.dotStyle?.character;
+  rotation(portrait && portrait !== 'Blossie' && portrait !== 'Felipe flower'
+    ? { ...state.pose, yaw: state.pose.yaw + 8 * Math.PI / 180 } : state.pose, R);
+  if (portrait === 'Felipe flower') {
+    const rest = [0.9681,-0.0058,0.2505, 0,0.99973,0.02316, -0.25057,-0.02242,0.96784];
+    for (let i = 0; i < 9; i += 3) {
+      const a = R[i], b = R[i+1], c = R[i+2];
+      for (let j = 0; j < 3; j++) R[i+j] = a*rest[j] + b*rest[3+j] + c*rest[6+j];
+    }
+  }
   const own = silhouette(body, R, d.rim);
   const morph = state.morph, fig = state.figure && state.figure.k > 0 ? state.figure : null;
   let outline: Float64Array[] = own, eyes: [Float64Array[], Float64Array[]];
@@ -358,7 +369,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
   if (from && from !== body && from.antennas && kOut * grow > 0.02) stalks(from, state, d.rim, kOut * grow, least, layers);
   let dotMask: Float64Array[] | undefined;
   if (wearer.dotStyle && !fig && !morph) {
-    const face = dotFace(wearer, wearer.dotStyle, state, R, size, own);
+    const face = dotFace(wearer, wearer.dotStyle, state, R, size);
     layers.push(...face, ...dotExtra(wearer, wearer.dotStyle, R, d.rim));
     if (coat) dotMask = face.flatMap(p => p.polys.map(poly => poly.slice()));
     eyes = [[], []];
@@ -473,7 +484,7 @@ export function effectShapes(body: Body, state: RigState, size: number): FxPart[
 }
 
 /** A layer before it is a path: screen polygons, and what it is. */
-interface Piece { id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
+interface Piece { solid?: boolean; id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
 
 /** The thinnest an antenna's stalk is drawn, in pixels across. */
 const STALK_PX = 1.4;
@@ -558,7 +569,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
     out.layers = [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)]
-      .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front }));
+      .map((l) => ({ id: l.id, part: l.part, d: toPath(l.polys, UNIT, MID), fill: l.fill, front: l.front, ...(l.solid ? { solid: true } : {}) }));
   }
   const parts = shadow || state.fx?.length ? effectsOf(state, frame, size, shadow, opacity) : null;
   if (parts && parts.length) out.effects = parts.filter((p) => p.opacity > 0.004 && p.polys.length).map((p) => ({ layer: p.layer, role: p.role, opacity: Math.round(p.opacity * 1000) / 1000, d: toPath(p.polys, UNIT, MID) }));
@@ -568,10 +579,13 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   if (bare) {
     const [a, , , d, e, f] = affine, { figure, ...wears } = coatOf(body, state, size, reach);
     const move: DrawnCoat['affine'] = [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f];
+    const dotFace = wears.body.dotStyle && !figure && !state.morph ? {
+      x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
+    } : undefined;
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
     out.coat = figure
       ? { ...wears, rotation: figureTurn(state), affine: move, eyes: '', ...(shape ? { shape } : {}) }
-      : { ...wears, rotation: new Float64Array(R), affine: move, eyes: toPath(bare, UNIT, MID) };
+      : { ...wears, ...(dotFace ? { dotFace } : {}), rotation: new Float64Array(R), affine: move, eyes: toPath(bare, UNIT, MID) };
   }
   return out;
 }

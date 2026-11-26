@@ -238,8 +238,8 @@ class Spring {
   x = 0; v = 0; to = 0;
   rate: number;
   constructor(rate: number) { this.rate = rate; }
-  step(dt: number): void {
-    const d = this.x - this.to, k = this.rate, e = Math.exp(-k * dt), c = this.v + k * d;
+  step(dt: number, k = this.rate): void {
+    const d = this.x - this.to, e = Math.exp(-k * dt), c = this.v + k * d;
     this.x = this.to + (d + c * dt) * e;
     this.v = (this.v - c * k * dt) * e;
     if (Math.abs(this.x - this.to) < 1e-3 && Math.abs(this.v) < 1e-2) { this.x = this.to; this.v = 0; }
@@ -438,7 +438,9 @@ export class Rig {
     let far = Math.hypot(x, y);
     // (An infinite one has no direction to keep: it is a full look to that side, or along that diagonal.)
     if (far === Infinity) { x = Math.max(-1, Math.min(1, x)); y = Math.max(-1, Math.min(1, y)); far = Math.hypot(x, y); }
-    this.target = far > 1 ? { x: x / far, y: y / far } : { x, y };
+    this.target = this.state.body?.dotStyle
+      ? { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }
+      : far > 1 ? { x: x / far, y: y / far } : { x, y };
     this.away = false;
     this.unwander();
     if (!this.driven) this.face();
@@ -546,7 +548,10 @@ export class Rig {
    * look the same way. A body may turn less than all the way for a look (see Body.look).
    */
   private face(): void {
-    if (this.target) this.aim(this.target.x * this.flipTo * this.most(), this.target.y, 0);
+    if (this.target && this.state.body?.dotStyle) {
+      const eye = this.state.body.eyes;
+      this.aim(this.target.x * this.flipTo * .0391 / eye.slideX, this.target.y * .0512 / eye.slideY, 0);
+    } else if (this.target) this.aim(this.target.x * this.flipTo * this.most(), this.target.y, 0);
     else this.aim(0, 0, 0);
   }
 
@@ -832,14 +837,19 @@ export class Rig {
     } else s.figure = null;
 
     const dt = dtMs / 1000;
-    this.eyeX.step(dt); this.eyeY.step(dt);
+    const dotGaze = !!s.body?.dotStyle && !this.driven;
+    this.eyeX.step(dt, dotGaze ? 55 : EYE_RATE); this.eyeY.step(dt, dotGaze ? 55 : EYE_RATE);
     // The body turns toward where the eyes are now, not toward the target: while the eyes are still setting
     // off it has nothing to follow, so it starts a beat (about 60 ms) after them.
     // (Reading, the eyes do the travelling and the body only part of it.)
     // (At rest, toward the rest pose: with the eyes back in the middle, exactly to it.)
     this.yaw.to = this.eyeX.x * LOOK_YAW * (act === 'working' ? WORK_FOLLOW : 1) + (home ? home.yaw : 0);
     this.pitch.to = this.eyeY.x * LOOK_PITCH + (home ? home.pitch : 0);
-    this.yaw.step(dt); this.pitch.step(dt); this.roll.step(dt);
+    if (dotGaze && (this.target || (act === 'idle' && !home))) {
+      this.yaw.to = .055 * (this.target?.x ?? 0) * this.flipTo;
+      this.pitch.to = .035 * (this.target?.y ?? 0);
+    }
+    this.yaw.step(dt, dotGaze ? 22 : BODY_RATE); this.pitch.step(dt, dotGaze ? 22 : BODY_RATE); this.roll.step(dt);
 
     // The little moves: each adds to the pose and comes back to nothing (clips.ts).
     o.yaw = 0; o.pitch = 0; o.roll = 0; o.eyeY = 0; o.eyeX = 0; o.lift = 0; o.stretch = 1; o.scale = 1; o.open = 1; o.antL = 0; o.antR = 0;
@@ -961,7 +971,7 @@ export class Rig {
 
     // The wander: the eyes are never quite still, and the head goes a little way with them.
     // (While it watches the pointer the eyes are on that.)
-    this.wanderGate.to = act === 'idle' && this.idle && !home && !this.target ? 1 : 0;
+    this.wanderGate.to = !dotGaze && act === 'idle' && this.idle && !home && !this.target ? 1 : 0;
     this.wanderGate.step(dt);
     // (On the breath's clock and its steps, the gate included, so the two change on the same frames: an idle
     // avatar is redrawn no more often for it.)
@@ -975,7 +985,7 @@ export class Rig {
       o.eyeX += d[0]; o.eyeY += d[1]; o.roll += d[2]; o.yaw += d[3];
     } else this.wandered.fill(0);
     // Watching the pointer, it leans toward it, and more while the pointer moves.
-    this.leanGate.to = this.target && !this.driven && !home ? 1 : 0;
+    this.leanGate.to = !dotGaze && this.target && !this.driven && !home ? 1 : 0;
     this.leanGate.step(dt);
     if (this.leanGate.x > 0) o.roll += this.leanGate.x * (LEAN * this.eyeX.x + LEAN_SPEED * Math.max(-5, Math.min(5, this.eyeX.v)));
 
@@ -1028,7 +1038,15 @@ export class Rig {
 
     // Idle or not, it breathes: a little taller and back, slowly. (Not with idle off: then a rig left alone
     // is still. And not as a loading figure: a ring stays round.) A lively face breathes quicker, a sleeper slower and deeper.
-    if (this.idle) {
+    if (this.idle && dotGaze && act === 'idle' && !this.cueing.some(Boolean)) {
+      // The neutral Dot breath scales the vertical axis by ±0.3% over six seconds.
+      // Its two other axes preserve volume and its centre moves by one thousandth of a radius.
+      const wave = Math.sin(TAU * this.breathAt / 6000) * awake;
+      const height = 1 + .003 * wave, width = 1 / Math.sqrt(height);
+      o.stretch *= Math.sqrt(height / width);
+      o.scale *= Math.sqrt(height * width);
+      o.lift += .00095 * wave + .85 * (1 - height);
+    } else if (this.idle && !dotGaze) {
       o.stretch *= 1 + BREATH * (1 + (SLEEP_DEEP - 1) * asleep) * awake * (1 - (s.figure ? s.figure.k : 0)) * Math.sin((Math.PI * Math.floor(this.breathAt / BREATH_STEP) * BREATH_STEP) / BREATH_MS) ** 2;
     }
 

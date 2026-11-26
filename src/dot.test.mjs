@@ -7,6 +7,7 @@ import {
   DOT_EXTRA_COLOURS,
   DOT_EXTRAS,
   DOT_GLASSES,
+  DOT_PICKER_SHAPES,
   DOT_SHAPES,
   bodyOf,
   dotAvatar,
@@ -50,8 +51,8 @@ function overlap(path, ref, centre, extent) {
 }
 
 test('every Dot contour fits its measured native-aspect silhouette before and after inflation', () => {
-  assert.equal(DOT_SHAPES.length, reference.length);
-  for (const [i, shape] of DOT_SHAPES.entries()) {
+  assert.equal(DOT_PICKER_SHAPES.length, reference.length);
+  for (const [i, shape] of DOT_PICKER_SHAPES.entries()) {
     assert.equal(shape.name, reference[i][0]);
     assert.equal(bodyOf(shape.id), bodyOf(shape));
     assert.equal(validateAvatar(shape).ok, true);
@@ -98,4 +99,89 @@ test('body tint and texture edits preserve geometry and accessory tint', () => {
   const d = drawAvatar(second.body, second.color, front, 128, { coat: true });
   assert.ok(d.coat.eyes);
   assert.equal(d.layers.find((p) => p.id === 'beret').fill, '#8C4A2B');
+});
+
+test('builder recipes and fixed portraits select the correct body, eyes and attachments', async () => {
+  const { DOT_CHARACTERS, dotExtras } = await import('./index.ts');
+  const { coatMesh } = await import('./engine/coat.ts');
+  const portrait = dotAvatar(DOT_CHARACTERS.Iris);
+  const custom = dotAvatar({ ...DOT_CHARACTERS.Iris, colour: '#00B1FF' });
+  assert.equal(portrait.body.dotStyle.character, 'Iris');
+  assert.equal(custom.body.dotStyle.character, undefined);
+  assert.notEqual(coatMesh(portrait.body), coatMesh(custom.body));
+  const view = drawAvatar(portrait.body, portrait.color, front, 296, { coat: true });
+  assert.ok(Math.abs(view.coat.rotation[2] - Math.sin(8*Math.PI/180)) < 1e-8);
+  for (const shape of ['dot-circle-with-two-ears', 'dot-rounded-head-with-two-ears']) {
+    assert.deepEqual(dotExtras(shape), ['None', 'Headphones', 'Bow tie']);
+    assert.equal(dotAvatar({ shape, extra: 'Crown' }).body.dotStyle.extra, 'None');
+  }
+  assert.equal(dotAvatar({ shape: 'dot-rounded-head-with-two-ears', eyes: 'Dots' }).body.dotStyle.eyes, 'Oval');
+  assert.equal(DOT_SHAPES.length, 12);
+  const flower = dotAvatar({ shape: 'dot-six-lobed-flower' });
+  assert.equal(validateAvatar(flower.shape).ok, true);
+  assert.ok(coatMesh(flower.body).vertices.length > 1000);
+});
+
+test('Dot cursor response follows the measured step and returns to its neutral pose', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const { body } = dotAvatar({ shape: 'dot-rounded-triangle' });
+  const rig = new Rig({ body, idle: false, blinks: false });
+  rig.look(1, 1);
+  const yaw = [];
+  for (let i = 1; i <= 120; i++) {
+    rig.step(1000/60);
+    if ([2,4,6,9,12].includes(i)) yaw.push(rig.state.pose.yaw);
+  }
+  const observed = [.0092,.0237,.0355,.0463,.0514];
+  yaw.forEach((v,i) => assert.ok(Math.abs(v-observed[i]) < .002, String([i,v])));
+  assert.ok(Math.abs(rig.state.eye.x*body.eyes.slideX - .0391) < .0002);
+  assert.ok(Math.abs(rig.state.eye.y*body.eyes.slideY - .0512) < .0002);
+  assert.ok(Math.abs(rig.state.pose.pitch - .035) < .0002);
+  rig.stop();
+  let previous = rig.state.pose.yaw;
+  for (let i = 0; i < 120; i++) {
+    rig.step(1000/60);
+    assert.ok(rig.state.pose.yaw <= previous + 1e-8);
+    previous = rig.state.pose.yaw;
+  }
+  assert.ok(Math.abs(previous) < 1e-4);
+});
+
+test('all observed idle and thinking motions can play through the public Dot recipe', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const { DOT_MOTIONS } = await import('./index.ts');
+  const config = dotAvatar({ shape: 'dot-circle' });
+  assert.equal(DOT_MOTIONS.filter(m => m.category === 'idle').length, 41);
+  assert.equal(DOT_MOTIONS.filter(m => m.category === 'thinking').length, 13);
+  for (const { id, durationMs } of DOT_MOTIONS) {
+    const rig = new Rig({ body: config.body, clips: config.clips, idle: false, blinks: false });
+    assert.equal(rig.play(id), true, id);
+    for (let elapsed = 0; elapsed < durationMs; elapsed += 1000/30) {
+      rig.step(1000/30);
+      assert.ok(Object.values(rig.state.pose).every(Number.isFinite), id);
+    }
+  }
+});
+
+test('catalog entries keep independent rigs, palette responses and editable recipes', async () => {
+  const { DOT_CATALOG } = await import('./index.ts');
+  const { coatMesh } = await import('./engine/coat.ts');
+  const { dotFeatures } = await import('./engine/dot-features.ts');
+  assert.equal(new Set(DOT_CATALOG.map(item => item.id)).size, 108);
+  assert.equal(DOT_CATALOG.filter(item => item.surface === 'Matte').length, 100);
+  for (const entry of DOT_CATALOG) {
+    const style = dotAvatar(entry.appearance).body.dotStyle;
+    if (entry.surface === 'Matte') assert.equal(style.catalogId, entry.id);
+    else assert.ok(style.character);
+  }
+  const tavi = DOT_CATALOG.find(item => item.id === 'matisse');
+  const avatar = dotAvatar(tavi.appearance), changed = dotAvatar({ ...tavi.appearance, glasses: 'None' });
+  assert.equal(changed.body.dotStyle.catalogId, undefined);
+  assert.notEqual(coatMesh(avatar.body), coatMesh(changed.body));
+  const parts = dotFeatures(avatar.body);
+  assert.equal(parts.length, 4);
+  assert.equal(new Set(parts.map(part => part.material)).size, 3);
+  assert.ok(parts.every(p => p.mesh.indices.length > 0));
+  const other = DOT_CATALOG.find(item => item.surface === 'Matte' && item.id !== tavi.id && item.appearance.shape === tavi.appearance.shape);
+  assert.equal(coatMesh(avatar.body), coatMesh(dotAvatar(other.appearance).body));
 });
