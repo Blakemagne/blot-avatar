@@ -1,7 +1,7 @@
 import { gazeCoefficients, gazeParts } from './dot-gaze-data';
 import { DOT_RADIUS } from './dot-depth';
 
-const decoded = new Map<number, Int16Array>();
+const decoded = new Map<number, Int32Array>();
 
 /** Move an insert on the wearer's surface, after applying its neutral fit and eyelid pivot. */
 export function gazeTransform(key: string, section: number, axes: number[], x: number, y: number): number[] | undefined {
@@ -13,7 +13,15 @@ export function gazeTransform(key: string, section: number, axes: number[], x: n
   if (!coefficients) {
     const bytes = Uint8Array.from(atob(gazeCoefficients[index]), c => c.charCodeAt(0));
     const view = new DataView(bytes.buffer);
-    coefficients = Int16Array.from({ length: bytes.length / 2 }, (_, i) => view.getInt16(2 * i, true));
+    let offset = 0;
+    coefficients = Int32Array.from({ length: 96 }, () => {
+      const word = view.getInt16(offset, true);
+      offset += 2;
+      if (word !== -32768) return word;
+      const wide = view.getInt32(offset, true);
+      offset += 4;
+      return wide;
+    });
     decoded.set(index, coefficients);
   }
   x = Math.min(1, Math.max(-1, x));
@@ -24,6 +32,11 @@ export function gazeTransform(key: string, section: number, axes: number[], x: n
   for (let i = 0; i < terms.length; i++) {
     for (let j = 0; j < 12; j++) relative[j] += terms[i] * coefficients[12*i+j] / 10000;
   }
+  return transformAxes(relative, axes);
+}
+
+/** Compose a bone in native radius units with a fitted part in blot body units. */
+export function transformAxes(relative: readonly number[], axes: readonly number[]): number[] {
   const result: number[] = [];
   for (let i = 0; i < 12; i += 3) {
     for (let j = 0; j < 3; j++) {

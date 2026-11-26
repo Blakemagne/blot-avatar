@@ -49,6 +49,7 @@ layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 seed;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
+uniform vec3 poseScale, poseOffset;
 uniform bool orthographic, ornament, portraitCoat;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
@@ -131,10 +132,10 @@ void main() {
   // Broadly bend the lighting normals across flat faces.
   vec3 shadingNormal = orthographic ? n : normalize(n + .78 * rounded);
   // (The pile is fixed to the mesh at rest, so it goes where a figure's piece goes.)
-  scenePlace = rotation * P / ${(.54945*512/296).toFixed(9)};
+  scenePlace = (rotation * (P * poseScale) + poseOffset) / ${(.54945*512/296).toFixed(9)};
   groomPoint = position;
   groomSide = Nm.z;
-  opticalPlace = rotation * (position * opticalFrame.w - opticalFrame.xyz);
+  opticalPlace = rotation * ((position * opticalFrame.w - opticalFrame.xyz) * poseScale) + poseOffset * opticalFrame.w;
   pilePosition = FLIP * position * UNIT;
   // Sweep across the visible surface. A downwards bias keeps the front from parting at a point.
   // Project without normalizing, so foreshortened locks get shorter continuously at a grazing angle.
@@ -178,11 +179,11 @@ void main() {
     variation = seed.x;
   }
 
-  N = view * shadingNormal;
+  N = view * (shadingNormal / poseScale);
   // Back to body units and into our camera: X = MID + VIEW_UNIT s x', Y = MID - VIEW_UNIT s y' with s = D / w, as
   // math.ts draws the outline, and the square of the picture as clip space. w carries the perspective, so
   // everything between the corners is drawn in it too.
-  vec3 q = rotation * (FLIP * p / UNIT);
+  vec3 q = rotation * (FLIP * p / UNIT * poseScale) + poseOffset;
   float w = D - q.z, deep = square.w;
   if (warpN > 0) {
     // Stretched onto the outline drawn along rays from the middle, as the outline itself was blended (morph.ts: rays
@@ -232,6 +233,9 @@ uniform int groomLayer, portraitLayer;
 uniform highp sampler2DArray portraitDensity;
 uniform highp sampler2DArray dotGroom;
 uniform vec3 groomAmplitude[4];
+uniform highp sampler2D contactField;
+uniform float contactExtent;
+uniform vec3 contactColor[4];
 uniform bool glossy, measuredLight, ornament, metal, portraitCoat;
 uniform sampler2D matteStudio, polishedStudio;
 uniform int finish, tintLayer;
@@ -380,7 +384,13 @@ void main() {
       vec3 amplitude = max(vec3(.001), groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3]);
       variationRGB = 1.6*density*amplitude + .13*variationRGB;
     }
-    result = vec4(clamp((base + variationRGB) * socket, 0., 1.), 1.);
+    vec3 colour = (base + variationRGB) * socket;
+    if (contactExtent > 0.) {
+      float shade = 1. - texture(contactField, gl_FragCoord.xy/contactExtent).r;
+      colour -= shade * (contactColor[0] + shade*contactColor[1]
+        + (colour-.5)*(contactColor[2]+shade*contactColor[3]));
+    }
+    result = vec4(clamp(colour, 0., 1.), 1.);
     return;
   }
   // Density variation survives rim lighting even when the strongest dye channel is saturated.

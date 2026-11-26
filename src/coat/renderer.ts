@@ -41,6 +41,7 @@ export interface CoatFrame {
   mesh: CoatMesh;
   /** The pose's rotation, row by row (Drawing.coat.rotation). */
   rotation: ArrayLike<number>;
+  playback?: import('../engine/dot-motion').DotPlayback;
   /** The square the picture covers, drawing units before the drawing's affine: `half` each way from (cx, cy). */
   cx: number;
   cy: number;
@@ -123,8 +124,8 @@ function createRenderer(restored: () => void): Renderer | null {
   gl.useProgram(program);
   const uniform = (name: string) => gl.getUniformLocation(program, name);
   const u = {
-    rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
-    tintLayer: uniform('tintLayer'), portraitLayer: uniform('portraitLayer'), groomLayer: uniform('groomLayer'), groomResponse: uniform('groomAmplitude[0]'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
+    poseScale: uniform('poseScale'), poseOffset: uniform('poseOffset'), rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
+    contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), tintLayer: uniform('tintLayer'), portraitLayer: uniform('portraitLayer'), groomLayer: uniform('groomLayer'), groomResponse: uniform('groomAmplitude[0]'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
     glossCoefficients: uniform('glossCoefficients[0]'), pigmentControls: uniform('pigmentControls'), glossPigment: uniform('glossPigment'), finish: uniform('finish'), ornament: uniform('ornament'), axes: uniform('ornamentAxes'), offset: uniform('ornamentOffset'), metal: uniform('metal'),
     portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
@@ -240,6 +241,12 @@ function createRenderer(restored: () => void): Renderer | null {
   };
   gl.activeTexture(gl.TEXTURE2);
 
+  // A complete neutral texture also supports contexts that have only drawn ordinary blot avatars.
+  texture(11, 'contactField', gl.TEXTURE_2D);
+  clampLinear();
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,1,1,0,gl.RED,gl.UNSIGNED_BYTE,new Uint8Array([255]));
+  gl.activeTexture(gl.TEXTURE2);
+  let contact: ReturnType<NonNullable<typeof dotRenderer>['createDotContact']> | undefined;
   const geometries = new Map<CoatMesh, Geometry>();
   let sweepPending = false;
 
@@ -402,6 +409,9 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform1f(u.warpPress, f.warp.press);
     } else gl.uniform1i(u.warpN, 0);
 
+    const s = f.playback?.scale, origin = f.playback?.offset;
+    gl.uniform3f(u.poseScale, s?.[0] ?? 1, s?.[1] ?? 1, s?.[2] ?? 1);
+    gl.uniform3f(u.poseOffset, origin?.[0] ?? 0, origin?.[1] ?? 0, origin?.[2] ?? 0);
     const R = f.rotation;
     // Column by column, as GLSL reads a mat3. `view` is the same turn with y down, open-bot-avatar's way.
     rotation.set([R[0], R[3], R[6], R[1], R[4], R[7], R[2], R[5], R[8]]);
@@ -434,6 +444,14 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform4fv(u.nowBall, now);
     }
 
+    const contactColour = groom >= 0 && assets?.contactColor[key];
+    if (contactColour && assets) {
+      contact ??= assets.createDotContact(gl, link);
+      contact(f,pixels,rotation,geometryOf);
+      gl.useProgram(program);
+      gl.uniform3fv(u.contactColor,contactColour);
+    }
+    gl.uniform1f(u.contactExtent,contactColour ? 2*Math.ceil(pixels/2) : 0);
     gl.viewport(0, 0, pixels, pixels);
     gl.scissor(0, 0, pixels, pixels);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

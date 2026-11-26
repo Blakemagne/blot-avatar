@@ -31,6 +31,8 @@ import { caught, type Source } from './morph';
 
 /** What a renderer needs to draw one frame. Only the first four are needed for a still. */
 export interface RigState {
+  /** A named Dot motion can move the body and each eye in three dimensions. */
+  dotPlayback?: import('./dot-motion').DotPlayback;
   pose: Pose;
   /** Where the eyes have slid to, -1..1 on each axis (x right, y up); the body says how far that is. */
   eye: { x: number; y: number };
@@ -852,6 +854,8 @@ export class Rig {
     this.yaw.step(dt, dotGaze ? 22 : BODY_RATE); this.pitch.step(dt, dotGaze ? 22 : BODY_RATE); this.roll.step(dt);
 
     // The little moves: each adds to the pose and comes back to nothing (clips.ts).
+    const previousPlayback = s.dotPlayback;
+    o.dotPlayback = undefined;
     o.yaw = 0; o.pitch = 0; o.roll = 0; o.eyeY = 0; o.eyeX = 0; o.lift = 0; o.stretch = 1; o.scale = 1; o.open = 1; o.antL = 0; o.antR = 0;
     o.x = 0; o.arc = 0; o.winkL = 0; o.winkR = 0; o.glow = 0; o.fx.length = 0;
 
@@ -1094,9 +1098,11 @@ export class Rig {
       if (!this.antL.still || !this.antR.still) { this.antL.set(this.held[0]); this.antR.set(this.held[1]); }
     }
 
+    if (o.dotPlayback) s.dotPlayback = o.dotPlayback;
+    else if (previousPlayback) delete s.dotPlayback;
     this.mark(this.after);
     // (An effect is always on its way somewhere: a frame with one is a new picture.)
-    if (s.fx) return true;
+    if (s.fx || s.dotPlayback || previousPlayback) return true;
     for (let i = 0; i < MARKS; i++) if (this.before[i] !== this.after[i]) return true;
     return false;
   }

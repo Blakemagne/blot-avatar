@@ -185,3 +185,26 @@ test('catalog entries keep independent rigs, palette responses and editable reci
   const other = DOT_CATALOG.find(item => item.surface === 'Matte' && item.id !== tavi.id && item.appearance.shape === tavi.appearance.shape);
   assert.equal(coatMesh(avatar.body), coatMesh(dotAvatar(other.appearance).body));
 });
+
+test('eye inserts follow the measured held-out cursor directions independently', async () => {
+  const { gazeTransform } = await import('./engine/dot-gaze.ts');
+  const { gazeParts } = await import('./engine/dot-gaze-data.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  const rows = JSON.parse(readFileSync(new URL('../golden/dots/gaze-checkpoints.json', import.meta.url)));
+  assert.equal(Object.keys(gazeParts).length, 185);
+  const errors = [];
+  for (const [key, section, x, y, rest, target] of rows) {
+    const axes = [1,0,0, 0,1,0, 0,0,1, ...rest.map(v => v * DOT_RADIUS)];
+    assert.deepEqual(gazeTransform(key, section, axes, 0, 0), axes, key);
+    const moved = gazeTransform(key, section, axes, x, y);
+    const error = Math.hypot(...target.map((v,i) => moved[9+i] / DOT_RADIUS - v)) * 140.6592;
+    if (key.endsWith('/Highlight capsules')) {
+      if (section < 2) assert.deepEqual(moved, axes);
+      else assert.ok(Math.hypot(...moved.slice(9).map((v,i) => v - axes[9+i])) > .005);
+    }
+    errors.push(error);
+    assert.ok(error < (key === 'catalog/clover' ? 4.3 : 1.6), key + ' ' + section + ' ' + error);
+  }
+  errors.sort((a,b) => a-b);
+  assert.ok(errors[Math.floor(errors.length/2)] < .25);
+});

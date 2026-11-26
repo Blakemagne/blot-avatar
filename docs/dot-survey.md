@@ -23,7 +23,7 @@ The dimensions below are orthographic measurements of the bare solid, before add
 | Rounded diamond | 2.000 × 1.958 × 1.620 | Four rounded diagonal flanks, with broader top and bottom tips. |
 | Six-lobed flower | 2.000 × 1.833 × 1.650 | Six rounded lobes. The renderer accepts this body and uses it for catalog characters including Tavi and the flower-bodied Felipe. |
 
-The port reconstructs the two surfaces from measured midplanes and squared half-thickness. It samples the equator over 1,024 directions and retains a separate correction for the shading normals. Shared equator vertices close the front and back into one mesh. This distinction matters most at the heart notch, the ears and the rosette valleys. The starter portraits have their own sections. For instance, the central front of the starter Alfred is approximately 0.60 units deep, compared with 0.80 on the builder triangle.
+The port reconstructs the two surfaces from measured midplanes and squared half-thickness. It samples the equator over 1,024 directions and refines the front and back mesh positions and shading normals against 768 px depth and normal observations. Shared equator vertices close the front and back into one mesh. This distinction matters most at the heart notch, the ears and the rosette valleys. The starter portraits have their own sections. For instance, the central front of the starter Alfred is approximately 0.60 units deep, compared with 0.80 on the builder triangle.
 
 The diagram below shows the picker outlines in the SVG fallback. The validation report also includes the illuminated WebGL surfaces and rotated views. [Rendered comparisons](dot-parity.md)
 
@@ -100,7 +100,7 @@ The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15
 
 Stepping the cursor from centre to the horizontal edge produced head yaw of 0.0092, 0.0237, 0.0355, 0.0463 and 0.0514 radians at frames 2, 4, 6, 9 and 12 at 60 Hz. The end yaw was approximately 0.055 radians (3.15°). Maximum vertical pitch was approximately 0.035 radians (2.01°). The eyes lead the head and traverse approximately 0.0391 and 0.0512 blot body units horizontally and vertically. The port uses separate critically damped responses for the eyes and head and supports diagonal targets and pointer exit. Each moving insert has a measured 3D transform, including the changes in width, shear and depth during a glance. Two intermediate gaze directions were held out per fit. On the builder, the median projected insert-centre error at 512 px was 0.02 px and the 95th percentile was 0.34 px.
 
-The renderer advertised 41 named idle motions and 13 thinking motions. Their body and left/right eye transforms were observed during clocked playback. The port exposes their names, measured durations, loop metadata and playback IDs in DOT_MOTIONS. A clip can be played using the mounted avatar’s play method. Reduced motion holds the still portrait.
+The renderer advertised 41 named idle motions and 13 thinking motions. Their body and left/right eye transforms were observed during clocked playback. The port exposes their names, measured durations, loop metadata and playback IDs in DOT_MOTIONS. A clip can be played using the mounted avatar’s play method. The material renderer applies local three-axis body scale before rotation, then moves each eye independently with its measured affine transform. Reduced motion holds the still portrait.
 
 ## Scope of the measurements
 

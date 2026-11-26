@@ -294,6 +294,22 @@ function shift(polys: Float64Array[], dx: number, dy: number): void {
  */
 function compose(given: Body, state: RigState, size: number, coat = false): { body: Float64Array[]; eyes: [Float64Array[], Float64Array[]]; layers: Piece[]; shadow: Float64Array | null; opacity: number; frame: Float64Array[]; affine: readonly number[]; bare: Float64Array[] | null; reach: Float64Array | null; shape: FigureShape | null } {
   const body = state.body ?? given, d = detail(size);
+  const unanimated = state;
+  const playback = body.dotStyle && !state.figure && !state.morph ? state.dotPlayback : undefined;
+  if (playback) {
+    // The SVG fallback uses a projected stretch and an eye centre per side.
+    const [sx, sy] = playback.scale, stretch = Math.sqrt(sy / sx);
+    const eyelids = playback.eyes.map(m => Math.hypot(m[3], m[4], m[5]));
+    const centres = playback.eyes.map((m, i) => {
+      const x = i ? .209 : -.209, y = .18, z = .80;
+      return [(m[0]-1)*x + m[3]*y + m[6]*z + m[9], m[1]*x + (m[4]-1)*y + m[7]*z + m[10]];
+    });
+    state = { ...state, stretch: stretch * (state.stretch ?? 1), scale: Math.sqrt(sy*sx) * (state.scale ?? 1),
+      shift: (state.shift ?? 0) + playback.offset[0], lift: (state.lift ?? 0) + playback.offset[1] + .85*(1-stretch)*Math.sqrt(sy*sx),
+      eye: { x: state.eye.x + (centres[0][0]+centres[1][0])*.475 / body.eyes.slideX,
+        y: state.eye.y + (centres[0][1]+centres[1][1])*.475 / body.eyes.slideY },
+      lids: [eyelids[0]*(state.lids?.[0] ?? 1), eyelids[1]*(state.lids?.[1] ?? 1)] };
+  }
   const portrait = body.dotStyle?.character;
   rotation(portrait && portrait !== 'Blossie' && portrait !== 'Felipe flower'
     ? { ...state.pose, yaw: state.pose.yaw + 8 * Math.PI / 180 } : state.pose, R);
@@ -385,7 +401,12 @@ function compose(given: Body, state: RigState, size: number, coat = false): { bo
   if (tall !== 1 || big !== 1 || up !== 0 || flip !== 1 || dx !== 0) {
     // (The ground is under the body itself: a figure's little ball going round below it does not lift it.)
     const box = bounds(fig ? [outline[0]] : outline), ground = box[3], kx = (big * flip) / tall;
-    if (bare) { bare = bare.map((p) => p.slice()); affine = [kx, 0, 0, tall * big, dx, ground * (1 - tall) * big - up]; }
+    if (bare) {
+      bare = bare.map(p => p.slice());
+      // The material renderer applies the motion's local scale before rotation and moves the eyes in 3D.
+      const t = unanimated.stretch ?? 1, b = unanimated.scale ?? 1;
+      affine = [b * flip / t, 0, 0, b*t, (unanimated.shift ?? 0)*flip, ground * (1-t)*b - (unanimated.lift ?? 0)];
+    }
     for (const polys of [outline, eyes[0], eyes[1], ...layers.map((l) => l.polys)]) {
       for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] = p[i] * kx + dx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
     }
@@ -580,7 +601,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
     const [a, , , d, e, f] = affine, { figure, ...wears } = coatOf(body, state, size, reach);
     const move: DrawnCoat['affine'] = [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f];
     const dotFace = wears.body.dotStyle && !figure && !state.morph ? {
-      x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
+      playback: state.dotPlayback, x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
     } : undefined;
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
     out.coat = figure

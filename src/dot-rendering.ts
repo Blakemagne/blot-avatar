@@ -1,3 +1,5 @@
+import { createDotContact } from './coat/dot-contact';
+import { contactColor } from './coat/dot-contact-color';
 import { extraRadiance } from './coat/dot-extra-radiance';
 import { DOT_COLOURS, DOT_EXTRA_COLOURS } from './palette';
 import { dotMesh } from './engine/dot-mesh';
@@ -12,7 +14,7 @@ import { portraitLight } from './coat/dot-portrait-light';
 
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
 export const dotRendering = {
-  dotMesh, dotFeatures, dotAttachments, catalogRigs, catalogLight, extraRadiance,
+  createDotContact, contactColor, dotMesh, dotFeatures, dotAttachments, catalogRigs, catalogLight, extraRadiance,
   extraSwatches: [...DOT_COLOURS, ...DOT_EXTRA_COLOURS.slice(-2)].map(([hex]) => parseInt(hex.slice(1), 16)),
   groomBodies, groomFields, groomWidth, groomHeight, groomResponse,
   portraitGrooms, portraitGroomSize, portraitParts, portraitMaterials, portraitLight,

@@ -21,6 +21,7 @@ export { PERSONALITY, TAU, bump, give, high, ring } from './feel';
 
 /** What one frame of moves adds to the springs' pose. The rig resets it every step. */
 export interface Channels {
+  dotPlayback?: import('./dot-motion').DotPlayback;
   /** Radians added to the pose (start 0). */
   yaw: number; pitch: number; roll: number;
   /** Look units added to the eyes (start 0). */

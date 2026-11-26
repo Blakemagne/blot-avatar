@@ -37,11 +37,18 @@ Each comparison has the native image on the left, the port in the middle and fou
 
 The 100 matte catalog rigs use ten fitted body volumes, 379 distinct measured component sections and 26 surface responses. The ten furry portraits across the two collections have independent hulls. Their optical-density fields use 24 calibration orientations each. The neutral view was withheld from that field fit. Across these portraits its high-frequency correlation ranges from 0.44 to 0.80. This measures coat detail in isolation.
 
+## Motion review
+
+The 54 named clips were also checked at nine instants each. The comparison steps the public rig, assembles its body and both fitted eye inserts, and measures the displacement of local landmarks against the observed world transforms. At a 512 px framing, the body landmark error was 0.0165 px at the 95th percentile and 0.0531 px at maximum. The eye error was 0.0253 px and 0.0785 px respectively. These checkpoints measure motion geometry separately from rendered pixels. [Motion observations](../golden/dots/motion-checkpoints.json) · [Comparison script](../scripts/dot-motion-compare.mjs)
+
+The cursor tests include cases where the support stays fixed and its highlights travel independently. They cover a raised-socket face, Iris’s portrait and the largest catalog gaze error measured, Clover. [Held-out gaze observations](../golden/dots/gaze-checkpoints.json)
+
 ## Reproduce a comparison
 
 Use Node 22, Chromium with WebGL2, Playwright Core, Python, NumPy and Pillow. Install the repository’s development dependencies with `npm ci`. Set `PLAYWRIGHT_CORE` to the installed module’s absolute path and `CHROMIUM` to the executable when they are outside the defaults.
 
 ```sh
+node --import tsx scripts/dot-motion-compare.mjs
 node --import tsx scripts/dot-capture.mjs .dot-review/candidate/neutral
 DOT_TURNS=1 node --import tsx scripts/dot-capture.mjs .dot-review/candidate/rotation
 DOT_CATALOG=1 node --import tsx scripts/dot-capture.mjs .dot-review/candidate/catalog

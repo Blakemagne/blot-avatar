@@ -292,7 +292,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
-    const same = !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
+    const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
       held.box.cx === box.cx && apart(held.rotation, c.rotation) * mesh.radius * (D / (D - mesh.radius)) * pxPerUnit < SAME_VIEW &&
       drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW &&
       held.shape === kindOf(c.shape) && drift(held.figure, numbersIn(c.shape)) * pxPerUnit < SAME_VIEW;
@@ -302,7 +302,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       const field = glossy || style ? null : fieldFor(c.eyes, points, detail, perUnit);
       const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
       if (ornament) solids.push(ornament);
-      const frame = { glossy, solids, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const frame = { glossy, solids, playback: c.dotFace?.playback, dotBody: style ? base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;
@@ -325,7 +325,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
         ctx.globalAlpha = 1;
       }
       // (A stretched picture is never kept: the next frame's outline is another.)
-      held = base.warp ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
+      held = base.warp || c.dotFace?.playback ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
     show(c, box, now.size);
   };

@@ -1,4 +1,4 @@
-import { gazeTransform } from './dot-gaze';
+import { gazeTransform, transformAxes } from './dot-gaze';
 import { catalogParts } from './dot-catalog-parts';
 import { faceFits } from './dot-face-fits';
 import type { Body } from './body';
@@ -12,6 +12,7 @@ export interface DotFaceMotion {
   y: number;
   left: number;
   right: number;
+  playback?: import('./dot-motion').DotPlayback;
 }
 export interface DotSolid {
   mesh: CoatMesh;
@@ -124,9 +125,10 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
       dx*DOT_RADIUS+spacing, dy*DOT_RADIUS+lidPivot*sy*(1-lid), dz*DOT_RADIUS];
     const gaze = isEye || s.role === 'socket' ? gazeTransform(gazeKey, index, axes, eyeX/.0391, eyeY/.0512) : undefined;
     if (!gaze && isEye) { axes[9] += eyeX; axes[10] += eyeY; }
+    const bone = (isEye || s.role === 'socket') && motion.playback?.eyes[s.side < 0 ? 0 : 1];
     result.push({
       mesh: style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
-      axes: gaze ?? axes,
+      axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
       material: s.material,
       portraitSection: style.character ? index : undefined,
       finish: s.role === 'extra' ? undefined : s.light ? 'white' : !fixed ? 'ink' : s.role === 'glass' ? 'portrait-glass' : 'portrait-ink',
