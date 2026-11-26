@@ -29,5 +29,17 @@
   "preset-lime_headphones": ["body", "eye", "eye", "extra", "extra", "extra", "extra", "extra"],
   "preset-purple_heart": ["body", "glasses", "glasses", "glasses", "glasses", "glasses"],
   "preset-studio_felipe_hexagon": ["body", "eye", "eye", "extra", "extra", "extra"],
-  "shape-rounded_head_two_ears": ["body", "socket", "eye", "socket", "eye", "hidden", "hidden"]
+  "shape-rounded_head_two_ears": ["body", "socket", "eye", "socket", "eye", "hidden", "hidden"],
+  "wardrobe-blossie-beanie": ["body", "glasses", "extra"],
+  "wardrobe-capsule-beret": ["body", "eye", "eye", "glasses", "extra"],
+  "wardrobe-circle-beanie": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-four_lobed_butterfly-beanie": ["body", "glasses", "extra"],
+  "wardrobe-heart-beanie": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-heart-hat": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-rounded_diamond-beret": ["body", "glasses", "extra"],
+  "wardrobe-rounded_triangle-beanie": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-rounded_triangle-beret": ["body", "glasses", "extra"],
+  "wardrobe-six_lobed_flower-beanie": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-six_lobed_flower-hat": ["body", "eye", "eye", "glasses", "glasses", "extra"],
+  "wardrobe-twelve_scalloped_rosette-beanie": ["body", "eye", "eye", "glasses", "glasses", "extra"]
 }

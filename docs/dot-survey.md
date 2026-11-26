@@ -37,6 +37,12 @@ The diagram below shows the picker outlines in the SVG fallback. The validation 
 
 ![Front and side projections of the eleven picker silhouettes](dot-geometry.png)
 
+## Live stage and floor shadow
+
+The live preview uses an orthographic camera that reframes the character when an accessory or glasses change its bounds. The camera and the two floor ellipses were measured for 576 supported shape, eyewear and extra combinations, 108 catalog characters and both additional studio starters. For the rounded triangle at the same viewport size, putting on the crown reduces the projection scale from 0.479598 to 0.453865 and moves the body down to leave room above the crown. Adding trapezoid lenses to that build reduces the scale to 0.424356.
+
+The floor has a narrow contact ellipse and a wider, fainter surround. They share a centre. During Little Hop, Float, Shimmy and Curious Tilt the floor held its vertical position. Both ellipse radii followed the body’s horizontal scale. During Barrel Roll the shadow moved horizontally with the character, even when its body rose off the floor. The studio uses these measurements for its stage. [Camera checkpoints](../golden/dots/stage-checkpoints.csv) · [Isolated floor captures](../golden/dots/reference/ground)
+
 ## Colour and finish
 
 | Body swatch | sRGB | Body swatch | sRGB |
@@ -73,6 +79,8 @@ The monocle has an open rim and a hanging chain. Tall oval frames have two open 
 
 The positioning data includes the differences between wearers. For example, the same oval pair sits lower and closer together on Circle with two ears. Printed highlights follow the eye’s curved surface through a blink. The lenses and temples stay with the head. Pointer tracking is specific to the insert. On Highlight capsules the dark supports stay in place while the white catches move. On the frog, the pupils travel across the raised pale sockets.
 
+The monocle and tall oval frames change the spacing of the visible eyes. On the rounded triangle, a monocle moves the two sparkle eyes out by 0.12 body radii each. Their depth changes along the curved face. Blossie’s oval eyes keep their original spacing with the same monocle. The selected eye style also affects the frames themselves, including opaque sunglasses. The survey measured the mounted lenses in 445 combinations of wearer, eye style and glasses.
+
 ## Extras
 
 | Extra | Geometry and fit |
@@ -88,6 +96,8 @@ The positioning data includes the differences between wearers. For example, the 
 | Crown | A hollow band with front and rear walls, pointed rises and rounded tip beads. Metallic reflection changes with the viewing angle. |
 
 Both eared shapes accept Headphones and Bow tie. The other six extras were unavailable on those two wearers. Across the eleven editor bodies this gives 76 valid body–extra pairings before counting None or colour. The renderer-only flower adds eight pairings. The beanie, hat, beret and crown were reconstructed from 38 directions per fitting. A second pass used 55 enlarged depth and surface-normal observations per fitting, with five further views held out. Across these four pieces, median held-out depth errors ranged from 0.000014 to 0.000017 body units. The twelve extra colours were measured separately on the matte bulb and polished crown under eight combinations of orientation and wearer.
+
+Across all 576 combinations of body, extra and eyewear, 40 changed the geometry of the mounted extra compared with the same wearer with bare eyes. All 40 involved a hat, beanie or beret. Across the 180 selections involving those three extras, 56 distinct mounted shapes were observed. Each was sampled at 1,024 corresponding surface locations. For Blossie and round sunglasses the largest measured beanie displacement exceeded half a body radius. [Beanie close-up](dot-review/wardrobe-blossie-cuff.png)
 
 ## Starter characters
 
@@ -110,7 +120,7 @@ Version 14 of the live curated selector accepts an unsigned 64-bit seed and choo
 
 ## Idle and cursor movement
 
-The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. After the first cursor interaction, the Ready idle changes to a roughly five-second breath. The vertical scale varies by about ±0.45%. Over a 90-second observation, the body shifted sideways and the eyes glanced during an approximately 50-second sequence. A later cycle added a nod that was absent from the first one. The port follows the measured breath and glance trajectory while the cursor is away.
+The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. After the first cursor interaction, the Ready idle changes to a roughly five-second breath. The vertical scale varies by about ±0.45%. Over a 90-second observation, the body shifted sideways and the eyes glanced during an approximately 50-second sequence. A later cycle added a nod that was absent from the first one. The port follows the measured breath and glance trajectory while the cursor is away. Two further 180-second episodes with the pointer fixed at centre showed the same five-second breathing period and different schedules of small head tilts. The chart shows the native observations, including how the eyes lead the head after a pointer step. [Motion chart](dot-review/attention.png) · [Side-by-side recording of the linked Dot](dot-review/ready-and-cursor.mp4)
 
 Stepping the cursor from centre to the horizontal edge produced head yaw of 0.0092, 0.0237, 0.0355, 0.0463 and 0.0514 radians at frames 2, 4, 6, 9 and 12 at 60 Hz. The end yaw was approximately 0.055 radians (3.15°). Maximum vertical pitch was approximately 0.035 radians (2.01°). The eyes lead the head and traverse approximately 0.0391 and 0.0512 blot body units horizontally and vertically. The port uses separate critically damped responses for the eyes and head and supports diagonal targets and pointer exit. Each moving insert has a measured 3D transform, including the changes in width, shear and depth during a glance. Two intermediate gaze directions were held out per fit. On the builder, the median projected insert-centre error at 512 px was 0.02 px and the 95th percentile was 0.34 px.
 

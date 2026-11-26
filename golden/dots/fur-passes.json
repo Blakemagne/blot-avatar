@@ -1,0 +1,140 @@
+[
+  {
+    "changedPixels": 154,
+    "changedSilhouettePixels": 0,
+    "name": "linked",
+    "occupiedPixels": 2053,
+    "size": 96,
+    "triangleStripInstances": [
+      [
+        0,
+        6,
+        357
+      ]
+    ]
+  },
+  {
+    "changedPixels": 2578,
+    "changedSilhouettePixels": 34,
+    "name": "linked",
+    "occupiedPixels": 14337,
+    "size": 256,
+    "triangleStripInstances": [
+      [
+        0,
+        6,
+        1560
+      ]
+    ]
+  },
+  {
+    "changedPixels": 20571,
+    "changedSilhouettePixels": 540,
+    "name": "linked",
+    "occupiedPixels": 57279,
+    "size": 512,
+    "triangleStripInstances": [
+      [
+        0,
+        6,
+        5759
+      ]
+    ]
+  },
+  {
+    "changedPixels": 1328,
+    "changedSilhouettePixels": 0,
+    "name": "Iris",
+    "occupiedPixels": 2036,
+    "size": 96,
+    "triangleStripInstances": [
+      [
+        48,
+        12,
+        48000
+      ],
+      [
+        32,
+        8,
+        945
+      ],
+      [
+        32,
+        8,
+        945
+      ]
+    ]
+  },
+  {
+    "changedPixels": 9144,
+    "changedSilhouettePixels": 0,
+    "name": "Iris",
+    "occupiedPixels": 15050,
+    "size": 256,
+    "triangleStripInstances": [
+      [
+        48,
+        12,
+        48000
+      ],
+      [
+        32,
+        8,
+        6719
+      ],
+      [
+        32,
+        8,
+        6719
+      ]
+    ]
+  },
+  {
+    "changedPixels": 37991,
+    "changedSilhouettePixels": 10,
+    "name": "Iris",
+    "occupiedPixels": 60019,
+    "size": 512,
+    "triangleStripInstances": [
+      [
+        48,
+        12,
+        48000
+      ],
+      [
+        48,
+        12,
+        26875
+      ],
+      [
+        48,
+        12,
+        26875
+      ]
+    ]
+  },
+  {
+    "changedPixels": 0,
+    "changedSilhouettePixels": 0,
+    "name": "glossy",
+    "occupiedPixels": 1789,
+    "size": 96,
+    "triangleStripInstances": []
+  },
+  {
+    "changedPixels": 0,
+    "changedSilhouettePixels": 0,
+    "name": "glossy",
+    "occupiedPixels": 12409,
+    "size": 256,
+    "triangleStripInstances": []
+  },
+  {
+    "changedPixels": 0,
+    "changedSilhouettePixels": 0,
+    "name": "glossy",
+    "occupiedPixels": 49384,
+    "size": 512,
+    "triangleStripInstances": []
+  }
+]

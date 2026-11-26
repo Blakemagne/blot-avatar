@@ -168,3 +168,22 @@ export const floors = {
   base: {}, linked: cases['linked-character'], iris: { preset: 'Iris' }, tavi: { catalog: 'matisse' },
   ...Object.fromEntries(DOT_SHAPES.filter(s => s.name !== 'Rounded triangle').map(s => [id(s.name), { shape: s.id }])),
 };
+
+// The studio refits these headpieces when the wearer puts on glasses.
+for (const [name, shape, extra, glasses, turn] of [
+  ['wardrobe-blossie-beanie', 'dot-blossie', 'Beanie', 'Round sunglasses', [-0.28, -0.16, 0]],
+  ['wardrobe-six_lobed_flower-hat', 'dot-six-lobed-flower', 'Hat', 'Tall oval frames', [0.327, 0, 0.05]],
+  ['wardrobe-circle-beanie', 'dot-circle', 'Beanie', 'Tall oval frames', [-0.374, 0.16, 0]],
+  ['wardrobe-twelve_scalloped_rosette-beanie', 'dot-twelve-scalloped-rosette', 'Beanie', 'Tall oval frames', [0.421, -0.16, 0.05]],
+  ['wardrobe-heart-hat', 'dot-heart', 'Hat', 'Tall oval frames', [-0.468, 0, 0]],
+  ['wardrobe-four_lobed_butterfly-beanie', 'dot-four-lobed-butterfly', 'Beanie', 'Classic sunglasses', [0.515, 0.16, 0.05]],
+  ['wardrobe-rounded_triangle-beanie', 'dot-rounded-triangle', 'Beanie', 'Tall oval frames', [-0.28, -0.16, 0]],
+  ['wardrobe-rounded_triangle-beret', 'dot-rounded-triangle', 'Beret', 'Classic sunglasses', [0.327, 0, 0.05]],
+  ['wardrobe-capsule-beret', 'dot-capsule', 'Beret', 'Monocle', [-0.374, 0.16, 0]],
+  ['wardrobe-rounded_diamond-beret', 'dot-rounded-diamond', 'Beret', 'Classic sunglasses', [0.421, -0.16, 0.05]],
+  ['wardrobe-six_lobed_flower-beanie', 'dot-six-lobed-flower', 'Beanie', 'Tall oval frames', [-0.468, 0, 0]],
+  ['wardrobe-heart-beanie', 'dot-heart', 'Beanie', 'Tall oval frames', [0.515, 0.16, 0.05]],
+]) {
+  cases[name] = { shape, extra, glasses };
+  turns['turn-' + name] = { ...cases[name], turn };
+}
