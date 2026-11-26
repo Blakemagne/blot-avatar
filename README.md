@@ -427,7 +427,7 @@ What it costs, measured in headless Edge on one desktop PC (an NVIDIA GTX 1060),
 | progress, still | 0.31 to 0.39 ms | 0.38 to 0.53 ms | 0.75 to 0.97 ms | 1.08 to 1.09 ms | none |
 | progress, filling | 0.37 to 0.46 ms | 0.68 to 0.86 ms | 0.84 to 1.17 ms | 1.86 to 2.42 ms | nearly every frame |
 
-The GPU's time and the browser's compositing are not in those numbers. The demo page keeps its thumbnails flat: a coat for each of its 38 avatars would make 38 meshes, about 3 s of work in all (measured in Node on the same PC).
+The GPU's time and the browser's compositing are not in those numbers. The studio builds each picker portrait when its tile first becomes visible. Resting portraits share the material renderer and cached meshes with the stage.
 
 ### Ultracode
 

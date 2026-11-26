@@ -2,8 +2,6 @@
 // disk (one classic script, every path relative, so it works under /blot-avatar/ as well as at a root).
 //   npm run site            build once
 //   npm run site:dev        build, rebuild on change, and serve on http://localhost:5300
-// Run through tsx (the npm scripts do), because the favicon and the studio's gallery thumbnails are drawn by the
-// engine itself. site:dev draws them once, at start: restart it to see an engine or gallery change in them.
 
 import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -11,7 +9,7 @@ import { watch } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
-import { BODIES, DOT_SHAPES, GALLERY, colours, drawAvatar, outlineBody, stillState, VIEW_BOX } from '../src/index.ts';
+import { BODIES, colours, drawAvatar, stillState, VIEW_BOX } from '../src/index.ts';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const site = path.join(root, 'site');
@@ -39,22 +37,6 @@ function icon() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}"><path d="${d.body}" fill="${c.fill}"/><path d="${d.eyes[0]}" fill="${c.eyeFill}"/><path d="${d.eyes[1]}" fill="${c.eyeFill}"/></svg>\n`;
 }
 
-/**
- * The studio's pictures of the gallery avatars, drawn here once: making a body from an outline takes a tenth of a
- * second or more, too long to do 23 times as the page opens. The page draws the bodies themselves when one is
- * picked (or the pointer comes to it).
- */
-function thumbs() {
-  const out = {};
-  for (const def of [...GALLERY.map(item => item.definition), ...DOT_SHAPES]) {
-    const d = drawAvatar(outlineBody(def), '#000000', stillState(def, THUMB), THUMB);
-    out[(DOT_SHAPES.includes(def) ? 'body:' : 'gallery:') + def.id] = [d.body, d.eyes[0], d.eyes[1]];
-  }
-  return out;
-}
-/** The size the thumbnails are drawn for. */
-const THUMB = 56;
-
 const options = {
   entryPoints: { app: path.join(site, 'main.ts') },
   outdir: out,
@@ -66,7 +48,6 @@ const options = {
   legalComments: 'none',
   logLevel: 'warning',
   loader: { '.md': 'text' },
-  define: { __THUMBS__: JSON.stringify(thumbs()), __THUMB__: String(THUMB) },
 };
 
 async function statics() {

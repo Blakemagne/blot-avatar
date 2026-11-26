@@ -104,10 +104,24 @@ test('changing an outfit on a Blot body keeps its pointer rig and its in-flight 
   }
 });
 
+test('Frog picker portraits keep both raised eye sockets facing the viewer', () => {
+  const frog = DOT_SHAPES.find(shape => shape.id === 'dot-rounded-head-with-two-ears');
+  assert.equal(frog.name, 'Frog');
+  for (const shape of [frog, frog.id]) {
+    const state = stillState(shape, 56);
+    assert.deepEqual(state.pose, { yaw: 0, pitch: 0, roll: 0 });
+    const drawing = drawAvatar(avatarParts(shape).body, '#B6D80B', state, 56);
+    for (const side of ['left', 'right']) {
+      assert.ok(drawing.layers.some(layer => layer.id === side + '-socket' && layer.d));
+      assert.ok(drawing.layers.some(layer => layer.id === side && layer.d));
+    }
+  }
+});
+
 test('every Dot contour fits its measured native-aspect silhouette before and after inflation', () => {
   assert.equal(DOT_PICKER_SHAPES.length, reference.length);
   for (const [i, shape] of DOT_PICKER_SHAPES.entries()) {
-    assert.equal(shape.name, reference[i][0]);
+    assert.equal(shape.name, reference[i][0] === 'Rounded head with two ears' ? 'Frog' : reference[i][0]);
     assert.equal(bodyOf(shape.id), bodyOf(shape));
     assert.equal(validateAvatar(shape).ok, true);
     const d = drawAvatar(bodyOf(shape), '#fff', front, 200);

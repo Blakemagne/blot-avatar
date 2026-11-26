@@ -2,7 +2,7 @@ import { DOT_CATALOG, DOT_SHAPES, DOT_COLOURS, DOT_EYES, DOT_GLASSES, DOT_EXTRAS
 
 const key = value => value.toLowerCase().replaceAll(' ', '_');
 const names = {
-  'Rounded head with two ears': 'rounded_head_two_ears', 'Circle with two ears': 'circle_two_ears',
+  'Frog': 'rounded_head_two_ears', 'Circle with two ears': 'circle_two_ears',
   Hexagon: 'rounded_cube', 'Round highlights': 'double_highlights', 'Bow tie': 'bow',
   Bulb: 'orb', Tuft: 'three_lobe',
 };

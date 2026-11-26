@@ -33,7 +33,9 @@ export const PORTRAIT_FROM = 28;
 
 /** The pose a still avatar holds: front-facing when tiny, the shape's portrait pose above that. */
 export function stillState(shape: Shape, size: number): RigState {
-  const pose = size < PORTRAIT_FROM ? { yaw: 0, pitch: 0, roll: 0 } : portraitFor(typeof shape === 'string' ? shape : '');
+  const id = typeof shape === 'string' ? shape : shape.id;
+  const dot = id.startsWith('dot-') && DOT_SHAPES.some(def => def.id === id);
+  const pose = size < PORTRAIT_FROM || dot ? { yaw: 0, pitch: 0, roll: 0 } : portraitFor(typeof shape === 'string' ? shape : '');
   return { pose, eye: { x: 0, y: 0 }, lid: 1, face: FACES.neutral };
 }
 

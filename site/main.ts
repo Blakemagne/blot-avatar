@@ -9,8 +9,8 @@
 
 import {
   avatarParts, dotAvatar, dotStageLayout, DOT_SHAPES, DOT_COLOURS, DOT_EXTRA_COLOURS, DOT_CLIPS, DOT_MOTIONS, DOT_CHARACTERS, DOT_CATALOG, DOT_EYES, DOT_GLASSES, DOT_EXTRAS, dotExtras, type AvatarParts, type DotAppearance,
-  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, coatMesh, coatable, colours, drawAvatar, galleryColour,
-  mount, onMotion, reducedMotion, stillState, svgBox,
+  ACTIVITIES, BODIES, BOT_COLOURS, CUES, FACE_NAMES, FORMS, GALLERY, PERSONALITY, POKES, bodyOf, coatMesh, coatable, colours, galleryColour,
+  mount, onMotion, reducedMotion, svgBox,
   type AvatarDefinition, type Material, type MountOptions, type Mounted, type Personality, type Shape,
 } from '@blot/avatar';
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
@@ -166,11 +166,30 @@ interface Entry {
   shape: Shape;
   /** Its own colour, which it shows until another is picked for it. */
   own: string;
+  finish?: Material;
   definition?: AvatarDefinition;
 }
 
 const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
-for (const shape of DOT_SHAPES) BODY_ENTRIES.push({ key: 'body:' + shape.id, id: shape.id, name: shape.name, kind: 'body', shape: shape.id, own: '#FFFFFF', definition: shape });
+// Picker looks use the same palette and materials as the stage.
+const dotLooks: Record<string, readonly [string, Material]> = {
+  'dot-blossie': ['#FA70AB', 'fluffy'],
+  'dot-circle': ['#4778FF', 'glossy'],
+  'dot-rounded-triangle': ['#00B1FF', 'fluffy'],
+  'dot-capsule': ['#A25BFF', 'glossy'],
+  'dot-rounded-head-with-two-ears': ['#B6D80B', 'glossy'],
+  'dot-heart': ['#FF8066', 'glossy'],
+  'dot-four-lobed-butterfly': ['#DD6ADC', 'fluffy'],
+  'dot-circle-with-two-ears': ['#FA70AB', 'fluffy'],
+  'dot-twelve-scalloped-rosette': ['#FFCC38', 'glossy'],
+  'dot-hexagon': ['#04BB9F', 'glossy'],
+  'dot-rounded-diamond': ['#4778FF', 'glossy'],
+  'dot-six-lobed-flower': ['#A25BFF', 'fluffy'],
+};
+for (const shape of DOT_SHAPES) {
+  const [own, finish] = dotLooks[shape.id];
+  BODY_ENTRIES.push({ key: 'body:' + shape.id, id: shape.id, name: shape.name, kind: 'body', shape: shape.id, own, finish, definition: shape });
+}
 /** The gallery by its colours in blot's order, then by name. */
 const GALLERY_ENTRIES: Entry[] = GALLERY.map((g): Entry => ({
   key: `gallery:${g.definition.id}`, id: g.definition.id, name: g.definition.name, kind: 'gallery', shape: g.definition, own: galleryColour(g), definition: g.definition,
@@ -259,9 +278,11 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
   }
   if (recipes[preset]?.shape !== entry(pg.key).shape) preset = '';
   if (shared.colour) picked.set(pg.key, shared.colour);
+  // Older saved Dot looks omitted white because every Dot used to start white.
+  else if (shared.avatar && entry(pg.key).finish && shared.material) picked.set(pg.key, '#FFFFFF');
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
-  else if (!chosenTexture && outfit().body?.dotStyle) pg.material = 'glossy';
+  else if (!chosenTexture) pg.material = entry(pg.key).finish ?? 'glossy';
   pg.color = picked.get(pg.key) ?? entry(pg.key).own;
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
 }
@@ -469,33 +490,26 @@ for (const menu of document.querySelectorAll<HTMLElement>('[data-menu]')) {
 
 // ---- The Bot tab: every avatar as a still, and the colour.
 
-/** A still of an avatar, facing front, as a thumbnail: the gallery's were drawn at the build, the rest here. */
-function thumb(e: Entry): SVGSVGElement {
-  const NS = 'http://www.w3.org/2000/svg', box = svgBox(__THUMB__);
-  const drawn = (): string[] => {
-    const d = drawAvatar(bodyOf(e.shape), BLACK, stillState(e.shape, __THUMB__), __THUMB__);
-    return [d.body, d.eyes[0], d.eyes[1]];
-  };
-  const paths = (e.kind !== 'yours' && __THUMBS__[(e.kind === 'body' ? 'body:' : 'gallery:') + e.id]) || drawn();
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', box.viewBox);
-  svg.setAttribute('width', String(box.width));
-  svg.setAttribute('height', String(box.height));
-  svg.setAttribute('aria-hidden', 'true');
-  Object.assign(svg.style, { position: 'absolute', left: `${box.left}px`, top: `${box.top}px`, overflow: 'visible' });
-  paths.forEach((d, i) => {
-    const p = document.createElementNS(NS, 'path');
-    p.setAttribute('d', d);
-    p.dataset.part = i ? 'eye' : 'body';
-    svg.append(p);
-  });
-  return svg;
+// Mount still portraits as they enter the picker, so closed lists do not build coat meshes.
+const tiles = new WeakMap<Element, { entry: Entry; avatar?: Mounted }>();
+const tileFinishes = new Map<string, Material>();
+const visibleTiles = new IntersectionObserver(rows => {
+  for (const row of rows) {
+    const tile = tiles.get(row.target);
+    if (!tile || !row.isIntersecting) continue;
+    const e = tile.entry;
+    const config = e.finish ? avatarParts(e.shape) : { shape: e.shape };
+    tile.avatar = mount(row.target as HTMLElement, {
+      ...config, size: 56, rests: true, ...inked(picked.get(e.key) ?? e.own),
+      material: tileFinishes.get(e.key) ?? e.finish ?? 'glossy',
+    });
+    visibleTiles.unobserve(row.target);
+  }
+});
+function paintThumb(cell: HTMLElement, colour: string): void {
+  const slot = cell.querySelector('.bot-thumb');
+  if (slot) tiles.get(slot)?.avatar?.update({ ...inked(colour), material: pg.material });
 }
-const paintThumb = (cell: HTMLElement, colour: string): void => {
-  const c = colours(colour), black = colour === BLACK;
-  for (const p of cell.querySelectorAll<SVGPathElement>('path')) p.style.fill = p.dataset.part === 'body' ? (black ? 'var(--ink)' : c.fill) : (black ? 'var(--bg)' : c.eyeFill);
-};
-
 const cells = new Map<string, HTMLButtonElement>();
 const botsBox = $('[data-bots]'), pickNote = $('[data-pick-note]');
 function cellFor(e: Entry): HTMLLIElement {
@@ -504,10 +518,11 @@ function cellFor(e: Entry): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'bot-cell', title: label });
   b.setAttribute('aria-label', label);
   const slot = make('span', { className: 'bot-thumb' });
-  slot.style.width = slot.style.height = `${__THUMB__}px`;
-  slot.append(thumb(e));
+  slot.style.width = slot.style.height = '56px';
+  slot.setAttribute('aria-hidden', 'true');
+  tiles.set(slot, { entry: e });
+  visibleTiles.observe(slot);
   b.append(slot);
-  paintThumb(b, picked.get(e.key) ?? e.own);
   b.addEventListener('click', () => select(e.key));
   // A body made from an outline takes a moment to build, and so does a coat's mesh: start on them before the
   // click, so the change of shape does not stutter as it lands. The body as the pointer comes; the mesh, which
@@ -544,7 +559,11 @@ drawYours();
 function redrawYours(): void {
   // Focus on one of yours (or on +) stays on it through the redraw.
   const had = document.activeElement, focused = [...cells].find(([, b]) => b === had)?.[0];
-  for (const k of [...cells.keys()]) if (k.startsWith('yours:')) cells.delete(k);
+  for (const k of [...cells.keys()]) if (k.startsWith('yours:')) {
+    const slot = cells.get(k)?.querySelector('.bot-thumb');
+    if (slot) { visibleTiles.unobserve(slot); tiles.get(slot)?.avatar?.destroy(); }
+    cells.delete(k);
+  }
   drawYours();
   marked();
   if (had === newTile) newTile.focus({ preventScroll: true });
@@ -565,8 +584,7 @@ function marked(): void {
 const resetColour = $<HTMLButtonElement>('[data-reset-colour]');
 /** The colour now shown, on its thumbnail and the reset button. */
 function coloured(): void {
-  const e = entry(pg.key), cell = cells.get(pg.key);
-  if (cell) paintThumb(cell, pg.color);
+  const e = entry(pg.key);
   resetColour.hidden = pg.color.toUpperCase() === e.own.toUpperCase();
   const name = BOT_COLOURS.find(([h]) => h === e.own)?.[1] ?? e.own;
   resetColour.textContent = `back to its own colour, ${name.toLowerCase()}`;
@@ -577,6 +595,9 @@ function coloured(): void {
 const previews: Mounted[] = [];
 const faint = $('[data-eye-note]');
 function paint(): void {
+  tileFinishes.set(pg.key, pg.material);
+  const tile = cells.get(pg.key);
+  if (tile) paintThumb(tile, pg.color);
   for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, pg.eyes ?? undefined), material: pg.material });
   // The eyes as drawn: the picked colour, or the automatic one.
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
@@ -605,9 +626,7 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
   });
 }
 
-// The finish, beside the colour: flat, or a coat of fur. It is kept in this browser and goes into the code, the
-// link and every avatar that shows the studio's (the stage, the Moves view's, the colour previews). The thumbnails
-// stay flat: a coat for each would make 38 meshes as the page opens, about 3 s of work in all (in Node).
+// The chosen finish follows the avatar across the stage, picker, exports and share link.
 const materialNote = $('[data-material-note]');
 const materialButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-material-is]')];
 function syncTexture(): void {
@@ -745,7 +764,7 @@ function syncWardrobe() {
   const style = body?.dotStyle;
   const native = !!style && !body?.wardrobeHost;
   if (!chosenTexture && !preset) {
-    const finish = style ? 'glossy' : 'flat';
+    const finish = entry(pg.key).finish ?? 'glossy';
     if (pg.material !== finish) { pg.material = finish; finished(); }
   }
   $('[data-eye-colours]').hidden = !!style && !style.originalEyes;
@@ -883,6 +902,7 @@ function appearanceLink() {
   const e = entry(pg.key);
   const url = new URL(shareLink(location.href.split(/[?#]/)[0], e, pg.color, e.own, pg.activity, pg.material));
   for (const [key,v] of Object.entries(wardrobe)) url.searchParams.set(key,v);
+  if (e.finish) url.searchParams.set('color', pg.color);
   if (pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
   if (preset) url.searchParams.set('preset',preset);
   url.searchParams.set('material',pg.material);

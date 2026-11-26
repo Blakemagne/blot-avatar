@@ -2,7 +2,7 @@
 
 The linked character opens as a cyan rounded triangle with sleepy lids, a yellow crown and fur. The signed-in editor displayed eleven body tiles, ten body colours, two finishes, eight selectable eye designs, six eyewear choices including None, and nine extras including None. Body and accessory colours are independent. Observations were made on November 25–26, 2026. [Reference character](https://chatgpt.com/dots/5c7d15af6e7a2420aef2950b1dcac542089e0f756ae39e54921d9f2d4e5782cf~6b07bce089908192b6d9f7043c33109b)
 
-The live renderer also accepted **Six-lobed flower**. Its **Round inset** eye entry was available exclusively on **Rounded head with two ears**, where it was already selected. The editor represents that combination by hiding the Eyes control. The eight starter tiles, the renderer’s 108 catalog entries and the separate pet picker are different collections. [Catalog inventory](dot-catalog.csv)
+The live renderer also accepted **Six-lobed flower**. Its **Round inset** eye entry was available exclusively on **Frog** (recorded as “Rounded head with two ears” in the reference fixtures), where it was already selected. The editor represents that combination by hiding the Eyes control. The eight starter tiles, the renderer’s 108 catalog entries and the separate pet picker are different collections. [Catalog inventory](dot-catalog.csv)
 
 ## Body geometry
 
@@ -14,7 +14,7 @@ The dimensions below are orthographic measurements of the bare solid, before add
 | Circle | 2.000 × 2.000 × 1.759 | Circular face with a shallower depth axis. The highlight follows the ellipsoid as it turns. |
 | Rounded triangle | 2.000 × 1.771 × 1.600 | Short rounded apex, broad base and three convex corners. |
 | Capsule | 2.000 × 1.375 × 1.279 | Long horizontal axis with rounded ends and a flattened vertical section. |
-| Rounded head with two ears | 2.000 × 1.604 × 1.424 | Wide cheeks and separated upper sockets. The pupils lie on the pale socket surfaces. |
+| Frog | 2.000 × 1.604 × 1.424 | Wide cheeks and separated upper sockets. The pupils lie on the pale socket surfaces. |
 | Heart | 2.000 × 1.833 × 1.603 | Two rounded upper lobes meet in a notch. The flanks taper into a rounded lower point. |
 | Four-lobed butterfly | 2.000 × 1.542 × 1.439 | Four wings with recesses on all four sides and wider upper lobes. |
 | Circle with two ears | 1.500 × 2.000 × 1.250 | Two projections rise above a smaller round face. The eye line sits below the centre of the full body. |
@@ -30,7 +30,7 @@ The renderer also accepts a continuous depth setting for builder bodies and matt
 These registered views show the bare body in the live studio. Each plate uses the same camera scale. The butterfly has a central crease visible from the side. The rosette’s ridges and the flower’s lobes extend around their depth. The top views show how the two eared bodies carry their projections.
 
 - [Blossie, Circle, Rounded triangle and Capsule](dot-review/geometry-1.png)
-- [Rounded head with two ears, Heart, Four-lobed butterfly and Circle with two ears](dot-review/geometry-2.png)
+- [Frog, Heart, Four-lobed butterfly and Circle with two ears](dot-review/geometry-2.png)
 - [Twelve-scalloped rosette, Hexagon, Rounded diamond and Six-lobed flower](dot-review/geometry-3.png)
 
 The diagram below shows the picker outlines in the SVG fallback. The validation report also includes the illuminated WebGL surfaces and rotated views. [Rendered comparisons](dot-parity.md)
