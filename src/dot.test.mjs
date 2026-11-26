@@ -243,3 +243,23 @@ test('curated selection matches observed version 14 studio choices across the un
   assert.throws(() => curatedDot(-1n), RangeError);
   assert.throws(() => curatedDot(1n << 64n), RangeError);
 });
+
+test('live stage frames each catalog and wearer, including the forehead and floor under different accessories', async () => {
+  const { dotStageLayout, DOT_CATALOG, dotExtras } = await import('./index.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  const recipe = { shape: 'dot-rounded-triangle', extra: 'Crown', eyes: 'Sleepy lids' };
+  const crown = dotStageLayout(recipe, 512);
+  assert.equal(crown.size, 512*.453865/DOT_RADIUS);
+  assert.equal(crown.y, 256*.114339);
+  assert.equal(crown.groundTransform(), '');
+  assert.equal(crown.groundTransform({ scale: [.94,1.08,.94], offset: [.25*DOT_RADIUS,0,0] }),
+    `translateX(${.25*256*.453865}px) scale(0.94)`);
+  const lenses = dotStageLayout({ ...recipe, glasses: 'Separate trapezoid lenses' },512);
+  assert.equal(lenses.size, 512*.424356/DOT_RADIUS);
+  assert.equal(lenses.y,256*.106905);
+  for (const entry of DOT_CATALOG) assert.ok(dotStageLayout(entry.appearance,256).size > 0);
+  for (const body of DOT_SHAPES) for (const extra of dotExtras(body.id)) for (const glasses of DOT_GLASSES) {
+    assert.ok(Number.isFinite(dotStageLayout({ shape: body.id, extra, glasses },128).size));
+  }
+  assert.throws(() => dotStageLayout(recipe, 0), RangeError);
+});

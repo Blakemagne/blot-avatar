@@ -163,3 +163,8 @@ for (const shape of DOT_SHAPES) {
     ['side', [Math.PI/2, 0, 0]], ['top', [0, -Math.PI/2, 0]], ['oblique', [.82, -.42, .07]],
   ]) turns['profile-' + id(shape.name) + '-' + view] = { shape: shape.id, turn };
 }
+
+export const floors = {
+  base: {}, linked: cases['linked-character'], iris: { preset: 'Iris' }, tavi: { catalog: 'matisse' },
+  ...Object.fromEntries(DOT_SHAPES.filter(s => s.name !== 'Rounded triangle').map(s => [id(s.name), { shape: s.id }])),
+};

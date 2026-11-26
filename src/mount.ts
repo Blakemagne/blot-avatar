@@ -12,6 +12,8 @@ import { onMotion, reducedMotion } from './ticker';
 import { eyeInk, furShown, paintSkin, skinPaint, ultraId } from './ultra';
 
 export interface MountOptions extends LiveProps {
+  /** Observe a painted frame, including its pose, to synchronize surrounding stage elements. */
+  onDraw?: (drawing: Drawing) => void;
   /** '#rrggbb' or any CSS colour (default '#FD690F'). The eyes are drawn in a colour that stands out on it. */
   color?: string;
   /** The body's fill as any CSS value, over `color`, e.g. 'var(--ink)'. */
@@ -200,6 +202,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     powered(d);
     paintEffects(back, front, d, fxPaint(c));
     glowed(glowFilter(d, opts.size, c));
+    opts.onDraw?.(d);
   });
   live.motion();
   live.follow(opts.follow);

@@ -1,0 +1,9 @@
+recipe,projection_scale,camera_x,camera_y,floor_x,floor_y,floor_radius_x,floor_radius_y
+builder/rounded_triangle/crown,0.453865,0,-0.114339,0,-0.915258,1.199982,0.129492
+builder/blossie/beanie/tall_oval_frames,0.479849,0,-0.055474,0,-1.023083,1.199353,0.145188
+builder/rounded_triangle/crown/separate_trapezoid_lenses,0.424356,0,-0.106905,0,-0.915258,1.199982,0.129492
+builder/circle_two_ears/headphones/round_sunglasses,0.479474,0,-6.2e-05,0.000506,-1.025119,0.903542,0.14549
+builder/rounded_head_two_ears/bow/classic_sunglasses,0.4779,0,0.024282,0,-0.826572,1.200186,0.116598
+catalog/matisse,0.430689,0,-0.079739,0.002984,-0.939941,1.199999,0.133082
+catalog/alfred,0.479598,0,0.038081,0,-0.915258,1.199982,0.129492
+starter/studio_felipe_hexagon,0.548982,0,0.026609,0,-1.021496,0.963335,0.122713

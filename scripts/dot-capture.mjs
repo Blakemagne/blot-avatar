@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { build } from 'esbuild';
-import { catalog, cases, turns } from './dot-cases.mjs';
+import { catalog, cases, floors, turns } from './dot-cases.mjs';
 
 const [directory, ...names] = process.argv.slice(2);
 if (!directory) throw Error('Usage: dot-capture.mjs OUTPUT [case ...]. Use DOT_TURNS=1 for held-out rotations.');
@@ -16,9 +16,14 @@ try {
   await page.setContent('<style>main{position:relative;margin:128px auto}</style><main></main>');
   await page.addScriptTag({content:bundle.outputFiles[0].text});
   await mkdir(directory, {recursive:true});
-  const suite = process.env.DOT_CATALOG ? { base: {}, ...catalog } : process.env.DOT_TURNS ? { base: {}, ...turns } : cases;
+  const suite = process.env.DOT_GROUND ? floors : process.env.DOT_CATALOG ? { base: {}, ...catalog } : process.env.DOT_TURNS ? { base: {}, ...turns } : cases;
   for (const [name, spec] of Object.entries(suite)) {
     if (names.length && !names.includes(name)) continue;
+    if (process.env.DOT_GROUND) {
+      await page.evaluate(spec => dotReview.ground(spec), spec);
+      await page.screenshot({ path: path.join(directory,name+'.png'), omitBackground: true });
+      continue;
+    }
     const png = await page.evaluate(([spec,pixels]) => window.dotReview.capture(spec,pixels), [spec,process.env.DOT_TURNS ? 384 : 512]);
     await writeFile(path.join(directory,name+'.png'), Buffer.from(png,'base64'));
   }

@@ -10,6 +10,7 @@ import {
   dotExtras,
   DOT_SHAPES,
   dotAvatar,
+  dotStageLayout,
   mount,
   type DotAppearance,
 } from '@blot/avatar';
@@ -24,12 +25,23 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
     extraColour: '#FFCC38',
     texture: 'Fur',
   };
+  const camera = host.parentElement!;
+  const ground = camera.querySelector<HTMLElement>('.dot-ground')!;
+  let layout: ReturnType<typeof dotStageLayout>;
+  function frameAppearance() {
+    layout = dotStageLayout(appearance, camera.getBoundingClientRect().width || 288);
+    ground.style.backgroundImage = layout.background;
+    ground.style.transformOrigin = layout.groundOrigin;
+    host.style.transform = `translate(${layout.x}px, ${layout.y}px)`;
+    return { ...dotAvatar(appearance), size: layout.size };
+  }
   const avatar = mount(host, {
-    ...dotAvatar(appearance),
-    size: 144,
+    ...frameAppearance(),
     follow: true,
-    followIn: host.parentElement,
+    followIn: camera.parentElement,
+    onDraw: drawing => { ground.style.transform = layout.groundTransform(drawing.coat?.dotFace?.playback); },
   });
+  new ResizeObserver(() => avatar.update(frameAppearance())).observe(camera);
   const character = document.createElement('select'),
     characterLabel = document.createElement('label');
   character.setAttribute('aria-label', 'Character');
@@ -100,7 +112,7 @@ export function dotPicker(host: HTMLElement, controls: HTMLElement): void {
     }
     fields.get('eyes')!.parentElement!.hidden = appearance.shape === 'dot-rounded-head-with-two-ears';
     colour.parentElement!.hidden = appearance.extra === 'None';
-    avatar.update(dotAvatar(appearance));
+    avatar.update(frameAppearance());
   }
   const motionLabel = document.createElement('label'), motion = document.createElement('select');
   motionLabel.textContent = 'Motion';

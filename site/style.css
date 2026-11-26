@@ -376,6 +376,8 @@ pre code { font-size: inherit; }
 .dot-studio h1 { margin: 1.5rem 0; }
 .dot-workbench { display: grid; grid-template-columns: 1fr minmax(16rem, .85fr); gap: 2rem; }
 .dot-stage { display: grid; place-items: center; min-height: 18rem; background: var(--sunk); border-radius: var(--radius); }
+.dot-ground { position: absolute; inset: 0; pointer-events: none; }
+.dot-camera { position: relative; width: min(100%, 18rem); aspect-ratio: 1; display: grid; place-items: center; }
 #dot-controls { display: grid; gap: .75rem; }
 #dot-controls label { display: grid; grid-template-columns: 6rem 1fr; align-items: center; font-weight: 500; }
 #dot-controls select { width: 100%; padding: .55rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--surface); color: var(--ink); font: inherit; }

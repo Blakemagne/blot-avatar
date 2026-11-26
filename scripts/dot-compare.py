@@ -52,7 +52,7 @@ def review_sections(name, mask_path, labels, images, exact, errors, output):
                         (folder / filename).relative_to(output).as_posix()))
     return records
 
-def report(reference, candidate, output, sections=None):
+def report(reference, candidate, output, sections=None, alpha_threshold=128):
     output.mkdir(parents=True, exist_ok=True)
     refs = sorted(reference.glob("*.png"))
     if not refs:
@@ -70,7 +70,7 @@ def report(reference, candidate, output, sections=None):
         if a.shape != b.shape:
             raise ValueError(f"{name}: dimensions differ")
         occupied = (a[:, :, 3] > 0) | (b[:, :, 3] > 0)
-        am, bm = a[:, :, 3] >= 128, b[:, :, 3] >= 128
+        am, bm = a[:, :, 3] >= alpha_threshold, b[:, :, 3] >= alpha_threshold
         errors = np.abs(a - b)
         exact = errors.max(axis=2) == 0
         category = name.split("-")[0]
@@ -128,5 +128,6 @@ if __name__ == "__main__":
     for arg in ["reference", "candidate", "output"]:
         parser.add_argument(arg, type=Path)
     parser.add_argument("--sections", type=Path, help="Registered component masks and labels.json")
+    parser.add_argument("--alpha-threshold", type=int, default=128, help="Use 1 for isolated translucent floor layers")
     args = parser.parse_args()
     raise SystemExit(0 if report(**vars(args)) else 1)
