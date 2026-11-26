@@ -23,7 +23,13 @@ The dimensions below are orthographic measurements of the bare solid, before add
 | Rounded diamond | 2.000 × 1.958 × 1.620 | Four rounded diagonal flanks, with broader top and bottom tips. |
 | Six-lobed flower | 2.000 × 1.833 × 1.650 | Six rounded lobes. The renderer accepts this body and uses it for catalog characters including Tavi and the flower-bodied Felipe. |
 
-The port reconstructs the two surfaces from measured midplanes and squared half-thickness. It samples the equator over 1,024 directions and refines the front and back mesh positions and shading normals against 768 px depth and normal observations. Shared equator vertices close the front and back into one mesh. This distinction matters most at the heart notch, the ears and the rosette valleys. The starter portraits have their own sections. For instance, the central front of the starter Alfred is approximately 0.60 units deep, compared with 0.80 on the builder triangle.
+The twelve builder solids use closed meshes fitted to six orthographic depth and normal observations at 768 px. Their six surface patches share vertices along adjacent edges. The frontal silhouette also has an independent 1,024-direction measurement. The fixed portraits use separate front and back sections. For instance, the central front of Alfred is approximately 0.60 units deep, compared with 0.80 on the builder triangle.
+
+These registered views show the bare body in the live studio. Each plate uses the same camera scale. The butterfly has a central crease visible from the side. The rosette’s ridges and the flower’s lobes extend around their depth. The top views show how the two eared bodies carry their projections.
+
+- [Blossie, Circle, Rounded triangle and Capsule](dot-review/geometry-1.png)
+- [Rounded head with two ears, Heart, Four-lobed butterfly and Circle with two ears](dot-review/geometry-2.png)
+- [Twelve-scalloped rosette, Hexagon, Rounded diamond and Six-lobed flower](dot-review/geometry-3.png)
 
 The diagram below shows the picker outlines in the SVG fallback. The validation report also includes the illuminated WebGL surfaces and rotated views. [Rendered comparisons](dot-parity.md)
 
@@ -43,7 +49,7 @@ The extra palette repeats Pink, Orchid, Violet, Blue, Cyan, Teal, Lime, Yellow, 
 
 **Glossy** shows a broad studio reflection and a smaller bright reflection. Identically oriented normals on two different parts of the body can have different brightness. The position of the surface relative to the lights matters. The independent shader was calibrated from 30,000 position-and-normal samples per body swatch. On the mounted avatar, the body, eye inserts and fittings share the same depth buffer.
 
-**Fur** breaks up the highlight with a short, fine pile. The builder coat is finer than the grain on the named furry portraits. The port combines shells and strands with a surface-bound density field measured by rotating a white probe through twenty orientations per builder shape. The field follows the solid under yaw, pitch and roll. The ten fixed portraits have separately measured colour responses and paired front/back density fields from 24 orientations. The review report measures the remaining difference in their grain.
+**Fur** breaks up the highlight with a short, fine pile. The builder coat is finer than the grain on the named furry portraits. The builder uses seven translucent shells. Two surface-bound density fields capture fine grain and broader variations from 22 studio orientations per body. Measurements across all ten swatches separate pigment response from density. The body and its fitted accessories also contribute depth to the soft contact shadows under lids, glasses and headwear. The field follows the solid under yaw, pitch and roll. For each fixed furry portrait, 36 separate orientations measure how small clumps brighten or darken as the head turns. The port projects this raised optical surface onto the body and calculates the shadows its fittings cast. The review report measures the remaining difference in their grain.
 
 ## Eyes and glasses
 
@@ -96,7 +102,7 @@ The fixed portraits have different hulls, accessory fittings and surface respons
 
 ## Idle and cursor movement
 
-The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. Blink timing and the longer named movements are separate from this small breath.
+The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. After the first cursor interaction, the Ready idle changes to a roughly five-second breath. The vertical scale varies by about ±0.45%. Over a 90-second observation, the body shifted sideways and the eyes glanced during an approximately 50-second sequence. A later cycle added a nod that was absent from the first one. The port follows the measured breath and glance trajectory while the cursor is away.
 
 Stepping the cursor from centre to the horizontal edge produced head yaw of 0.0092, 0.0237, 0.0355, 0.0463 and 0.0514 radians at frames 2, 4, 6, 9 and 12 at 60 Hz. The end yaw was approximately 0.055 radians (3.15°). Maximum vertical pitch was approximately 0.035 radians (2.01°). The eyes lead the head and traverse approximately 0.0391 and 0.0512 blot body units horizontally and vertically. The port uses separate critically damped responses for the eyes and head and supports diagonal targets and pointer exit. Each moving insert has a measured 3D transform, including the changes in width, shear and depth during a glance. Two intermediate gaze directions were held out per fit. On the builder, the median projected insert-centre error at 512 px was 0.02 px and the 95th percentile was 0.34 px.
 

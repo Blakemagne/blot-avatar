@@ -150,3 +150,10 @@ export const turns = {
     ]
   }
 };
+
+// Full profiles expose the back of the head, ear attachments and eye depth.
+for (const shape of DOT_SHAPES) {
+  for (const [view, turn] of [
+    ['side', [Math.PI/2, 0, 0]], ['top', [0, -Math.PI/2, 0]], ['oblique', [.82, -.42, .07]],
+  ]) turns['profile-' + id(shape.name) + '-' + view] = { shape: shape.id, turn };
+}
