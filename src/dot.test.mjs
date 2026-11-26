@@ -231,3 +231,15 @@ test('depth changes the editable body and its mounted face while fixed fur portr
   assert.equal(dotAvatar({ ...matte, depth: 0 }).body.dotStyle.catalogId, 'matisse');
   assert.equal(dotAvatar({ ...matte, depth: 0 }).body.dotStyle.depthScale, .6);
 });
+
+test('curated selection matches observed version 14 studio choices across the unsigned 64-bit range', async () => {
+  const { curatedDot, DOT_CURATED_VERSION } = await import('./index.ts');
+  assert.equal(DOT_CURATED_VERSION, 14);
+  for (const [seed, id] of [[0n,'lime_headphones'], [1n,'gus'], [2n,'watt'], [42n,'rio'],
+    [1n << 32n,'coral_monocle'], [1n << 63n,'hugo'], [0x1234fedcba987654n,'puck'], [0xffffffffffffffffn,'puck']]) {
+    assert.equal(curatedDot(seed).id, id);
+  }
+  assert.throws(() => curatedDot(42), TypeError);
+  assert.throws(() => curatedDot(-1n), RangeError);
+  assert.throws(() => curatedDot(1n << 64n), RangeError);
+});

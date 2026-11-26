@@ -498,7 +498,7 @@ MIT, see `LICENSE`. Where the bodies' proportions came from is in `THIRD_PARTY_N
 
 Build with `npm run site` and open `_site/dots.html` to try the eleven picker shapes, the six-lobed flower, eight starter portraits and the 108 named renderer entries. The studio has independent eye, glasses, extra, colour and finish controls, plus playback for 41 idle and 13 thinking motions. The measured dimensions and customizations are in the [survey](docs/dot-survey.md). The [visual parity report](docs/dot-parity.md) gives per-case scores and reproduction commands.
 
-`DOT_PICKER_SHAPES` follows the editor. `DOT_SHAPES` also contains the flower. Use `dotAvatar(DOT_CATALOG.find(item => item.id === id).appearance)` to select a named character. Editing a recipe releases its fixed portrait rig and applies the builder controls. The optional `depth` setting runs from 0 to 1 on builder and matte catalog characters, with a default of 0.5. It changes body thickness, including the depth of mounted eyes and accessories. Fixed fur portraits retain their original depth.
+`DOT_PICKER_SHAPES` follows the editor. `DOT_SHAPES` also contains the flower. Use `dotAvatar(DOT_CATALOG.find(item => item.id === id).appearance)` to select a named character. `curatedDot(42n)` selects Rio using the studio’s version 14 seed mapping. Pass its `appearance` to `dotAvatar` to render the selection. Editing a recipe releases its fixed portrait rig and applies the builder controls. The optional `depth` setting runs from 0 to 1 on builder and matte catalog characters, with a default of 0.5. It changes body thickness, including the depth of mounted eyes and accessories. Fixed fur portraits retain their original depth.
 
 ```ts
 import { dotAvatar, mount } from '@blot/avatar';

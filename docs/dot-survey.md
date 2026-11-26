@@ -102,6 +102,10 @@ Both eared shapes accept Headphones and Bow tie. The other six extras were unava
 
 The fixed portraits have different hulls, accessory fittings and surface responses from hand-built recipes with the same menu selections. The catalog’s original Felipe has a six-lobed body and a different rest rotation. The editor’s Felipe has a hexagonal body. Josh is a separate named catalog portrait. The 100 matte catalog characters also have distinct fits and tints. Selecting one in the studio shows its matte finish. The pet picker in this session listed Create a pet, Codex, Dewey, Fireball, Hoots, Rocky, Seedy, Stacky, BSOD and Null Signal.
 
+## Curated character selection
+
+Version 14 of the live curated selector accepts an unsigned 64-bit seed and chooses one of the 108 fixed catalog appearances. In two independent runs, all 2,048 consecutive seeds produced catalog recipes byte for byte and all 12,000 held-out 64-bit seeds selected the same character as the port. All 108 entries appeared in both runs. Seed 0 selects Iggy, 1 selects Thelma, 2 selects Watt and 42 selects Rio. The library exposes this operation as `curatedDot(seed)`.
+
 ## Idle and cursor movement
 
 The neutral idle trace showed approximately ±0.3% vertical scale change, ±0.15% on the other axes and ±0.001 body units of vertical travel over a roughly six-second cycle. The measured neutral body maintained its heading with the pointer away. After the first cursor interaction, the Ready idle changes to a roughly five-second breath. The vertical scale varies by about ±0.45%. Over a 90-second observation, the body shifted sideways and the eyes glanced during an approximately 50-second sequence. A later cycle added a nod that was absent from the first one. The port follows the measured breath and glance trajectory while the cursor is away.

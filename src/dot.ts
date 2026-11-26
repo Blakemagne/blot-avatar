@@ -136,3 +136,18 @@ export const DOT_CATALOG: readonly { id: string; name: string; appearance: DotAp
   { id: 'lime_headphones', name: 'Iggy', surface: 'Fur', appearance: DOT_PORTRAITS['Iggy'] },
   ...matteCatalog.map(entry => ({ ...entry, surface: 'Matte' as const })),
 ];
+
+/** Version of the live studio's curated catalog ordering and seed mapping. */
+export const DOT_CURATED_VERSION = 14;
+
+/** Pick the same named Dot as the studio for an unsigned 64-bit seed. */
+export function curatedDot(seed: bigint): (typeof DOT_CATALOG)[number] {
+  const mask = 0xffffffffffffffffn;
+  if (typeof seed !== 'bigint') throw new TypeError('Seed must be a bigint');
+  if (seed < 0n || seed > mask) throw new RangeError('Seed must be in [0, 2^64 - 1]');
+  // One SplitMix64 output selects an entry in the original catalog order.
+  let word = (seed + 0x9e3779b97f4a7c15n) & mask;
+  word = ((word ^ (word >> 30n)) * 0xbf58476d1ce4e5b9n) & mask;
+  word = ((word ^ (word >> 27n)) * 0x94d049bb133111ebn) & mask;
+  return DOT_CATALOG[Number((word ^ (word >> 31n)) % BigInt(DOT_CATALOG.length))];
+}

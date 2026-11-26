@@ -24,5 +24,5 @@ export { writeLayers, type Paint } from './layers';
 export { ULTRA_INK, ULTRA_LAVENDER, ULTRA_PALETTE, eyeInk, furShown, paintSkin, skinMarkup, skinPaint, ultraId } from './ultra';
 
 export { DOT_CLIPS, DOT_MOTIONS } from './engine/dot-motion';
-export { dotExtras, dotAvatar, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from './dot';
+export { dotExtras, dotAvatar, curatedDot, DOT_CURATED_VERSION, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from './dot';
 export { DOT_EYES, DOT_GLASSES, DOT_EXTRAS, type DotStyle } from './engine/dot-parts';
