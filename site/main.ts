@@ -460,6 +460,10 @@ function tabs(name: string, shown?: (id: string) => void): (id: string, focus?: 
   return show;
 }
 tabs('card', () => marked());
+const showMode = tabs('appearance-mode');
+const showSource = tabs('preset-source');
+showMode(preset ? 'mode-preset' : 'mode-custom');
+showSource(preset && !preset.startsWith('catalog/') ? 'source-starters' : 'source-catalog');
 tabs('appearance', (id) => { if (id === 'choose-Shape') marked(); });
 tabs('play');
 const showStep = tabs('new');
@@ -524,7 +528,7 @@ function cellFor(e: Entry): HTMLLIElement {
   tiles.set(slot, { entry: e });
   visibleTiles.observe(slot);
   b.append(slot);
-  b.addEventListener('click', () => select(e.key));
+  b.addEventListener('click', () => { preset = ''; select(e.key); });
   // A body made from an outline takes a moment to build, and so does a coat's mesh: start on them before the
   // click, so the change of shape does not stutter as it lands. The body as the pointer comes; the mesh, which
   // holds up the page for up to 150 ms, only once the pointer rests on the cell, so a sweep across the grid
@@ -662,28 +666,43 @@ function select(key: string, carryColour = true): void {
   if (view === 'moves') moversTurn();
 }
 
-const characterMenu = $<HTMLSelectElement>('[data-characters]');
-const starters = make('optgroup', { label: 'starter portraits' });
-for (const name of Object.keys(DOT_CHARACTERS)) starters.append(new Option(name.toLowerCase(), name));
-const collection = make('optgroup', { label: 'character catalog' });
-for (const item of DOT_CATALOG) collection.append(new Option(item.name.toLowerCase(), 'catalog/' + item.id));
-characterMenu.append(starters, collection);
-characterMenu.addEventListener('change', () => {
-  preset = characterMenu.value;
-  const recipe = recipes[preset];
-  if (recipe) {
-    Object.assign(wardrobe, {
-      eyes: recipe.eyes ?? 'Oval', glasses: recipe.glasses ?? 'None',
-      extra: recipe.extra ?? 'None', extraColour: recipe.extraColour ?? '#1F1F1F',
-    });
-    chosenTexture = true;
-    pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
-    const key = 'body:' + recipe.shape;
-    picked.set(key, recipe.colour ?? '#FFFFFF');
-    finished();
-    select(key, false);
-  } else { syncWardrobe(); paint(); }
+const portraitButtons = new Map<string, HTMLButtonElement>();
+const portraitObserver = new IntersectionObserver(rows => {
+  for (const row of rows) {
+    if (!row.isIntersecting) continue;
+    const slot = row.target as HTMLElement;
+    mount(slot, { ...dotAvatar(recipes[slot.dataset.portrait!]), size: 48, rests: true });
+    portraitObserver.unobserve(slot);
+  }
 });
+function portraitCell(key: string, name: string): HTMLLIElement {
+  const slot = make('span', { className: 'portrait-thumb' });
+  slot.dataset.portrait = key;
+  slot.setAttribute('aria-hidden', 'true');
+  const button = make('button', { type: 'button', className: 'bot-cell portrait-cell' },
+    slot, make('span', { textContent: name.toLowerCase() }));
+  portraitButtons.set(key, button);
+  portraitObserver.observe(slot);
+  button.addEventListener('click', () => applyPreset(key));
+  return make('li', {}, button);
+}
+$('[data-starters]').append(...Object.keys(DOT_CHARACTERS).map(name => portraitCell(name, name)));
+$('[data-catalog]').append(...DOT_CATALOG.map(item => portraitCell('catalog/' + item.id, item.name)));
+
+function applyPreset(key: string): void {
+  preset = key;
+  const recipe = recipes[key];
+  Object.assign(wardrobe, {
+    eyes: recipe.eyes ?? 'Oval', glasses: recipe.glasses ?? 'None',
+    extra: recipe.extra ?? 'None', extraColour: recipe.extraColour ?? '#1F1F1F',
+  });
+  chosenTexture = true;
+  pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
+  const shapeKey = 'body:' + recipe.shape;
+  picked.set(shapeKey, recipe.colour ?? '#FFFFFF');
+  finished();
+  select(shapeKey, false);
+}
 const motionMenu = $<HTMLSelectElement>('[data-dot-motion]');
 for (const category of ['idle', 'thinking'] as const) {
   const group = make('optgroup', { label: category });
@@ -752,7 +771,7 @@ function syncWardrobe() {
     if (pg.material !== finish) { pg.material = finish; finished(); }
   }
   $('[data-eye-colours]').hidden = !!style && !style.originalEyes;
-  characterMenu.value = preset;
+  for (const [key, button] of portraitButtons) button.setAttribute('aria-pressed', String(key === preset));
   syncTexture();
   const fixedEye = native && id === 'dot-rounded-head-with-two-ears';
   $('[data-fixed-eye]').hidden = !fixedEye;

@@ -89,50 +89,67 @@
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
-            <div class="wardrobe-tabs" data-tabs="appearance" role="tablist" aria-label="appearance categories">
-              <button type="button" id="choose-Shape" role="tab" aria-controls="wardrobe-Shape">shape</button>
-              <button type="button" id="choose-Eyes" role="tab" aria-controls="wardrobe-Eyes">eyes</button>
-              <button type="button" id="choose-Glasses" role="tab" aria-controls="wardrobe-Glasses">glasses</button>
-              <button type="button" id="choose-Extras" role="tab" aria-controls="wardrobe-Extras">extras</button>
-              <button type="button" id="choose-Textures" role="tab" aria-controls="wardrobe-Textures">textures</button>
+            <div class="seg" data-tabs="appearance-mode" role="tablist" aria-label="appearance mode">
+              <button type="button" id="mode-preset" role="tab" aria-controls="panel-preset">preset</button>
+              <button type="button" id="mode-custom" role="tab" aria-controls="panel-custom">custom</button>
             </div>
-            <section id="wardrobe-Shape" role="tabpanel" aria-labelledby="choose-Shape">
-              <label class="preset-choice">character <select data-characters><option value="">custom</option></select></label>
-              <div class="bots-box">
-                <ul class="bots" data-shapes aria-label="shapes"></ul>
+            <section id="panel-preset" role="tabpanel" aria-labelledby="mode-preset">
+              <div class="wardrobe-tabs" data-tabs="preset-source" role="tablist" aria-label="preset collections">
+                <button type="button" id="source-catalog" role="tab" aria-controls="panel-catalog">catalog</button>
+                <button type="button" id="source-starters" role="tab" aria-controls="panel-starters">starters</button>
               </div>
-              <p class="sub-label pick-note" data-pick-note></p>
-              <div class="colour-row">
-                <div data-picker="body"></div>
-                <button type="button" class="link" data-reset-colour hidden>back to its own colour</button>
+              <div id="panel-catalog" class="bots-box" role="tabpanel" aria-labelledby="source-catalog">
+                <ul class="bots" data-catalog aria-label="catalog characters"></ul>
               </div>
-            </section>
-            <section id="wardrobe-Eyes" role="tabpanel" aria-labelledby="choose-Eyes">
-              <p data-fixed-eye hidden>round inset eyes are built into this shape.</p>
-              <div data-parts="eyes"></div>
-              <div data-eye-colours>
-                <div data-picker="eyes"></div>
-                <p class="sub-label note" data-eye-note hidden>these eyes barely show on this body. pick an eye colour further from it.</p>
+              <div id="panel-starters" class="bots-box" role="tabpanel" aria-labelledby="source-starters">
+                <ul class="bots" data-starters aria-label="starter characters"></ul>
               </div>
             </section>
-            <section id="wardrobe-Glasses" role="tabpanel" aria-labelledby="choose-Glasses">
-              <div data-parts="glasses"></div>
-            </section>
-            <section id="wardrobe-Extras" role="tabpanel" aria-labelledby="choose-Extras">
-              <div data-parts="extra"></div>
-              <div data-extra-palette role="group" aria-label="extra colour"></div>
-            </section>
-            <section id="wardrobe-Textures" role="tabpanel" aria-labelledby="choose-Textures">
-              <div class="sub finish">
-                <span class="sub-label" id="finish-label">finish</span>
-                <div class="seg" role="group" aria-labelledby="finish-label" data-material>
-                  <button type="button" data-matte aria-pressed="true" disabled hidden>matte</button>
-                  <button type="button" data-material-is="glossy" aria-pressed="false">glossy</button>
-                  <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
-                  <button type="button" data-material-is="fluffy" aria-pressed="false">fur</button>
+            <section id="panel-custom" role="tabpanel" aria-labelledby="mode-custom">
+              <div class="wardrobe-tabs" data-tabs="appearance" role="tablist" aria-label="appearance categories">
+                <button type="button" id="choose-Shape" role="tab" aria-controls="wardrobe-Shape">shape</button>
+                <button type="button" id="choose-Eyes" role="tab" aria-controls="wardrobe-Eyes">eyes</button>
+                <button type="button" id="choose-Glasses" role="tab" aria-controls="wardrobe-Glasses">glasses</button>
+                <button type="button" id="choose-Extras" role="tab" aria-controls="wardrobe-Extras">extras</button>
+                <button type="button" id="choose-Textures" role="tab" aria-controls="wardrobe-Textures">textures</button>
+              </div>
+              <section id="wardrobe-Shape" role="tabpanel" aria-labelledby="choose-Shape">
+                <div class="bots-box">
+                  <ul class="bots" data-shapes aria-label="shapes"></ul>
                 </div>
-                <span class="sub-label" data-material-note hidden>no webgl2 here, so it stays flat.</span>
-              </div>
+                <p class="sub-label pick-note" data-pick-note></p>
+                <div class="colour-row">
+                  <div data-picker="body"></div>
+                  <button type="button" class="link" data-reset-colour hidden>back to its own colour</button>
+                </div>
+              </section>
+              <section id="wardrobe-Eyes" role="tabpanel" aria-labelledby="choose-Eyes">
+                <p data-fixed-eye hidden>round inset eyes are built into this shape.</p>
+                <div data-parts="eyes"></div>
+                <div data-eye-colours>
+                  <div data-picker="eyes"></div>
+                  <p class="sub-label note" data-eye-note hidden>these eyes barely show on this body. pick an eye colour further from it.</p>
+                </div>
+              </section>
+              <section id="wardrobe-Glasses" role="tabpanel" aria-labelledby="choose-Glasses">
+                <div data-parts="glasses"></div>
+              </section>
+              <section id="wardrobe-Extras" role="tabpanel" aria-labelledby="choose-Extras">
+                <div data-parts="extra"></div>
+                <div data-extra-palette role="group" aria-label="extra colour"></div>
+              </section>
+              <section id="wardrobe-Textures" role="tabpanel" aria-labelledby="choose-Textures">
+                <div class="sub finish">
+                  <span class="sub-label" id="finish-label">finish</span>
+                  <div class="seg" role="group" aria-labelledby="finish-label" data-material>
+                    <button type="button" data-matte aria-pressed="true" disabled hidden>matte</button>
+                    <button type="button" data-material-is="glossy" aria-pressed="false">glossy</button>
+                    <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
+                    <button type="button" data-material-is="fluffy" aria-pressed="false">fur</button>
+                  </div>
+                  <span class="sub-label" data-material-note hidden>no webgl2 here, so it stays flat.</span>
+                </div>
+              </section>
             </section>
           </div>
 
