@@ -13,4 +13,3 @@ vec3 dyedFibre(vec3 rgb) {
     + max(0.,g-.80)*fibreDye[20] + max(0.,g-.88)*fibreDye[21];
   return clamp(rgb+change,0.,1.);
 }`;
-

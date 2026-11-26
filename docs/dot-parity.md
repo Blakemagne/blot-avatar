@@ -1,11 +1,11 @@
 # Rendered Dot parity
 
-The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.7354% silhouette agreement** and **5.7322% exact foreground pixels** at 512 × 512. Its average foreground channel difference is 2.51 on a 0–255 scale. The 99.99% acceptance gate remains open. [Linked character close-up](dot-review/linked-character.png)
+The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.8472% silhouette agreement** and **10.6798% exact foreground pixels** at 512 × 512. Its average foreground channel difference is 1.94 on a 0–255 scale. The 99.99% acceptance gate remains open. [Linked character close-up](dot-review/linked-character.png)
 
 | Registered comparison | Cases | Median silhouette IoU | Median exact foreground | Median feature channel error, 0–255 | Cases passing all gates |
 |---|---:|---:|---:|---:|---:|
-| Builder and editor starters, 512 px | 87 | 99.9685% | 90.6377% | 1.30 | 0 |
-| Held-out turns, depth settings and their neutral control, 384 px | 73 | 99.9515% | 90.8816% | 0.22 | 0 |
+| Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.40 | 0 |
+| Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.28 | 0 |
 | Named catalog and its builder control, 512 px | 109 | 99.9257% | 45.4458% | 1.29 | 0 |
 
 Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
@@ -41,13 +41,19 @@ Each comparison has the native image on the left, the port in the middle and fou
 
 The 100 matte catalog rigs use ten fitted body volumes, 379 distinct measured component sections and 26 surface responses. The ten furry portraits across the two collections have independent hulls. Their coats use 36 views per portrait to estimate surface height and the way the grain responds as the head turns. The twelve builder coats use 22 views per body and a separate calibration across the ten dyes.
 
-The live renderer also draws individual pile elements. At 512 px, suppressing the 5,759 instanced elements on the linked character changed 20,571 occupied pixels and moved 540 pixels across the silhouette threshold. The same experiment on the glossy control changed zero pixels. On Iris, the 512 px render included three instanced draws of 48,000, 26,875 and 26,875 elements. The independent port approximates that distribution with measured surface fields and translucent shells. [Isolated pile measurements](../golden/dots/fur-passes.json)
+The live renderer also draws individual pile elements. At 512 px, suppressing the 5,759 instanced elements on the linked character changed 20,571 occupied pixels and moved 540 pixels across the silhouette threshold. The same experiment on the glossy control changed zero pixels. On Iris, the 512 px render included three instanced draws of 48,000, 26,875 and 26,875 elements. The portrait coats and eleven builder bodies use measured surface fields and translucent shells. The rounded triangle uses independently reconstructed, individually drawn tufts. [Isolated pile measurements](../golden/dots/fur-passes.json)
+
+The rounded-triangle survey isolated each tuft by measuring the change in transmitted light when that tuft was added to the draw. It triangulated 8,186 centres across the 8,192 possible slots. At the 512 px reference framing, 5,759 slots are active. On a camera angle excluded from fitting, the median projected-centre error was 0.42 px and the 95th percentile was 1.17 px. At 768 px, 1,012 tuft observations determined the opacity profile along the long and short axes. Another 500 tested it. Their normalized absolute alpha error was 31.2%, compared with 39.8% for an elliptical Gaussian. Faint tufts and partly occluded tips still differ in local opacity. [Four individual tufts](dot-review/individual-fur.png) · [Tuft measurements](../golden/dots/tuft-measurements.json)
+
+The review also includes a neutral round of all ten dyes and ten held-out turns with different dyes. On the neutral yellow triangle the mean foreground channel error decreased from 5.82 to 1.43. All ten turned dye views improved in both exact foreground agreement and mean channel error. [Yellow fur close-up](dot-review/fur-dye-yellow.png) · [Turn scores](../golden/dots/metrics-rotation.csv)
 
 ## Motion review
 
 The 54 named clips were also checked at nine instants each. The comparison steps the public rig, assembles its body and both fitted eye inserts, and measures the displacement of local landmarks against the observed world transforms. At a 512 px framing, the body landmark error was 0.0165 px at the 95th percentile and 0.0531 px at maximum. The eye error was 0.0253 px and 0.0785 px respectively. The active Ready idle was also compared against 60 samples from the following cycle. At 512 px, body landmark displacement had a median of 0.0080 px, a 95th percentile of 1.4843 px and a maximum of 2.4939 px. The later live cycle included a spontaneous nod. These checkpoints measure motion geometry separately from rendered pixels. [Ready observations](../golden/dots/ready-checkpoints.json) [Motion observations](../golden/dots/motion-checkpoints.json) · [Comparison script](../scripts/dot-motion-compare.mjs)
 
 A nine-second recording shows the linked character and the port responding to the same timed pointer positions, then settling after the pointer leaves. The camera uses the live stage framing. Two additional three-minute live Ready episodes used a stationary, centred pointer. Their five-second breathing rhythm recurred, while the timings of the short head tilts varied. [Side-by-side recording](dot-review/ready-and-cursor.mp4) · [Motion chart](dot-review/attention.png) · [Live episode samples](../golden/dots/ready-episodes.csv) · [Cursor step samples](../golden/dots/pointer-step.csv)
+
+Two 100-second runs of the live renderer provide a repeatability control. Both used the linked recipe, Ready activity, a centred pointer and 60 clock steps per second. At 192 px, 54 of the 100 once-per-second image pairs matched exactly. In the other 46, exact foreground agreement fell below 99.99%, reaching 21.26% in the least similar pair. Independent live runs can therefore fail the frame-by-frame gate even when the renderer and inputs match. Deterministic pose captures and separately scored spontaneous behaviour distinguish this timing difference from material and geometry errors. [Native-to-native image scores](../golden/dots/ready-repeatability.csv)
 
 The cursor tests include cases where the support stays fixed and its highlights travel independently. They cover a raised-socket face, Iris’s portrait and the largest catalog gaze error measured, Clover. [Held-out gaze observations](../golden/dots/gaze-checkpoints.json)
 

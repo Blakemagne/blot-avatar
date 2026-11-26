@@ -187,3 +187,11 @@ for (const [name, shape, extra, glasses, turn] of [
   cases[name] = { shape, extra, glasses };
   turns['turn-' + name] = { ...cases[name], turn };
 }
+
+for (const [i, [colour, name]] of DOT_COLOURS.entries()) {
+  const dye = { colour, texture: 'Fur' };
+  if (name !== 'Cyan') cases['fur-dye-' + id(name)] = dye;
+  turns['turn-fur-dye-' + id(name)] = {
+    ...dye, turn: [(.315 + .021*i)*(i%2 ? -1 : 1), i%3 === 0 ? .245 : -.14, .06],
+  };
+}

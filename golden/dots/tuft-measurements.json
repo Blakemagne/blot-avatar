@@ -1,0 +1,163 @@
+{
+  "wearer": "Rounded triangle",
+  "fittedCentres": 8186,
+  "slots": 8192,
+  "firstRange": {
+    "slots": 5759,
+    "viewCount": 25,
+    "samplePixels": 512
+  },
+  "secondRange": {
+    "slots": 2433,
+    "viewCount": 11,
+    "samplePixels": 640
+  },
+  "heldOutTurnRadians": [
+    0.29,
+    -0.24
+  ],
+  "heldOutCentreErrorPixelsAt512": {
+    "median": 0.423603,
+    "p95": 1.168468
+  },
+  "profile": {
+    "size": 768,
+    "trainingVisibleTufts": 1012,
+    "validationVisibleTufts": 500,
+    "errorMeasure": "sum of absolute alpha error divided by observed alpha mass",
+    "validationGaussian": 0.398099,
+    "validationFitted": 0.312035
+  },
+  "levelOfDetail": [
+    [
+      32,
+      63
+    ],
+    [
+      48,
+      134
+    ],
+    [
+      64,
+      232
+    ],
+    [
+      80,
+      297
+    ],
+    [
+      96,
+      357
+    ],
+    [
+      128,
+      510
+    ],
+    [
+      144,
+      603
+    ],
+    [
+      160,
+      707
+    ],
+    [
+      192,
+      948
+    ],
+    [
+      224,
+      1232
+    ],
+    [
+      256,
+      1560
+    ],
+    [
+      288,
+      1932
+    ],
+    [
+      320,
+      2347
+    ],
+    [
+      352,
+      2807
+    ],
+    [
+      384,
+      3310
+    ],
+    [
+      416,
+      3856
+    ],
+    [
+      448,
+      4447
+    ],
+    [
+      480,
+      5081
+    ],
+    [
+      512,
+      5759
+    ],
+    [
+      544,
+      6481
+    ],
+    [
+      576,
+      7246
+    ],
+    [
+      640,
+      8192
+    ],
+    [
+      768,
+      8192
+    ]
+  ],
+  "levelOfDetailAt384ByDepth": [
+    [
+      0,
+      3310
+    ],
+    [
+      0.1,
+      3310
+    ],
+    [
+      0.25,
+      3310
+    ],
+    [
+      0.4,
+      3310
+    ],
+    [
+      0.5,
+      3310
+    ],
+    [
+      0.6,
+      3834
+    ],
+    [
+      0.75,
+      4695
+    ],
+    [
+      0.9,
+      5648
+    ],
+    [
+      1,
+      6333
+    ]
+  ]
+}
