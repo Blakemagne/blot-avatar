@@ -1,3 +1,4 @@
+import { dotLightProjection } from './dot-contact';
 import { glossOptics } from './gloss-optics';
 // Ported from open-bot-avatar (MIT): dom/fluffy/shaders.ts, by Dominik Scholz.
 //
@@ -50,7 +51,8 @@ layout(location = 2) in vec2 seed;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
-uniform bool orthographic, ornament, portraitCoat;
+uniform bool orthographic, ornament, portraitCoat, builderPile;
+uniform vec2 feltExtent;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
 uniform vec3 ornamentOffset;
@@ -147,7 +149,13 @@ void main() {
   tip = 0.;
   variation = .5;
   across = 0.;
-  if (pass == SHELL) {
+  if (portraitCoat && !ornament && pass != STRAND) {
+    float facing = max(0.,(view * n).z);
+    float level = pass == BODY ? -3.0 : 6.*shell-3.;
+    p += n*(feltExtent.x+level*feltExtent.y)*(1.-smoothstep(.14,.48,facing))*UNIT;
+  } else if (builderPile && pass == SHELL) {
+    p += n * (shell * .0185 * ${(.54945*512/296).toFixed(9)} * UNIT);
+  } else if (pass == SHELL) {
     p += n * shell * 1.10 * pile;
     p += lean * (1.05 * shell * pile);
   }
@@ -232,14 +240,19 @@ uniform bool fittedGloss;
 uniform int groomLayer, portraitLayer;
 uniform highp sampler2DArray portraitDensity;
 uniform highp sampler2DArray dotGroom;
-uniform vec3 groomAmplitude[4];
+uniform vec3 groomAmplitude[8];
 uniform highp sampler2D contactField;
+uniform highp sampler2DShadow portraitShadow;
+uniform vec3 directLight[9];
+uniform vec4 shadowWeights[2];
+${dotLightProjection}
 uniform float contactExtent;
 uniform vec3 contactColor[4];
-uniform bool glossy, measuredLight, ornament, metal, portraitCoat;
+uniform bool glossy, measuredLight, ornament, metal, portraitCoat, builderPile;
+uniform float shellOpacity;
 uniform sampler2D matteStudio, polishedStudio;
-uniform int finish, tintLayer;
-uniform highp sampler2DArray matteTintStudio, metalTintStudio;
+uniform int finish, tintLayer, furLightLayer, matteBodyLayer;
+uniform highp sampler2DArray matteTintStudio, metalTintStudio, furTintStudio;
 uniform vec3 studio[12];
 uniform int pass;
 uniform float shell;
@@ -294,9 +307,52 @@ vec3 studioLight(vec3 n) {
   return clamp(diffuse, 0., 1.);
 }
 
-vec3 tintedSample(vec2 uv) {
-  vec3 p = vec3(uv, float(tintLayer));
-  return metal ? texture(metalTintStudio,p).rgb : texture(matteTintStudio,p).rgb;
+vec3 portraitLightLoss(vec3 at, vec3 normal) {
+  vec3 lightPosition = .5 + .5*(lightProjection*vec4(at,1.)).xyz;
+  vec3 worldNormal = normal*vec3(1.,-1.,1.);
+  float cosine = dot(worldNormal,normalize(vec3(-.6,.8,1.)));
+  vec2 tangent = vec2(dot(worldNormal,normalize(vec3(.35729,0.,.21437))),
+    dot(worldNormal,normalize(vec3(.12127,.34359,-.20211))));
+  vec2 slope = .48485*tangent/max(.12,cosine);
+  vec2 occlusion = vec2(0.);
+  for (int i=0; i<24; i++) {
+    float phase = float(i)*2.39996323;
+    vec2 disk = sqrt((float(i)+.5)/24.)*vec2(cos(phase),sin(phase));
+    // The wide footprint follows the receiver's tangent plane. The narrower one measures
+    // the visibility around the short pile above it, including shadows from the fittings.
+    vec2 wide = .040*disk, narrow = .013*disk;
+    occlusion += 1.-vec2(texture(portraitShadow,lightPosition+vec3(wide,dot(slope,wide)-.001)),
+      texture(portraitShadow,lightPosition+vec3(narrow,-.0009)));
+  }
+  occlusion /= 24.;
+  float g = 1.-max(0.,cosine);
+  float amount = dot(shadowWeights[0],vec4(occlusion,occlusion*g)) +
+    dot(shadowWeights[1],vec4(1.,g,g*g,g*g*g));
+  vec3 n = normal;
+  vec3 direct = directLight[0]+n.x*directLight[1]+n.y*directLight[2]+n.z*directLight[3]
+    +n.x*n.x*directLight[4]+n.x*n.y*directLight[5]+n.y*n.y*directLight[6]
+    +n.x*n.z*directLight[7]+n.y*n.z*directLight[8];
+  return clamp(amount,0.,1.)*max(vec3(0.),direct);
+}
+
+vec3 tintedSample(vec2 uv, int layer, int kind) {
+  vec3 p = vec3(uv,float(layer));
+  if (kind == 2) return texture(furTintStudio,p).rgb;
+  return kind == 1 ? texture(metalTintStudio,p).rgb : texture(matteTintStudio,p).rgb;
+}
+vec2 normalUV(vec3 n) {
+  return .5 + vec2(atan(n.x,max(.0001,n.z)),asin(clamp(n.y,-1.,1.))) / 3.14159265;
+}
+vec3 tintedRadiance(vec2 uv, int layer, int kind) {
+  vec2 size = vec2(kind == 2 ? textureSize(furTintStudio,0).xy : kind == 1
+    ? textureSize(metalTintStudio,0).xy : textureSize(matteTintStudio,0).xy);
+  float rows = size.y - 7.;
+  vec3 base = tintedSample((.5 + uv*vec2(size.x-1.,rows-1.))/size,layer,kind);
+  vec2 posUV = .5 + vec2(8.,6.)*uv + vec2(0.,rows);
+  base += scenePlace.x * tintedSample(posUV/size,layer,kind);
+  base += scenePlace.y * tintedSample((posUV+vec2(9.,0.))/size,layer,kind);
+  base += scenePlace.z * tintedSample((posUV+vec2(18.,0.))/size,layer,kind);
+  return clamp(base,0.,1.);
 }
 
 void main() {
@@ -319,16 +375,9 @@ void main() {
       result = vec4(vec3(value),1.);
       return;
     }
-    vec2 uv = vec2(atan(n.x, max(.0001, n.z)), asin(clamp(n.y, -1., 1.))) / 3.14159265 + .5;
+    vec2 uv = normalUV(n);
     if (tintLayer >= 0) {
-      vec2 size = vec2(metal ? textureSize(metalTintStudio,0).xy : textureSize(matteTintStudio,0).xy);
-      float rows = size.y - 7.;
-      vec3 base = tintedSample((.5 + uv*vec2(size.x-1.,rows-1.)) / size);
-      vec2 positionUV = .5 + vec2(8.,6.)*uv + vec2(0.,rows);
-      base += scenePlace.x * tintedSample(positionUV/size);
-      base += scenePlace.y * tintedSample((positionUV+vec2(9.,0.))/size);
-      base += scenePlace.z * tintedSample((positionUV+vec2(18.,0.))/size);
-      result = vec4(clamp(base,0.,1.),1.);
+      result = vec4(tintedRadiance(uv,tintLayer,metal ? 1 : 0),1.);
       return;
     }
     vec2 dims = vec2(metal ? textureSize(polishedStudio, 0) : textureSize(matteStudio, 0));
@@ -338,6 +387,7 @@ void main() {
     return;
   }
   if (glossy) {
+    if (matteBodyLayer >= 0) { result = vec4(tintedRadiance(normalUV(n),matteBodyLayer,0),1.); return; }
     if (fittedGloss) { result = vec4(measuredGloss(n*vec3(1.,-1.,1.), opticalPlace), 1.); return; }
     if (measuredLight) { result = vec4(studioLight(n), 1.); return; }
     float highlight = pow(max(0., dot(n, normalize(vec3(-.53, -.48, .70)))), 25.);
@@ -364,11 +414,12 @@ void main() {
 
   float height = brushedHeight();
   if (measuredLight) {
-    if (pass == SHELL && height < .20 + .62 * shell) discard;
+    if (portraitCoat && pass == SHELL && n.z > .50) discard;
+    if (!builderPile && !portraitCoat && pass == SHELL && height < .20 + .62 * shell) discard;
     float grain = (portraitCoat ? .43 : .20) * (height - .5)
       + (pass == STRAND ? (portraitCoat ? .23 : .085) * (variation - .5) : 0.);
     float socket = 1. - .18 * (1. - smoothstep(.05, 1.35, d));
-    vec3 base = studioLight(n);
+    vec3 base = furLightLayer >= 0 ? tintedRadiance(normalUV(n),furLightLayer,2) : studioLight(n);
     vec3 variationRGB = grain * (.23 + .77 * base);
     if (portraitLayer >= 0) {
       vec2 uv = .5 + groomPoint.xy / (2.18 * ${(.54945*512/296).toFixed(9)});
@@ -378,19 +429,30 @@ void main() {
       vec3 amplitude = max(vec3(.001), groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3]);
       variationRGB = 1.55 * density * amplitude + .09 * variationRGB;
     } else if (groomLayer >= 0) {
-      vec3 p = normalize(groomPoint);
-      vec2 uv = vec2(atan(p.x,p.z)/(2.*3.14159265), asin(clamp(p.y,-1.,1.))/3.14159265) + .5;
-      float density = (texture(dotGroom, vec3(uv, float(groomLayer))).r*255. - 128.) / 39.;
-      vec3 amplitude = max(vec3(.001), groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3]);
-      variationRGB = 1.6*density*amplitude + .13*variationRGB;
+      vec2 uv = .5 + groomPoint.xy / (2.125 * ${(.54945*512/296).toFixed(9)});
+      vec2 front = texture(dotGroom,vec3(uv,float(groomLayer))).rg;
+      vec2 back = texture(dotGroom,vec3(uv,float(groomLayer+1))).rg;
+      vec2 density = (255.*mix(back,front,smoothstep(-.12,.12,groomSide))-128.)/40.;
+      vec3 fine = groomAmplitude[0] + n.x*groomAmplitude[1] + n.y*groomAmplitude[2] + n.z*groomAmplitude[3];
+      vec3 coarse = groomAmplitude[4] + n.x*groomAmplitude[5] + n.y*groomAmplitude[6] + n.z*groomAmplitude[7];
+      variationRGB = 1.35*density.x*fine + 1.15*density.y*coarse + .08*variationRGB;
     }
     vec3 colour = (base + variationRGB) * socket;
+    if (portraitLayer >= 0 && furLightLayer >= 0) {
+      colour -= portraitLightLoss(scenePlace,n);
+    }
     if (contactExtent > 0.) {
       float shade = 1. - texture(contactField, gl_FragCoord.xy/contactExtent).r;
       colour -= shade * (contactColor[0] + shade*contactColor[1]
         + (colour-.5)*(contactColor[2]+shade*contactColor[3]));
     }
-    result = vec4(clamp(colour, 0., 1.), 1.);
+    float alpha = 1.;
+    if ((builderPile || portraitCoat) && pass == SHELL) {
+      // The optical covering thins continuously outside the solid surface.
+      float tuft = clamp(1. + .18*(height-.5), .75, 1.25);
+      alpha = clamp(shellOpacity*tuft,0.,1.);
+    }
+    result = vec4(alpha*clamp(colour, 0., 1.), alpha);
     return;
   }
   // Density variation survives rim lighting even when the strongest dye channel is saturated.

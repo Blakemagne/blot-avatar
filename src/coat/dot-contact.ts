@@ -6,12 +6,23 @@ import type { CoatFrame } from './renderer';
 type Surface = { surface: WebGLVertexArrayObject; indices: number };
 type Link = (gl: WebGL2RenderingContext, vertex: string, fragment: string) => WebGLProgram;
 
+// Registered orthographic projection of the studio key light, in units of one Dot radius.
+export const dotLightProjection = `const mat4 lightProjection = mat4(
+  .357288748,.121267810,.085709915,0., 0.,.343592137,-.114279896,0.,
+  .214373216,-.202113032,-.142849863,0., 0.,0.,-.01010096,1.);`;
+
 const depthVertex = `#version 300 es
 layout(location=0) in vec3 position;
 uniform mat3 rotation, axes;
+uniform bool fromLight;
 uniform vec3 scale, origin, offset, square;
+${dotLightProjection}
 void main() {
   vec3 world = rotation * (scale * (axes * position + offset)) + origin;
+  if (fromLight) {
+    gl_Position = lightProjection * vec4(world / ${DOT_RADIUS},1.);
+    return;
+  }
   gl_Position = vec4((${VIEW_UNIT}. * world.x + ${VIEW/2} - square.x) / square.z,
     (${VIEW_UNIT}. * world.y + square.y - ${VIEW/2}) / square.z, -world.z / 3., 1.);
 }`;
@@ -65,11 +76,29 @@ export function createDotContact(gl: WebGL2RenderingContext, link: Link) {
   const depth = link(gl, depthVertex, depthFragment), shade = link(gl, screenVertex, occlusionFragment);
   const uniform = (name: string) => gl.getUniformLocation(depth,name);
   const u = { rotation: uniform('rotation'), axes: uniform('axes'), offset: uniform('offset'),
-    scale: uniform('scale'), origin: uniform('origin'), square: uniform('square') };
+    scale: uniform('scale'), origin: uniform('origin'), square: uniform('square'), fromLight: uniform('fromLight') };
   const pxPerRadius = gl.getUniformLocation(shade,'pxPerRadius');
   const depthFrame = gl.createFramebuffer(), aoFrame = gl.createFramebuffer();
   const depthTex = gl.createTexture(), aoTex = gl.createTexture(), fullscreen = gl.createVertexArray();
   let width = 0;
+  let shadowFrame: WebGLFramebuffer | undefined;
+  function allocateShadow() {
+    const frame = gl.createFramebuffer()!;
+    gl.activeTexture(gl.TEXTURE13);
+    const map = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,map);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_COMPARE_MODE,gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_COMPARE_FUNC,gl.LEQUAL);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,1024,1024,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,frame);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,map,0);
+    gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
+    return frame;
+  }
   function allocate(pixels: number) {
     const half = Math.ceil(pixels/2);
     for (const [unit, texture, filter] of [[10,depthTex,gl.NEAREST],[11,aoTex,gl.LINEAR]] as const) {
@@ -90,12 +119,15 @@ export function createDotContact(gl: WebGL2RenderingContext, link: Link) {
     width = pixels;
   }
   gl.useProgram(shade); gl.uniform1i(gl.getUniformLocation(shade,'depths'),10);
-  return (f: CoatFrame, pixels: number, rotation: Float32Array, surfaceOf: (mesh: CoatMesh) => Surface) => {
-    if (width !== pixels) allocate(pixels);
-    gl.bindFramebuffer(gl.FRAMEBUFFER,depthFrame);
-    gl.viewport(0,0,pixels,pixels); gl.scissor(0,0,pixels,pixels);
+  return (f: CoatFrame, pixels: number, rotation: Float32Array, surfaceOf: (mesh: CoatMesh) => Surface, fromLight = false) => {
+    if (fromLight) shadowFrame ??= allocateShadow();
+    else if (width !== pixels) allocate(pixels);
+    const size = fromLight ? 1024 : pixels;
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fromLight ? shadowFrame! : depthFrame);
+    gl.viewport(0,0,size,size); gl.scissor(0,0,size,size);
     gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(depth);
+    gl.uniform1i(u.fromLight,fromLight ? 1 : 0);
     gl.uniformMatrix3fv(u.rotation,false,rotation);
     const s = f.playback?.scale, o = f.playback?.offset;
     gl.uniform3f(u.scale,s?.[0] ?? 1,s?.[1] ?? 1,s?.[2] ?? 1);
@@ -110,6 +142,11 @@ export function createDotContact(gl: WebGL2RenderingContext, link: Link) {
     }
     draw(f.mesh);
     for (const solid of f.solids ?? []) draw(solid.mesh,solid.axes);
+    if (fromLight) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.activeTexture(gl.TEXTURE2);
+      return;
+    }
     const half = Math.ceil(pixels/2);
     gl.bindFramebuffer(gl.FRAMEBUFFER,aoFrame); gl.disable(gl.DEPTH_TEST);
     gl.useProgram(shade); gl.viewport(0,0,half,half); gl.scissor(0,0,half,half);

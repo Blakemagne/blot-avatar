@@ -1,3 +1,5 @@
+import { catalogFittings } from './dot-catalog-fittings';
+import { fittedMesh } from './dot-fitted-mesh';
 import { gazeTransform, transformAxes } from './dot-gaze';
 import { catalogParts } from './dot-catalog-parts';
 import { faceFits } from './dot-face-fits';
@@ -21,6 +23,7 @@ export interface DotSolid {
   metal?: boolean;
   material?: number;
   portraitSection?: number;
+  catalogCrownLayer?: number;
   /** Dark or white curved eye and eyewear materials. */
   finish?: 'ink' | 'white' | 'portrait-ink' | 'portrait-glass';
 }
@@ -126,10 +129,17 @@ export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint
     const gaze = isEye || s.role === 'socket' ? gazeTransform(gazeKey, index, axes, eyeX/.0391, eyeY/.0512) : undefined;
     if (!gaze && isEye) { axes[9] += eyeX; axes[10] += eyeY; }
     const bone = (isEye || s.role === 'socket') && motion.playback?.eyes[s.side < 0 ? 0 : 1];
+    const fitting = s.catalogSection === undefined ? undefined : catalogFittings[s.catalogSection];
+    let template: CoatMesh | undefined;
+    if (fitting?.piece !== undefined) {
+      const phones = featureSections['Headphones/rounded-triangle'];
+      template = surfaceOf(phones[fitting.piece],phones).mesh;
+    } else if (fitting) template = dotMesh(fitting.mesh);
     result.push({
-      mesh: style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
+      mesh: template && fitting ? fittedMesh(template,fitting) : style.character === 'Thelma' && s.role === 'extra' ? dotMesh('Thelma bulb')! : surfaceOf(s, pieces).mesh, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
       material: s.material,
+      catalogCrownLayer: fitting?.mesh === 'Crown' ? (s.material === 10 ? 13 : 12) : undefined,
       portraitSection: style.character ? index : undefined,
       finish: s.role === 'extra' ? undefined : s.light ? 'white' : !fixed ? 'ink' : s.role === 'glass' ? 'portrait-glass' : 'portrait-ink',
     });

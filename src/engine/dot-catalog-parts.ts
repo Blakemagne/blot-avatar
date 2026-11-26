@@ -27,7 +27,7 @@ export function catalogParts(id: string): readonly FeatureSection[] | undefined 
       offset += 2;
       outline.push(controls(2 * vertices));
     }
-    return { origin, grid, outline, material, role: roles[role], side: Math.sign(origin[0]),
+    return { origin, grid, outline, material, catalogSection: index, role: roles[role], side: Math.sign(origin[0]),
       light: role === 1 || role === 3, thickness: controls(grid * grid), centre: controls(grid * grid) };
   });
   if (cache.size >= 16) cache.delete(cache.keys().next().value!);

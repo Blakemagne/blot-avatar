@@ -10,6 +10,7 @@ export interface FeatureSection {
   outline: readonly (readonly number[])[];
   grid: number;
   material?: number;
+  catalogSection?: number;
   thickness: readonly number[];
   centre: readonly number[];
 }
