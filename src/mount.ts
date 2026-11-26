@@ -5,7 +5,7 @@ import { glossyFill } from './gloss';
 import { coatLayer, type CoatLayer } from './coat/layer';
 import { VIEW_BOX, colours, type Drawing } from './engine/draw';
 import { clipEyes, writeLayers, type Paint } from './layers';
-import { createLive, type Live, type LiveProps } from './live';
+import { createLive, paintedMaterial, type Live, type LiveProps, type Material } from './live';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { svgBox, type Shape } from './still';
 import { onMotion, reducedMotion } from './ticker';
@@ -98,7 +98,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       skin = { g: host.ownerDocument.createElementNS(SVG, 'g') as SVGGElement, id: ultraId() };
       svg.insertBefore(skin.g, grouped ? over : paths[1]);
     }
-    paintSkin(skin.g, d, opts.size, furShown(!!coat?.showing, d), skin.id);
+    paintSkin(skin.g, d, opts.size, furShown(!!coat?.showing, d), skin.id, !!coat?.paintedPower);
     const k = d.ultra?.amount ?? 0;
     if (k !== inked) { inked = k; paths[1].style.fill = paths[2].style.fill = eyeInk(colour().eyeFill, k); }
   };
@@ -138,13 +138,13 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     }
     return split.canvas;
   };
-  /** Wear the material asked for: a fluffy one gets its coat; a flat one is one svg again. */
-  const material = () => {
+  /** Wear the material asked for: a fluffy one gets its coat; an undressed flat body is one svg again. */
+  const material = (finish: Material | undefined) => {
     // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
     coat?.stop();
     coat = null;
-    if (opts.material === 'fluffy' || opts.material === 'glossy') {
-      coat = coatLayer(paths[0], canvasOf, () => { powered(last); layered(last); }, opts.material === 'glossy');
+    if (finish) {
+      coat = coatLayer(paths[0], canvasOf, () => { powered(last); layered(last); }, finish);
       return;
     }
     if (!split) return;
@@ -188,7 +188,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   svg.appendChild(front);
   host.appendChild(svg);
   if (opts.material === 'glossy') paint();
-  material();
+  material(paintedMaterial(opts));
 
   // 3. Alive, in React's effect order.
   const detach = live.attach(host, (d) => {
@@ -219,7 +219,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
   let button = false;
   const syncPoke = () => {
     const want = !!opts.pokeable && !reducedMotion();
-    if (want) host.setAttribute('aria-label', opts.label ? `Poke ${opts.label}` : 'Poke the avatar');
+    if (want) host.setAttribute('aria-label', opts.label ? `poke ${opts.label}` : 'poke the avatar');
     if (want === button) return;
     button = want;
     if (want) {
@@ -259,7 +259,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
-      if (changed('material')) { material(); paint(); live.motion(); }
+      if (paintedMaterial(before) !== paintedMaterial(opts) || changed('material')) { material(paintedMaterial(opts)); paint(); live.motion(); }
     },
     poke: (kind) => { if (!gone) live.poke(kind); },
     play: (name, cue) => !gone && live.play(name, cue),
@@ -269,9 +269,9 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       gone = true;
       detach();
       unheard();
-      opts = { ...opts, pokeable: false, material: 'flat' };
+      opts = { ...opts, pokeable: false, material: undefined };
       syncPoke();
-      material();
+      material(undefined);
       svg.remove();
       host.style.width = was.width;
       host.style.height = was.height;

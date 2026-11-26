@@ -32,8 +32,14 @@
 
     <!-- The studio: one avatar, and a card of tabs to pick it, play with it, or make a new one. -->
     <section id="studio" class="view" data-view="studio" aria-labelledby="studio-title">
-      <div class="view-head">
-        <h1 id="studio-title" tabindex="-1">avatar studio</h1>
+      <div class="view-head studio-heading-row">
+        <div class="studio-heading">
+          <h1 id="studio-title" tabindex="-1">avatar studio</h1>
+          <div class="seg" data-tabs="appearance-mode" role="tablist" aria-label="appearance mode">
+            <button type="button" id="mode-preset" role="tab" aria-controls="panel-preset">preset</button>
+            <button type="button" id="mode-custom" role="tab" aria-controls="panel-custom">custom</button>
+          </div>
+        </div>
       </div>
       <div class="studio">
         <div class="stage-col">
@@ -89,10 +95,6 @@
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-bot" aria-labelledby="tab-bot">
-            <div class="seg" data-tabs="appearance-mode" role="tablist" aria-label="appearance mode">
-              <button type="button" id="mode-preset" role="tab" aria-controls="panel-preset">preset</button>
-              <button type="button" id="mode-custom" role="tab" aria-controls="panel-custom">custom</button>
-            </div>
             <section id="panel-preset" role="tabpanel" aria-labelledby="mode-preset">
               <div class="wardrobe-tabs" data-tabs="preset-source" role="tablist" aria-label="preset collections">
                 <button type="button" id="source-catalog" role="tab" aria-controls="panel-catalog">catalog</button>
@@ -142,7 +144,7 @@
                 <div class="sub finish">
                   <span class="sub-label" id="finish-label">finish</span>
                   <div class="seg" role="group" aria-labelledby="finish-label" data-material>
-                    <button type="button" data-matte aria-pressed="true" disabled hidden>matte</button>
+                    <button type="button" data-matte aria-pressed="true" hidden>matte</button>
                     <button type="button" data-material-is="glossy" aria-pressed="false">glossy</button>
                     <button type="button" data-material-is="flat" aria-pressed="true">flat</button>
                     <button type="button" data-material-is="fluffy" aria-pressed="false">fur</button>

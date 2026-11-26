@@ -56,6 +56,14 @@ uniform bool orthographic, ornament, portraitCoat, builderPile, substrateRGB;
 uniform vec2 feltExtent;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
+uniform bool eyePatch;
+uniform highp sampler2D faceSurface;
+uniform vec4 eyeRelief, faceBounds;
+out float faceCoverage;
+vec4 surfaceSample(ivec2 at, ivec2 last, float weight) {
+  vec4 s = texelFetch(faceSurface,clamp(at,ivec2(0),last),0);
+  return s.w > 0. ? s * weight : vec4(0.);
+}
 uniform vec3 ornamentOffset;
 // The middle and half size of the body's box, and the camera, in body units.
 uniform vec3 middle, extent, camera;
@@ -92,9 +100,25 @@ float edge(float s, int at) {
 
 void main() {
   vec3 P = position, Nm = normal, rest = (position - middle) / extent;
+  faceCoverage = 1.;
   if (ornament) {
     P = ornamentAxes * P + ornamentOffset;
     Nm = normalize(transpose(inverse(ornamentAxes)) * Nm);
+    if (eyePatch) {
+      ivec2 last = textureSize(faceSurface,0) - 1;
+      vec2 uv = (P.xy-faceBounds.xy)*faceBounds.zw, grid = uv*vec2(last), f = fract(grid);
+      ivec2 at = ivec2(floor(grid));
+      vec4 skin = surfaceSample(at,last,(1.-f.x)*(1.-f.y))
+                + surfaceSample(at+ivec2(1,0),last,f.x*(1.-f.y))
+                + surfaceSample(at+ivec2(0,1),last,(1.-f.x)*f.y)
+                + surfaceSample(at+ivec2(1),last,f.x*f.y);
+      faceCoverage = skin.w;
+      if (any(lessThan(uv,vec2(0.))) || any(greaterThan(uv,vec2(1.)))) faceCoverage = 0.;
+      vec3 outward = normalize(skin.yzw + vec3(0.,0.,.00001));
+      P.z = skin.x + eyeRelief.x + clamp((position.z-eyeRelief.y)*eyeRelief.z,0.,1.)*eyeRelief.w;
+      faceCoverage = min(faceCoverage,dot(outward,normalize(camera-P)) + .06);
+      Nm = normalize(vec3(.10*Nm.xy,0.) + (Nm.z >= 0. ? outward : -outward));
+    }
   }
   // How much pile stands up (a piece that has gone thin lies flat), and whether there is any piece here at all.
   float pile = 1.;
@@ -261,7 +285,7 @@ uniform vec4 shadowWeights[2];
 ${dotLightProjection}
 uniform float contactExtent;
 uniform vec3 contactColor[4];
-uniform bool glossy, measuredLight, ornament, metal, portraitCoat, builderPile;
+uniform bool authoredTint, unlit, dyedMatte, glossy, measuredLight, ornament, metal, portraitCoat, builderPile;
 uniform float shellOpacity;
 uniform sampler2D matteStudio, polishedStudio;
 uniform int finish, tintLayer, furLightLayer, matteBodyLayer;
@@ -274,7 +298,7 @@ uniform float shell;
 uniform vec4 eyeMap;
 uniform float eyeRange;
 in vec3 N, pilePosition, groomPoint, opticalPlace, scenePlace, lean;
-in float groomSide;
+in float groomSide, faceCoverage;
 in float tip, variation, across, solid;
 out vec4 result;
 ${passes}
@@ -369,8 +393,25 @@ vec3 tintedRadiance(vec2 uv, int layer, int kind) {
 }
 
 void main() {
+  if (faceCoverage < .10) discard;
+  if (unlit) {
+    vec3 dye = color;
+    if (ornament && finish >= 5) dye = studioLight(vec3(0.,0.,1.));
+    if (ornament && authoredTint) dye = tintedRadiance(vec2(.5), tintLayer, metal ? 1 : 0);
+    result = vec4(dye, 1.);
+    return;
+  }
   vec3 n = normalize(N);
   if (ornament) {
+    if (finish == 7) {
+      // The short pile on the three-lobed portrait tuft stipples the surface
+      // evenly. A directional comb across it reads as ridges on the lobes.
+      vec3 base = studioLight(n);
+      float grain = texture(brushedPile, pilePosition / 16.).r - .5;
+      base = .90 * base + vec3(.021,.060,.105);
+      result = vec4(clamp(base + grain * .21 * (.22 + .78 * base), 0., 1.), 1.);
+      return;
+    }
     if (finish == 6) {
       vec3 base = studioLight(n);
       float grain = .33 * (brushedHeight() - .5);
@@ -400,6 +441,11 @@ void main() {
     return;
   }
   if (glossy) {
+    if (dyedMatte) {
+      float wrap = .5 + .5 * dot(n, normalize(vec3(-.52,-.78,.65)));
+      result = vec4(color * (.74 + .26 * wrap), 1.);
+      return;
+    }
     if (matteBodyLayer >= 0) { result = vec4(tintedRadiance(normalUV(n),matteBodyLayer,0),1.); return; }
     if (fittedGloss) { result = vec4(measuredGloss(n*vec3(1.,-1.,1.), opticalPlace), 1.); return; }
     if (measuredLight) { result = vec4(studioLight(n), 1.); return; }

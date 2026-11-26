@@ -9,7 +9,7 @@ import { watch } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
-import { BODIES, colours, drawAvatar, stillState, VIEW_BOX } from '../src/index.ts';
+import { BODIES, DOT_CATALOG, DOT_CHARACTERS, DOT_EYES, DOT_GLASSES, DOT_EXTRAS, colours, drawAvatar, stillState, VIEW_BOX } from '../src/index.ts';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const site = path.join(root, 'site');
@@ -54,7 +54,19 @@ async function statics() {
   await mkdir(out, { recursive: true });
   await copyFile(path.join(site, 'index.html'), path.join(out, 'index.html'));
   await copyFile(path.join(site, 'dots.html'), path.join(out, 'dots.html'));
-  await copyFile(path.join(site, 'style.css'), path.join(out, 'style.css'));
+  const thumbnails = JSON.parse(await readFile(path.join(site, 'portraits.json'), 'utf8'));
+  const keys = [...Object.keys(DOT_CHARACTERS), ...DOT_CATALOG.map(row => 'catalog/' + row.id)];
+  for (const [part, values] of Object.entries({ eyes: DOT_EYES, glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {
+    keys.push(...values.filter(value => value !== 'None').map(value => part + '/' + value));
+  }
+  if (JSON.stringify(keys) !== JSON.stringify(thumbnails.keys)) {
+    throw new Error('portrait catalog changed; regenerate the thumbnails with node scripts/portrait-sheet.mjs');
+  }
+  const sheet = await readFile(path.join(site, 'portraits.webp'));
+  const version = createHash('sha256').update(sheet).digest('hex').slice(0, 10);
+  await writeFile(path.join(out, 'portraits.webp'), sheet);
+  const css = await readFile(path.join(site, 'style.css'), 'utf8');
+  await writeFile(path.join(out, 'style.css'), css.replace('portraits.webp', 'portraits.webp?v=' + version));
   // The design prompt, for a short prompt in an agent app's link to point at.
   await copyFile(path.join(site, 'prompt.md'), path.join(out, 'prompt.md'));
   await writeFile(path.join(out, 'icon.svg'), icon());

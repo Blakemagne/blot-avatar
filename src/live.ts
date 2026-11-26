@@ -169,7 +169,12 @@ export function lookWithin(size: number, dx: number, dy: number, reach: Reach, f
   return { x: (nx / d) * e || 0, y: (ny / d) * e || 0 };
 }
 
-/** What a fluffy avatar asks drawAvatar for: the coat's part of the drawing too. */
+/** Dressed bodies can also paint their fitted solids without lighting in the flat finish. */
+export function paintedMaterial(props: LiveProps): Material | undefined {
+  if (props.material === 'glossy' || props.material === 'fluffy') return props.material;
+  return props.body?.dotStyle ? 'flat' : undefined;
+}
+
 const COAT = { coat: true } as const;
 
 /** Facing front with the neutral face: what an avatar that does not rest shows when nothing may move. */
@@ -207,7 +212,7 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: q.material === 'fluffy' || q.material === 'glossy' ? COAT : undefined });
+  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: paintedMaterial(q) ? COAT : undefined });
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 

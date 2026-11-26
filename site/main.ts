@@ -16,6 +16,7 @@ import {
 import { cue, eyes, head, toward, wave } from '@blot/avatar/moves';
 import { colorPicker, contrast } from './picker';
 import PROMPT from './prompt.md';
+import portraitSheet from './portraits.json';
 import {
   AGENTS, designBrief, freeId, isAgent, parseImport, partSvg, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
 } from './studio';
@@ -234,6 +235,7 @@ const picked = new Map<string, string>();
 const initialQuery = location.search || stored.get('blot-avatar:saved-look') || '';
 const appearanceQuery = new URLSearchParams(initialQuery);
 pg.eyes = readColour(appearanceQuery.get('eyeFill')) ?? null;
+pg.ultra = appearanceQuery.get('ultra') === '1';
 const wardrobe: AvatarParts = {};
 for (const [key, values] of Object.entries({ eyes: DOT_EYES, glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {
   const v = appearanceQuery.get(key);
@@ -247,9 +249,24 @@ const recipes: Record<string, DotAppearance> = {
 };
 let preset = appearanceQuery.get('preset') ?? '';
 if (!Object.hasOwn(recipes, preset)) preset = '';
+let catalogGloss = appearanceQuery.get('catalogFinish') === 'glossy';
+let tintExtra = appearanceQuery.get('tintExtra') === '1';
+function recipeParts(recipe: DotAppearance): AvatarParts {
+  return { eyes: recipe.eyes ?? 'Oval', glasses: recipe.glasses ?? 'None',
+    extra: recipe.extra ?? 'None', extraColour: recipe.extraColour ?? '#1F1F1F' };
+}
+function currentRecipe() {
+  const recipe = recipes[preset];
+  if (!recipe) return;
+  const changedParts = wardrobe.eyes && wardrobe.eyes !== (recipe.eyes ?? 'Oval')
+    || wardrobe.glasses && wardrobe.glasses !== (recipe.glasses ?? 'None')
+    || wardrobe.extra && wardrobe.extra !== (recipe.extra ?? 'None');
+  return { ...recipe, ...(changedParts ? { parts: { ...wardrobe } } : {}), ...(recipe.catalogId && catalogGloss ? { catalogGloss: true } : {}),
+    ...(tintExtra ? { tintExtra: true, extraColour: wardrobe.extraColour } : {}) };
+}
 function outfit() {
   const shape = entry(pg.key).shape;
-  const recipe = recipes[preset];
+  const recipe = currentRecipe();
   if (recipe && recipe.shape === shape) return dotAvatar(recipe);
   const customParts = wardrobe.eyes || (wardrobe.extra && wardrobe.extra !== 'None') || (wardrobe.glasses && wardrobe.glasses !== 'None');
   if (customParts || typeof shape === 'string' && shape.startsWith('dot-')) return avatarParts(shape, wardrobe);
@@ -276,13 +293,17 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
     // A body first, then one of yours, then (for a link written by hand) the gallery.
     const found = [...BODY_ENTRIES, ...yours.map(yoursEntry), ...GALLERY_ENTRIES].find((e) => e.id === shared.avatar);
     if (found) pg.key = found.key;
-  }
+  } else if (preset) pg.key = 'body:' + recipes[preset].shape;
   if (recipes[preset]?.shape !== entry(pg.key).shape) preset = '';
+  const portrait = recipes[preset];
+  if (portrait) Object.assign(wardrobe, { ...recipeParts(portrait), ...wardrobe });
   if (shared.colour) picked.set(pg.key, shared.colour);
+  else if (portrait?.colour) picked.set(pg.key, portrait.colour);
   // Older saved Dot looks omitted white because every Dot used to start white.
   else if (shared.avatar && entry(pg.key).finish && shared.material) picked.set(pg.key, '#FFFFFF');
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
+  else if (portrait) pg.material = portrait.texture === 'Fur' ? 'fluffy' : 'glossy';
   else if (!chosenTexture) pg.material = entry(pg.key).finish ?? 'glossy';
   pg.color = picked.get(pg.key) ?? entry(pg.key).own;
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
@@ -296,8 +317,8 @@ function stageOptions(): MountOptions {
   const { body } = options;
   const width = stage.clientWidth || Infinity, height = stage.clientHeight || Infinity;
   if (body?.dotStyle && !body.wardrobeHost) {
-    const side = Math.min(2 * pg.size, width, height * 1.5);
-    const appearance = recipes[preset] ?? { shape: body.id, ...body.dotStyle };
+    const side = Math.min(2 * pg.size, width * .96, height * .96);
+    const appearance = currentRecipe() ?? { shape: body.id, ...body.dotStyle };
     stageLayout = dotStageLayout(appearance, side);
     const { background, groundOrigin, x, y } = stageLayout;
     Object.assign(ground.style, {
@@ -459,8 +480,10 @@ function tabs(name: string, shown?: (id: string) => void): (id: string, focus?: 
   set(buttons[0].id, false);
   return show;
 }
-tabs('card', () => marked());
-const showMode = tabs('appearance-mode');
+const showCard = tabs('card', () => marked());
+const showMode = tabs('appearance-mode', () => {
+  if ($('#tab-bot').getAttribute('aria-selected') !== 'true') showCard('tab-bot');
+});
 const showSource = tabs('preset-source');
 showMode(preset ? 'mode-preset' : 'mode-custom');
 showSource(preset && !preset.startsWith('catalog/') ? 'source-starters' : 'source-catalog');
@@ -573,9 +596,9 @@ function marked(): void {
 const resetColour = $<HTMLButtonElement>('[data-reset-colour]');
 /** The colour now shown, on its thumbnail and the reset button. */
 function coloured(): void {
-  const e = entry(pg.key);
-  resetColour.hidden = pg.color.toUpperCase() === e.own.toUpperCase();
-  const name = BOT_COLOURS.find(([h]) => h === e.own)?.[1] ?? e.own;
+  const own = recipes[preset]?.colour ?? entry(pg.key).own;
+  resetColour.hidden = pg.color.toUpperCase() === own.toUpperCase();
+  const name = COLOURS.find(([h]) => h === own)?.[1] ?? own;
   resetColour.textContent = `back to its own colour, ${name.toLowerCase()}`;
 }
 
@@ -596,7 +619,7 @@ function paint(): void {
 }
 const bodyPicker = colorPicker($('[data-picker="body"]'), {
   label: 'body colour', value: pg.color, presets: COLOURS,
-  onInput: (v) => { preset = ''; syncWardrobe(); pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
+  onInput: (v) => { pg.color = v ?? DEFAULT_COLOUR; picked.set(pg.key, pg.color); coloured(); paint(); },
 });
 {
   const eyePicker = colorPicker($('[data-picker="eyes"]'), {
@@ -607,8 +630,9 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
     previews.push(mount(p.preview, { ...outfit(), size: 40, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material, seed: 300 + i }));
   }
   resetColour.addEventListener('click', () => {
-    preset = '';
-    picked.delete(pg.key);
+    const own = recipes[preset]?.colour;
+    if (own) picked.set(pg.key, own);
+    else picked.delete(pg.key);
     select(pg.key);
     // The button is hidden now: focus goes to the colour it went back to.
     $('[data-picker="body"]').querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
@@ -619,8 +643,10 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
 const materialNote = $('[data-material-note]');
 const materialButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-material-is]')];
 function syncTexture(): void {
-  const matte = !!recipes[preset]?.catalogId;
-  $('[data-matte]').hidden = !matte;
+  const catalog = !!recipes[preset]?.catalogId;
+  const matte = catalog && pg.material === 'glossy' && !catalogGloss;
+  $('[data-matte]').hidden = !catalog;
+  $('[data-matte]').setAttribute('aria-pressed', String(matte));
   for (const button of materialButtons) {
     button.setAttribute('aria-pressed', String(!matte && button.dataset.materialIs === pg.material));
   }
@@ -628,13 +654,21 @@ function syncTexture(): void {
 function finished(): void {
   // Where no coat can be drawn (no WebGL2, or it fails) the body stays flat, the switch says so and there is no PNG.
   // (Asked only once fur is: it sets up WebGL2.)
-  const noGl = pg.material !== 'flat' && !coatable();
+  const usesSurface = pg.material !== 'flat' || !!outfit().body?.dotStyle;
+  const noGl = usesSurface && !coatable();
   syncTexture();
   materialNote.hidden = !noGl;
-  doButton('png').hidden = pg.material === 'flat' || noGl;
+  doButton('png').hidden = noGl || !usesSurface;
   $('[data-svg-says]').textContent = pg.material !== 'flat' ? 'SVG still, flat' : 'SVG still, this colour';
   writeUse();
 }
+$('[data-matte]').addEventListener('click', () => {
+  catalogGloss = false;
+  pg.material = 'glossy';
+  chosenTexture = true;
+  finished();
+  paint();
+});
 for (const b of materialButtons) {
   b.addEventListener('click', () => {
     const m = readMaterial(b.dataset.materialIs);
@@ -642,7 +676,8 @@ for (const b of materialButtons) {
     chosenTexture = true;
     stored.set(MATERIAL_KEY, m);
     if (m === pg.material && !recipes[preset]?.catalogId) return;
-    preset = '';
+    // A starter's glasses, eyes and ornaments belong to its rig in every finish.
+    if (recipes[preset]?.catalogId) catalogGloss = m === 'glossy';
     pg.material = m;
     syncWardrobe();
     finished();
@@ -659,6 +694,7 @@ function select(key: string, carryColour = true): void {
   pg.color = picked.get(key) ?? entry(key).own;
   bodyPicker.set(pg.color);
   marked();
+  finished();
   coloured();
   actions();
   paint();
@@ -667,14 +703,14 @@ function select(key: string, carryColour = true): void {
 }
 
 const portraitButtons = new Map<string, HTMLButtonElement>();
-const portraitObserver = new IntersectionObserver(rows => {
-  for (const row of rows) {
-    if (!row.isIntersecting) continue;
-    const slot = row.target as HTMLElement;
-    mount(slot, { ...dotAvatar(recipes[slot.dataset.portrait!]), size: 48, rests: true });
-    portraitObserver.unobserve(slot);
-  }
-});
+const portraitIndices = new Map(portraitSheet.keys.map((key, index) => [key, index]));
+function thumbnail(slot: HTMLElement, key: string): void {
+  slot.classList.add('rendered-thumb');
+  const index = portraitIndices.get(key)!;
+  const { columns, rows } = portraitSheet;
+  slot.style.backgroundSize = `${columns * 100}% ${rows * 100}%`;
+  slot.style.backgroundPosition = `${100 * (index % columns) / (columns - 1)}% ${100 * Math.floor(index / columns) / (rows - 1)}%`;
+}
 function portraitCell(key: string, name: string): HTMLLIElement {
   const slot = make('span', { className: 'portrait-thumb' });
   slot.dataset.portrait = key;
@@ -682,7 +718,7 @@ function portraitCell(key: string, name: string): HTMLLIElement {
   const button = make('button', { type: 'button', className: 'bot-cell portrait-cell' },
     slot, make('span', { textContent: name.toLowerCase() }));
   portraitButtons.set(key, button);
-  portraitObserver.observe(slot);
+  thumbnail(slot, key);
   button.addEventListener('click', () => applyPreset(key));
   return make('li', {}, button);
 }
@@ -691,16 +727,14 @@ $('[data-catalog]').append(...DOT_CATALOG.map(item => portraitCell('catalog/' + 
 
 function applyPreset(key: string): void {
   preset = key;
+  tintExtra = false;
+  catalogGloss = false;
   const recipe = recipes[key];
-  Object.assign(wardrobe, {
-    eyes: recipe.eyes ?? 'Oval', glasses: recipe.glasses ?? 'None',
-    extra: recipe.extra ?? 'None', extraColour: recipe.extraColour ?? '#1F1F1F',
-  });
+  Object.assign(wardrobe, recipeParts(recipe));
   chosenTexture = true;
   pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
   const shapeKey = 'body:' + recipe.shape;
   picked.set(shapeKey, recipe.colour ?? '#FFFFFF');
-  finished();
   select(shapeKey, false);
 }
 const motionMenu = $<HTMLSelectElement>('[data-dot-motion]');
@@ -728,17 +762,16 @@ for (const key of Object.keys(choices) as PartKey[]) {
   for (const value of choices[key]) {
     const button = make('button', { type: 'button', className: 'part-tile' });
     const original = value === 'Original';
-    const shape = original ? 'blob' : 'dot-rounded-triangle';
-    const sample = original ? bodyOf(shape) : avatarParts(shape, { [key]: value, extraColour: '#CB8E68' }).body;
     const preview = make('span', { className: 'part-sample' });
     preview.setAttribute('aria-hidden', 'true');
     if (value === 'None') preview.textContent = '∅';
-    else preview.innerHTML = partSvg(shape, sample, key === 'eyes');
+    else if (original) preview.innerHTML = partSvg('blob', bodyOf('blob'), true);
+    else thumbnail(preview, key + '/' + value);
     button.append(preview, make('span', { textContent: value.toLowerCase() }));
     box.append(button);
     partButtons.set(button, { key, value });
     button.addEventListener('click', () => {
-      preset = '';
+      if (button.getAttribute('aria-pressed') === 'true') return;
       if (original) delete wardrobe.eyes;
       else Object.assign(wardrobe, { [key]: value });
       syncWardrobe();
@@ -755,7 +788,7 @@ for (const [hex, name] of DOT_EXTRA_COLOURS) {
   button.style.backgroundColor = hex;
   extraPalette.append(button);
   button.addEventListener('click', () => {
-    preset = '';
+    tintExtra = !!preset;
     wardrobe.extraColour = hex;
     syncWardrobe();
     paint();
@@ -907,7 +940,10 @@ function appearanceLink() {
   for (const [key,v] of Object.entries(wardrobe)) url.searchParams.set(key,v);
   if (e.finish) url.searchParams.set('color', pg.color);
   if (pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
+  if (pg.ultra) url.searchParams.set('ultra','1');
   if (preset) url.searchParams.set('preset',preset);
+  if (preset && tintExtra) url.searchParams.set('tintExtra', '1');
+  if (currentRecipe()?.catalogGloss) url.searchParams.set('catalogFinish', 'glossy');
   url.searchParams.set('material',pg.material);
   return url;
 }
@@ -1025,6 +1061,7 @@ importPanel.addEventListener('drop', (e) => { e.preventDefault(); importPanel.cl
   const mark = $<HTMLInputElement>('[data-mark]');
   mark.addEventListener('change', () => { pg.mark = mark.checked; changed(); });
   const ultra = $<HTMLInputElement>('[data-ultra]');
+  ultra.checked = pg.ultra;
   ultra.addEventListener('change', () => { pg.ultra = ultra.checked; changed(); });
   const visits = $('[data-visit]');
   for (const shape of VISITS) {
@@ -1087,10 +1124,10 @@ function writeCode(): void {
   const e = entry(pg.key);
   const shapeOption = e.kind === 'body' ? `shape: '${e.id}'` : e.kind === 'gallery' ? `shape: galleryAvatar('${e.id}').definition` : 'shape';
   const styled = outfit().body?.dotStyle;
-  const recipe = recipes[preset];
+  const recipe = currentRecipe();
   const initial = recipe ? `...dotAvatar(${JSON.stringify(recipe)})` : styled ? `...avatarParts(${shapeOption.replace(/^shape: /,'')}, ${JSON.stringify(wardrobe)})` : shapeOption;
   const o: string[] = [initial, `size: ${Number((stageSize).toFixed(3))}`];
-  if (pg.color !== DEFAULT_COLOUR) o.push(`color: '${pg.color}'`);
+  if (pg.color !== (recipe?.colour ?? DEFAULT_COLOUR)) o.push(`color: '${pg.color}'`);
   if (pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);

@@ -396,7 +396,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
     layers.push(...face, ...dotExtra(wearer, wearer.dotStyle, R, d.rim));
     const style = wearer.dotStyle;
     if (!style.originalEyes || coversEyes(style)) eyes = [[], []];
-    if (coat) dotMask = [...eyes[0], ...eyes[1], ...face.flatMap(p => p.polys.map(poly => poly.slice()))];
+    if (coat) dotMask = [...eyes[0], ...eyes[1], ...(style.originalEyes ? [] : face.flatMap(p => p.polys.map(poly => poly.slice())))];
   }
   if (wearer.decals) marks(wearer, state, size, fence, layers);
 

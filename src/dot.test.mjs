@@ -483,3 +483,96 @@ test('the rounded-triangle pile changes density with rendered size', async () =>
   }
   assert.equal(cursor,profiles.length);
 });
+
+test('editing a dressed body preserves its host, inherited parts and explicit removals', () => {
+  const shapes = [...Object.keys(BODIES), ...DOT_SHAPES.map(s => s.id),
+    ...GALLERY.map(g => g.definition), { ...GALLERY[0].definition, id: 'imported-controller' }];
+  for (const shape of shapes) {
+    const first = avatarParts(shape, { glasses: 'Tall oval frames', extra: 'Headphones', extraColour: '#FFCC38' });
+    assert.equal(avatarParts(first.body).body, first.body);
+    for (const eyes of DOT_EYES) {
+      const next = avatarParts(first.body, { eyes }).body;
+      assert.equal(next.wardrobeHost, first.body.wardrobeHost);
+      assert.equal(next.dotStyle.glasses, 'Tall oval frames');
+      assert.equal(next.dotStyle.extra, 'Headphones');
+      assert.equal(next.dotStyle.extraColour, '#FFCC38');
+      assert.equal(next.dotStyle.eyes, next.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : eyes);
+      assert.equal(avatarParts(next, { extra: 'None' }).body.dotStyle.extra, 'None');
+    }
+  }
+});
+
+test('the closed lid hides multilayer catchlights without changing the eyewear', () => {
+  for (const eyes of ['Sparkle capsules', 'Crescent inset', 'Round highlights']) {
+    const { body } = avatarParts('dot-hexagon', { eyes, glasses: 'Tall oval frames' });
+    const open = dotFeatures(body);
+    const shut = dotFeatures(body, { x: 0, y: 0, left: 0, right: 0 });
+    assert.ok(open.some(s => s.finish === 'white'));
+    assert.ok(shut.every(s => s.finish !== 'white'));
+    assert.deepEqual(shut.slice(-2), open.slice(-2));
+  }
+});
+
+test('a tinted preset extra retains the portrait mesh, eye fittings and stage rig', async () => {
+  const { DOT_CATALOG } = await import('./index.ts');
+  for (const name of ['Josh', 'Tavi']) {
+    const recipe = DOT_CATALOG.find(item => item.name === name).appearance;
+    const original = dotAvatar(recipe).body;
+    const dyed = dotAvatar({ ...recipe, extraColour: '#FA70AB', tintExtra: true, catalogGloss: true }).body;
+    assert.equal(coatMesh(dyed), coatMesh(original));
+    assert.equal(dyed.dotStyle.character, original.dotStyle.character);
+    assert.equal(dyed.dotStyle.catalogId, original.dotStyle.catalogId);
+    const before = dotFeatures(original), after = dotFeatures(dyed, undefined, [250,112,171]);
+    assert.deepEqual(after.map(p => p.mesh), before.map(p => p.mesh));
+    assert.deepEqual(after.map(p => p.axes), before.map(p => p.axes));
+    assert.ok(after.some(p => !p.finish && p.tint[0] === 250 && p.material === undefined));
+  }
+});
+
+test('replacing one portrait component keeps the shell and untouched fittings', async () => {
+  const { DOT_CATALOG, DOT_CHARACTERS } = await import('./index.ts');
+  for (const recipe of [...Object.values(DOT_CHARACTERS), ...DOT_CATALOG.map(row => row.appearance)]) {
+    const base = dotAvatar(recipe).body;
+    const before = dotFeatures(base);
+    for (const parts of [
+      { eyes: 'Sparkle capsules' },
+      { glasses: recipe.glasses === 'Monocle' ? 'None' : 'Monocle' },
+      { extra: recipe.extra === 'Headphones' ? 'Bow tie' : 'Headphones' },
+    ]) {
+      const edited = dotAvatar({ ...recipe, parts }).body;
+      assert.equal(avatarParts(base, parts).body, edited);
+      assert.equal(coatMesh(edited), coatMesh(base));
+      const after = dotFeatures(edited);
+      assert.ok(after.every(p => p.axes.every(Number.isFinite)));
+      if (parts.extra) {
+        const face = before.filter(p => p.finish);
+        for (const piece of face) assert.ok(after.some(p => p.mesh === piece.mesh && p.finish === piece.finish));
+      } else {
+        for (const prop of before.filter(p => !p.finish)) assert.ok(after.some(p => p.mesh === prop.mesh));
+      }
+    }
+  }
+});
+
+test('josh has a continuous pale lens underneath each moving crescent', async () => {
+  const { DOT_CATALOG } = await import('./index.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-mesh.ts');
+  const { body } = dotAvatar(DOT_CATALOG.find(row => row.name === 'Josh').appearance);
+  const parts = dotFeatures(body);
+  for (const [lens, pupil] of [[parts[0], parts[1]], [parts[2], parts[3]]]) {
+    const v = lens.mesh.vertices, p = pupil.mesh.vertices;
+    const cx = (lens.mesh.box[0]+lens.mesh.box[3])/2;
+    const cy = (lens.mesh.box[1]+lens.mesh.box[4])/2;
+    let centralSurface = false;
+    for (let i = 0; i < v.length; i += 6) {
+      if (Math.hypot(v[i]-cx,v[i+1]-cy) < .005 && v[i+5] > .9) centralSurface = true;
+    }
+    assert.ok(centralSurface, 'the body would show through a hole beneath the pupil');
+    for (let i = 0; i < p.length; i += 6) {
+      if (p[i+5] < .1) continue;
+      const radius = Math.hypot(p[i]-cx,p[i+1]-cy) / (.1919*DOT_RADIUS);
+      const support = DOT_RADIUS * (.576+.05*Math.sqrt(Math.max(0,1-radius**2)));
+      assert.ok(p[i+2] >= support && p[i+2] < support+.004);
+    }
+  }
+});

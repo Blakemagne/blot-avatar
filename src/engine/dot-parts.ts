@@ -2,6 +2,7 @@ import { prepare, surfaceTop, type Body, type Piece, type Sphere } from './body'
 import { dotDepth, DOT_RADIUS } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, project, type Mat3 } from './math';
+import { eyePolys } from './eyes';
 import { silhouette } from './silhouette';
 import type { RigState } from './rig';
 
@@ -45,6 +46,15 @@ export interface DotStyle {
   extraColour: string;
   /** A named matte catalog rig, retained while its appearance matches the recipe. */
   catalogId?: string;
+  /** Light the catalog shell as an editable glossy surface while retaining its fittings. */
+  catalogGloss?: boolean;
+  /** Apply the selected dye to the accessory on an authored portrait. */
+  tintExtra?: boolean;
+  /** Base dye used to calibrate the authored shell's lighting. */
+  portraitDye?: number;
+  replaceEyes?: boolean;
+  replaceGlasses?: boolean;
+  replaceExtra?: boolean;
   /** Authored starter portrait. Custom builds leave this unset. */
   character?: 'Blossie' | 'Alfred' | 'Jojo' | 'Iris' | 'Todd' | 'Iggy' | 'Felipe' | 'Thelma' | 'Felipe flower' | 'Josh';
 }
@@ -68,7 +78,7 @@ const LIGHT = '#FFFFFF';
 const DESIGN_RADIUS = 148;
 
 // The eye centres in the neutral camera. Width and height of the design scale together.
-const sockets: Readonly<Record<string, readonly [number, number, number]>> = {
+export const sockets: Readonly<Record<string, readonly [number, number, number]>> = {
   'dot-blossie': [28.5, 228, 1],
   'dot-six-lobed-flower': [28.5, 230.5, 1],
   'dot-circle': [29, 228, 1],
@@ -96,8 +106,16 @@ export function frameMount(host: Body) {
   const saved = frameMounts.get(host);
   if (saved) return saved;
   const cx = host.eyes.cx ?? 0, { x, y } = host.eyes;
-  const bridge = Math.max(...[cx - x, cx, cx + x].map(u => wardrobeDepth(host, u, y) ?? 0));
-  const mount = { scale: x / (.28 * DOT_RADIUS), depth: bridge + .075 };
+  const scale = x / (.28 * DOT_RADIUS);
+  // Sample the lens footprint. A deep cheek or raised brow can sit ahead of
+  // the bridge, especially on gallery bodies made from several overlapping pieces.
+  let bridge = wardrobeDepth(host, cx, y) ?? 0;
+  for (let i = -8; i <= 8; i++) for (let j = -3; j <= 3; j++) {
+    const offset = i * .105 * scale * DOT_RADIUS;
+    const z = wardrobeDepth(host, cx + offset, y + j * .12 * scale * DOT_RADIUS);
+    if (z !== undefined) bridge = Math.max(bridge, z + FRAME_CURVE * offset ** 2 / scale);
+  }
+  const mount = { scale, depth: bridge + .075 };
   frameMounts.set(host, mount);
   return mount;
 }
@@ -132,13 +150,20 @@ export function dotFace(
     const index = side < 0 ? 0 : 1;
     const name = side < 0 ? 'left' : 'right';
     const lid = Math.max(0, state.lid * (state.lids?.[index] ?? 1));
-    const x = cx + side * (spacing + (glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
+    const x = cx + side * (spacing + (native && glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
     const gazeX = body.eyes.slideX * state.eye.x, gazeY = body.eyes.slideY * state.eye.y;
     function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false) {
       const polys: Float64Array[] = [];
       // The resting frog pupils sit slightly toward the bridge of the nose.
       const centre = frog && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
       for (const loop of loops) {
+        if (body.wardrobeHost) {
+          if (rotation[8] > 0) {
+            const offsets = loop.map((value,i) => value * scale / DESIGN_RADIUS * (i % 2 ? -open : 1));
+            polys.push(...eyePolys(body.wardrobeHost,rotation,centre+gazeX,eyeY+gazeY,offsets));
+          }
+          continue;
+        }
         const poly = new Float64Array(loop.length);
         let facing = 0;
         for (let i = 0; i < loop.length; i += 2) {

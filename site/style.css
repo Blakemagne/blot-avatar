@@ -121,7 +121,11 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 
 /* ---- The studio */
 
-.studio { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; margin-bottom: 20px; }
+.studio, .studio-heading-row { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.studio-heading-row { max-width: none; margin-bottom: 12px; }
+.studio-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.studio-heading .seg { margin: 0; flex: none; }
+.studio { align-items: start; margin-bottom: 20px; }
 .stage-col { display: grid; gap: 14px; min-width: 0; }
 .stage {
   position: relative; display: grid; place-items: center; min-height: 440px; overflow: hidden;
@@ -354,7 +358,7 @@ pre code { font-size: inherit; }
 /* ---- Narrow screens */
 
 @media (max-width: 900px) {
-  .studio, .moves-view, .use { grid-template-columns: minmax(0, 1fr); }
+  .studio, .studio-heading-row, .moves-view, .use { grid-template-columns: minmax(0, 1fr); }
   /* Stacked, the stage stays in view above the list as it scrolls, smaller, so a move played is a move seen. */
   .stage.small-stage { top: 62px; z-index: 2; min-height: 190px; }
 }
@@ -384,6 +388,7 @@ pre code { font-size: inherit; }
 [data-extra-palette]:not([hidden]) { display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem; }
 [data-extra-palette] button { width:1.65rem;height:1.65rem;border-radius:50%;border:1px solid #8886;cursor:pointer; }
 .portrait-cell { aspect-ratio: auto; min-height: 88px; align-content: center; gap: 5px; padding: 6px 3px; font: inherit; font-size: .8rem; color: var(--ink); }
+.rendered-thumb { background-image: url('portraits.webp'); background-repeat: no-repeat; }
 .portrait-thumb { position: relative; display: block; width: 48px; height: 48px; pointer-events: none; }
 .preset-choice { display:flex;align-items:center;gap:.5rem;margin:.6rem 0;font-size:.85rem; }
 .preset-choice select { max-width:65%; }
@@ -403,6 +408,8 @@ pre code { font-size: inherit; }
 
 
 @media (max-width: 480px) {
+  .studio-heading h1 { font-size: clamp(20px, 6vw, 26px); }
+  .studio-heading .seg button { padding-inline: .65em; }
   .wardrobe-tabs { gap: 0; justify-content: space-between; }
   .wardrobe-tabs button { padding: .5em .4em; font-size: .88rem; }
   .actions .button.small { min-height: 34px; padding: 0 10px; font-size: .82rem; }

@@ -5,7 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { coatLayer, type CoatLayer } from './coat/layer';
 import { glossyFill } from './gloss';
 import { clipEyes, writeLayers, type Paint } from './layers';
-import { createLive, type Live, type LiveProps } from './live';
+import { createLive, paintedMaterial, type Live, type LiveProps } from './live';
 import type { Drawing } from './engine/draw';
 import { glowFilter, paintEffects, type FxPaint } from './paint';
 import { bodyOf } from './still';
@@ -22,11 +22,11 @@ import { eyeInk, furShown, paintSkin, skinPaint, ultraId } from './ultra';
  * `layers[1]` on one after it (before the eyes); the frame loop fills them, in `paint`'s colours where given.
  * For the effects (a mark, sparks, rings, Zs), put `fx[0]` on an empty <g> before everything (`layers[0]` too)
  * and `fx[1]` on one after the eyes, and pass `fxPaint`; leave them off and the effects are not drawn.
- * For `material: 'fluffy'`, draw it as two svgs of the same box with a <canvas> between them, `coat` on the
+ * For glossy, fluffy or dressed flat avatars, draw two SVGs of the same box with a <canvas> between them, `coat` on the
  * canvas and `style={{ position: 'absolute', display: 'none' }}` (so it takes no room before the coat shows it):
  * the first svg holds `fx[0]` and `layers[0]`, the second the body path, `layers[1]`, the eyes and `fx[1]`. The
  * canvas is placed and shown when a coat is painted; until then, and where none can be, the body is flat.
- * Without the canvas (render it whenever the material is fluffy) it is flat too.
+ * An omitted canvas leaves the schematic SVG fallback visible.
  * For `ultra`, put `skin` on an empty <g> right after the body path (before `layers[1]`) and pass `fxPaint`: the
  * frame loop paints the rainbow, its sheen and its rim there, its halo and twinkles in `fx`, and the eyes go
  * toward dark ink (an inline fill on the eye paths while powered, taken off after). Over a coat the rainbow tints
@@ -49,7 +49,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   const skinId = useRef<string | null>(null);
   const inked = useRef(0);
   const coat = useRef<HTMLCanvasElement>(null);
-  /** The coat, while the material is fluffy. */
+  /** The shaded or unlit surface for the current material. */
   const layer = useRef<CoatLayer | null>(null);
   /** The colours, for the effects: read on every frame, never through a render. */
   const fxPaint = useRef<FxPaint | undefined>(p.fxPaint);
@@ -80,7 +80,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
    */
   const powered = (d: Drawing) => {
     const g = skin.current;
-    if (g && (d.ultra || skinId.current)) paintSkin(g, d, size.current, furShown(!!layer.current?.showing, d), skinId.current ??= ultraId());
+    if (g && (d.ultra || skinId.current)) paintSkin(g, d, size.current, furShown(!!layer.current?.showing, d), skinId.current ??= ultraId(), !!layer.current?.paintedPower);
     // (With no skin the body keeps its own colour, and inked eyes could vanish on it: they are not inked. Nor
     // without the eyes' own colour; but ink already on them is always taken off.)
     const k = g ? d.ultra?.amount ?? 0 : 0, own = fxPaint.current?.eyeFill;
@@ -99,18 +99,19 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     path.style.fill = gloss.fill;
     return () => { gloss.remove(); path.style.fill = before; };
   }, [p.material, p.fxPaint?.fill]);
+  const finish = paintedMaterial(p);
   // The coat first, so that the first picture is drawn with it.
   useEffect(() => {
     const el = coat.current;
     if (el) { el.style.position = 'absolute'; el.style.display = 'none'; }
     // (motion() draws again at once, as mount() does on a new material; before attach it does nothing.)
-    if ((p.material !== 'fluffy' && p.material !== 'glossy') || !body.current || !el) { live.motion(); return; }
+    if (!finish || !body.current || !el) { live.motion(); return; }
     // (A powered skin is painted again when the coat comes or goes, which may be outside a frame.)
-    const l = coatLayer(body.current, () => coat.current, () => { if (last.current) { powered(last.current); writeLayers(under.current, over.current, last.current, paint.current, layer.current?.showing); } }, p.material === 'glossy');
+    const l = coatLayer(body.current, () => coat.current, () => { if (last.current) { powered(last.current); writeLayers(under.current, over.current, last.current, paint.current, layer.current?.showing); } }, finish);
     layer.current = l;
     live.motion();
     return () => { l.stop(); layer.current = null; };
-  }, [p.material]);
+  }, [finish]);
   // In the order live.ts expects (attach first, then motion, follow, shape, face, doing), which React keeps.
   useEffect(() => (host.current ? live.attach(host.current, (d) => {
     last.current = d;

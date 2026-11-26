@@ -9,7 +9,7 @@
   "catalog-bea": ["body", "eye", "eye"],
   "catalog-birdie": ["body", "eye", "eye", "highlight", "highlight", "glasses", "extra"],
   "catalog-blue_beret": ["body", "eye", "eye", "extra", "extra", "extra"],
-  "catalog-blue_spectacles": ["body", "highlight", "eye", "highlight", "eye", "glasses", "glasses", "glasses", "extra"],
+  "catalog-blue_spectacles": ["body", "extra", "highlight", "eye", "highlight", "eye", "glasses", "glasses", "glasses"],
   "catalog-bowie": ["body", "eye", "eye"],
   "catalog-chai": ["body", "eye", "eye", "glasses", "glasses", "extra"],
   "catalog-claude": ["body", "eye", "eye", "glasses", "extra"],

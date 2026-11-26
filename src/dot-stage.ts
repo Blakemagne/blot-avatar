@@ -15,7 +15,8 @@ const opacity = [.994,.984,.923,.836,.729,.617,.505,.405,.315,.240,.178,.128,.06
 export function dotStageLayout(appearance: DotAppearance, side: number) {
   if (!Number.isFinite(side) || side <= 0) throw new RangeError('Stage size must be positive and finite');
   const { body } = dotAvatar(appearance), style = body!.dotStyle!;
-  const key = style.character ? portraitStage[style.character] : style.catalogId ? 'catalog/' + style.catalogId : body!.id + '/' + style.extra;
+  const portrait = style.character ? portraitStage[style.character] : style.catalogId ? 'catalog/' + style.catalogId : undefined;
+  const key = portrait && !style.replaceExtra ? portrait : body!.id + '/' + style.extra;
   const frame = stageFrames[key], glasses = stageEyewear[key + '/' + style.glasses];
   const [, cameraX, , , floorY, radiusX, radiusY] = frame;
   const [zoom, cameraY, floorX] = glasses ?? [frame[0], frame[2], frame[3]];

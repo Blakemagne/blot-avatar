@@ -1,0 +1,53 @@
+# wardrobe transfer review
+
+the audit covered 15 original bodies, 12 dot bodies, 23 gallery outlines and one imported copy of a gallery definition. the studio also has eight starter tiles and 108 catalog tiles. some tiles share a character. the images below came from the public renderer.
+
+| finding | change and evidence |
+| --- | --- |
+| josh’s tuft had folds through all three lobes, including in the untouched preset | fitted a smooth three-lobed solid to the portrait and matched the short pile to the reference. [tuft and finish close-ups](dot-review/josh-material-review.webp) |
+| choosing a texture, dye or face part on a preset could also replace its shell, glasses and headwear | the starter or catalog rig now owns the shell in every finish. each edited part takes its mounting position from that shell. the other parts retain their original meshes. josh’s connected round rims survive a finish change. the builder’s tall oval frames keep their separate rims. |
+| flat collapsed the tuft and eyewear into simplified shapes | dressed avatars use the same solids and depth ordering in flat, glossy and fur. matte catalog characters can switch back to their original finish. the standalone SVG and the fallback for devices without WebGL2 still use the schematic drawing. |
+| the blue shell showed through josh’s eye, the pale crescent had ridges and both round rims looked dented | the dark crescent now lies on a continuous pale lens. both rims use a smooth circular cross-section. the reference masks had also labelled the tuft as a highlight and the bridge as an extra. [reference and eye close-ups](dot-review/josh-detail-review.webp) |
+| round eye inserts could blink down to bright horizontal slivers | each eye now hides its catchlight at closure. the frog closes its raised sockets with its pupils. changing headphone dye also has a pixel regression covering both sockets. [frog close-up](dot-review/frog-eyes-egg-frames.webp) |
+| a scan of dark eye interiors found pale specks in both pupils on todd, the green frog preset | lifting the pupils clear of their sockets eliminated all 56 bright interior pixels in the neutral comparison. a browser regression checks for holes at four turns. [both pupils, enlarged](dot-review/frog-pupil-review.webp) |
+| the far eye lifted off the orange blob when the head turned, and the effect varied with gaze and eye style | each insert now follows the rendered host surface at its moving socket. its layers retain their order in a blink, and the far eye goes behind the body. the SVG fallback uses the original blot eye-visibility calculation for individual contours. [turns from 20° to 74°](dot-review/oblique-eyes.webp) |
+| fur left a second dark impression next to a fitted eye, and stray fibres cut holes through the pupil | the coat now uses the actual skin depth for fitted eye occlusion. the old schematic eye mask no longer imprints a second face into the fur. |
+| ultracode tinted parts of the eyes and headphone pads and left an outline inside a glossy body | the rainbow now uses the painted body and fur alpha, then the renderer draws the fittings at their normal depth. the original coat and accessory colours return when the power goes off. saved looks and share links carry the powered setting. [power-up and material comparison](dot-review/powered-wardrobe.webp) |
+| the controller swallowed the outside of the lenses, and pointed bodies poked through closed hats | rigid frames now clear the cheeks across the lens footprint. cap placement checks the roof as well as the brim. [controller and sparkle close-ups](dot-review/blot-fit-review.webp) |
+| a hat balanced on the bunny’s ears with empty space above its head | the cap seats on the central forehead when two taller side features are present. the ears emerge behind the brim. [bunny and bull](dot-review/ear-cap-review.webp) |
+| the clover hid the wings of the bow, and the barbell pierced the headphone band | the bow now fits against the chin and both cheeks. the headphone arch clears raised features while its ends stay on the pads. [first pass and refit](dot-review/bow-and-headband.webp) |
+| successive library edits lost previously selected parts | both the studio and the public wardrobe helper retain the host and its current fittings. removing a part, changing the accessory dye, saving, reloading and copying the configuration each preserve the other choices. |
+| tall ornaments could cross the stage boundary on compact screens | the studio sizes the avatar against the available height and width. replacing a portrait’s headwear also selects the camera framing for the new piece. |
+| opening the catalog created a live avatar for each visible tile | the picker uses thumbnails rendered from each actual recipe. the build verifies the thumbnail index against the catalog and starters. the selected avatar remains live on the stage. eye, frame and extra tiles also show rendered samples. |
+
+## coverage
+
+| check | coverage |
+| --- | --- |
+| wardrobe choices | 23,436 compatible combinations of wearer, eye style, glasses and extra. the check asserts each selected value. the frog uses its raised sockets. the two eared dot bodies have their own headwear restrictions. |
+| angles and eye movement | 1,377 poses across all 51 wearers, including turned faces, offset gaze and a nearly closed lid. the check verifies the SVG paths and the 3d transforms contain finite coordinates. |
+| rendered transfers | 459 browser renders cycling eyes, glasses, extras and materials across all 51 wearers, plus 153 views holding an outfit constant through three finishes. [one view per wearer](dot-review/wardrobe-transfer.webp) |
+| preset edits | all 116 starter and catalog entries rendered in their own outfits and again with changed fittings. the library regression changes eyes, glasses and extras individually and checks shell identity and untouched fittings. the studio exercise selected each of the three finishes for each tile, for 348 selections. |
+| studio header | the preset and custom tabs sit on the title line, flush with the right edge of the stage. the tabs also open appearance from play or new and support arrow-key navigation. [desktop and phone](dot-review/studio-heading.webp) |
+| compact stage | six starter or catalog characters wearing a crown or headphones at a 390 × 800 viewport. the painted avatar stayed inside the stage on all four sides. |
+| older bodies at oblique angles | 1,560 rendered views of eight eye styles on all 39 original, gallery and imported bodies. every front view showed the eye. across five turns per style, no opaque eye pixel fell more than one pixel outside the matching body silhouette. |
+| ultracode | 501 combinations across 51 wearers and 116 named entries in flat, glossy and fur. each changed as power rose and the rainbow moved, then restored its original pixels. all 290,878 interior fitting pixels tested kept their original colour. all 167 wearers also rendered the powered SVG fallback with WebGL2 disabled. |
+| shape switches | six successive changes with motion enabled and again with reduced motion. the check samples the first three frames of each switch for a missing material or stale headband. |
+
+run the combination and pose checks with `node --import tsx scripts/wardrobe-audit.mjs`. run `npm run site` followed by `node scripts/wardrobe-check.mjs` for the browser regressions. run `node scripts/wardrobe-power-check.mjs` for the powered material, turned eye and SVG fallback checks. the browser scripts accept `PLAYWRIGHT_CORE` and `CHROMIUM` for local installations. use `CHROMIUM_ANGLE=gl` to select hardware OpenGL for reference comparisons. regenerate the preset thumbnails with `node scripts/portrait-sheet.mjs` using the same browser setup.
+
+the [reference comparison](dot-parity.md) defines the 99.99% silhouette, exact foreground and exact component gates. all three must pass for each reference case. the wardrobe checks above measure transfer behavior. their counts do not measure pixel agreement.
+
+## reference results
+
+the revised build was captured at native resolution in chromium using hardware OpenGL on the same AMD radeon 890m used for the archived reference. the catalog and neutral comparisons isolated 769 visible component regions. exact pixels are sensitive to the graphics backend. these are the measurements from this run. [builder and starters](../golden/dots/metrics-neutral.csv) · [turns](../golden/dots/metrics-rotation.csv) · [catalog](../golden/dots/metrics-catalog.csv)
+
+| suite | cases | median silhouette agreement | median exact foreground pixels | cases passing all three gates |
+| --- | ---: | ---: | ---: | ---: |
+| builder and starters | 96 | 99.9465% | 87.7223% | 0 |
+| rotations and depth | 83 | 99.9419% | 89.0693% | 0 |
+| catalog and control | 109 | 99.9257% | 45.4458% | 0 |
+
+josh’s neutral reference mask covers 6,434 pixels on the tuft. on those pixels the mean absolute premultiplied channel error fell from 9.44 to 6.82 on a 0–255 scale. the pale lenses improved from 12.83 to 6.63, the dark pupils from 2.46 to 1.05, and the rims from 5.31 to 3.73. both builds ran through the same capture script. the tuft still has a visible boundary where it meets the body. [reference, before and revised](dot-review/josh-detail-review.webp)
+
+the existing 81,360-frame animation golden passed on node 22, the version used by CI. node 26.12 reproduced the path hash and gave a different full-precision state hash on both the starting commit and the revised build.

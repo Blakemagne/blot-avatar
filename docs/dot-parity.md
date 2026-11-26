@@ -5,10 +5,12 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 | Registered comparison | Cases | Median silhouette IoU | Median exact foreground | Median feature channel error, 0–255 | Cases passing all gates |
 |---|---:|---:|---:|---:|---:|
 | Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.40 | 0 |
-| Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.28 | 0 |
+| Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.27 | 0 |
 | Named catalog and its builder control, 512 px | 109 | 99.9257% | 45.4458% | 1.29 | 0 |
 
 Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
+
+[wardrobe transfer review and before/after close-ups](wardrobe-review.md)
 
 ## Unified studio regression check
 
@@ -90,4 +92,4 @@ for suite in neutral rotation catalog; do
 done
 ```
 
-The comparer returns exit status 1 while any case falls below the gate. It writes each case to `components/` under its report directory. With component masks, it also writes `section-metrics.csv` and a browsable `sections.html` gallery. The default command launches headless Chromium, whose graphics backend can change exact-byte results. The checked-in CSVs record the same-browser review described above. [Capture cases](../scripts/dot-cases.mjs) · [Capture entry point](../scripts/dot-capture-page.ts) · [Comparison code](../scripts/dot-compare.py)
+The comparer returns exit status 1 while any case falls below the gate. It writes each case to `components/` under its report directory. With component masks, it also writes `section-metrics.csv` and a browsable `sections.html` gallery. The default command launches headless Chromium. For the recorded hardware scores, set `CHROMIUM_ANGLE=gl` to select hardware OpenGL. The graphics backend affects exact-byte comparisons. [Capture cases](../scripts/dot-cases.mjs) · [Capture entry point](../scripts/dot-capture-page.ts) · [Comparison code](../scripts/dot-compare.py)

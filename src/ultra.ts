@@ -204,7 +204,7 @@ function write(el: Element, f: Frame): void {
  * body path, which the rainbow tints. Nothing between the group and the coat's canvas may isolate that blend (a
  * filter, an opacity under 1, a transform on the svg).
  */
-export function paintSkin(group: SVGGElement, d: Drawing, size: number, fur: number, id: string): void {
+export function paintSkin(group: SVGGElement, d: Drawing, size: number, fur: number, id: string, shellPainted = false): void {
   const kids = group.children;
   if (!d.ultra) {
     // (Counted down by index, not "while there are any": not every DOM's children is a live list.)
@@ -216,7 +216,7 @@ export function paintSkin(group: SVGGElement, d: Drawing, size: number, fur: num
   const f = frameOf(d, size, fur), [defs, ...paths] = group.children;
   write(group, f[0]);
   write(defs.children[0], f[1]);
-  paths.forEach((p, i) => write(p, f[i + 2]));
+  paths.forEach((p, i) => write(p, shellPainted ? { d: null } : f[i + 2]));
 }
 
 /**

@@ -112,7 +112,7 @@ test('update() acts only on what changed, in React\'s order', () => {
 test('a pokeable avatar is a button with a label; Enter and Space poke it, a held key does not', () => {
   const host = new El('div');
   const m = mount(host, { shape: 'blob', size: 72, pokeable: true, label: 'Ada' });
-  assert.deepEqual(['role', 'tabindex', 'aria-label'].map((a) => host.getAttribute(a)), ['button', '0', 'Poke Ada']);
+  assert.deepEqual(['role', 'tabindex', 'aria-label'].map((a) => host.getAttribute(a)), ['button', '0', 'poke Ada']);
   let poked = 0;
   m.live.rig.poke = () => { poked++; };
   host.fire('click');
@@ -122,7 +122,7 @@ test('a pokeable avatar is a button with a label; Enter and Space poke it, a hel
   assert.equal(poked, 3);
   assert.equal(prevented, 3);
   m.update({ label: undefined });
-  assert.equal(host.getAttribute('aria-label'), 'Poke the avatar');
+  assert.equal(host.getAttribute('aria-label'), 'poke the avatar');
 
   // Under reduced motion a poke would do nothing, so it is not a button.
   prefer(true);

@@ -9,7 +9,7 @@ import { DOT_CLIPS } from './engine/dot-motion';
 import { DOT_SHAPES } from './dot-shapes';
 import type { MountOptions } from './mount';
 
-export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'originalEyes'>> {
+export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'originalEyes' | 'portraitDye' | 'replaceEyes' | 'replaceGlasses' | 'replaceExtra'>> {
   /** Builder depth from 0 to 1, with a neutral setting of 0.5. Fixed furry portraits retain their depth. */
   depth?: number;
   /** A DOT_SHAPES definition id, e.g. 'dot-rounded-triangle'. */
@@ -17,6 +17,8 @@ export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'or
   /** CSS body colour, including any DOT_COLOURS swatch. */
   colour?: string;
   texture?: 'Glossy' | 'Fur';
+  /** Individual wardrobe changes on top of a named portrait. */
+  parts?: AvatarParts;
 }
 
 /** The two eared bodies share mounting positions for the headphones and bow tie. */
@@ -25,6 +27,7 @@ export function dotExtras(shape: string): readonly DotStyle['extra'][] {
     ? ['None', 'Headphones', 'Bow tie'] : DOT_EXTRAS;
 }
 
+const wardrobeSources = new WeakMap<Body, Body>();
 const cache = new WeakMap<Body, Map<string, Body>>();
 
 function styledBody(source: Body, style: DotStyle, wardrobeHost?: Body): Body {
@@ -39,6 +42,7 @@ function styledBody(source: Body, style: DotStyle, wardrobeHost?: Body): Body {
     body = { ...source, dotStyle: style, ...(wardrobeHost ? { wardrobeHost } : {}) };
     if (styles.size >= 32) styles.delete(styles.keys().next().value!);
     styles.set(key, body);
+    wardrobeSources.set(body, source);
   }
   return body;
 }
@@ -50,15 +54,34 @@ export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
   enableDotRenderer(dotRendering);
   const custom = typeof wearer === 'object' && 'pieces' in wearer;
   const shape = custom ? wearer.id : wearer;
-  const source = custom ? wearer.wardrobeHost ?? wearer : bodyOf(shape);
+  const prior = custom ? wearer.dotStyle : undefined;
+  const source = custom ? wardrobeSources.get(wearer) ?? wearer.wardrobeHost ?? wearer : bodyOf(shape);
+  const eyes = parts.eyes ?? (prior?.originalEyes ? undefined : prior?.eyes);
+  const extra = parts.extra ?? prior?.extra;
+  if (custom && prior && Object.entries(parts).every(([key, value]) =>
+    value === undefined || value === prior[key as keyof AvatarParts] && !(key === 'eyes' && prior.originalEyes))) {
+    return { shape, body: wearer };
+  }
+  const portrait = prior?.character ? DOT_PORTRAITS[prior.character] : prior?.catalogId ? matteRecipes.get(prior.catalogId) : undefined;
+  if (portrait && prior) {
+    const body = dotAvatar({
+      ...portrait, catalogGloss: prior.catalogGloss, tintExtra: prior.tintExtra,
+      depth: prior.depthScale === undefined ? undefined : (prior.depthScale - .6) / .8,
+      parts: {
+        eyes: parts.eyes ?? prior.eyes, glasses: parts.glasses ?? prior.glasses,
+        extra: parts.extra ?? prior.extra, extraColour: parts.extraColour ?? prior.extraColour,
+      },
+    }).body!;
+    return { shape, body };
+  }
   const definition = DOT_SHAPES.find(item => item.id === source.id);
   const native = definition && bodyOf(definition) === source;
   const style: DotStyle = {
-    ...(!native && !parts.eyes ? { originalEyes: true } : {}),
-    eyes: native && source.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : parts.eyes ?? 'Oval',
-    glasses: parts.glasses ?? 'None',
-    extra: parts.extra && (!native || dotExtras(source.id).includes(parts.extra)) ? parts.extra : 'None',
-    extraColour: parts.extraColour ?? '#1F1F1F',
+    ...(!native && !eyes ? { originalEyes: true } : {}),
+    eyes: native && source.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : eyes ?? 'Oval',
+    glasses: parts.glasses ?? prior?.glasses ?? 'None',
+    extra: extra && (!native || dotExtras(source.id).includes(extra)) ? extra : 'None',
+    extraColour: parts.extraColour ?? prior?.extraColour ?? '#1F1F1F',
   };
   return { shape, body: styledBody(source, style, native ? undefined : source) };
 }
@@ -77,18 +100,40 @@ export function dotAvatar(
     && (options.eyes ?? 'Oval') === (preset.eyes ?? 'Oval')
     && (options.glasses ?? 'None') === (preset.glasses ?? 'None')
     && (options.extra ?? 'None') === (preset.extra ?? 'None')
-    && (options.extraColour ?? '#1F1F1F') === (preset.extraColour ?? '#1F1F1F');
+    && (options.tintExtra || (options.extraColour ?? '#1F1F1F') === (preset.extraColour ?? '#1F1F1F'));
   const fixedDepth = matches && options.character;
   const depth = fixedDepth || !Number.isFinite(options.depth) ? .5 : Math.max(0, Math.min(1, options.depth!));
   const style: DotStyle = {
     ...(depth === .5 ? {} : { depthScale: .6 + .8 * depth }),
     eyes: shape.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : (options.eyes ?? 'Oval'),
     character: matches ? options.character : undefined,
+    ...(matches && preset.colour ? { portraitDye: parseInt(preset.colour.slice(1), 16) } : {}),
+    ...(matches && options.tintExtra ? { tintExtra: true } : {}),
+    ...(matches && options.catalogId && options.catalogGloss ? { catalogGloss: true } : {}),
     catalogId: matches && !options.character ? options.catalogId : undefined,
     glasses: options.glasses ?? 'None',
     extra: options.extra && dotExtras(shape.id).includes(options.extra) ? options.extra : 'None',
     extraColour: options.extraColour ?? '#1F1F1F',
   };
+  if (matches && options.parts) {
+    const p = options.parts;
+    if (p.eyes && p.eyes !== style.eyes && shape.id !== 'dot-rounded-head-with-two-ears') {
+      style.eyes = p.eyes;
+      style.replaceEyes = true;
+    }
+    if (p.glasses && p.glasses !== style.glasses) {
+      style.glasses = p.glasses;
+      style.replaceGlasses = true;
+    }
+    if (p.extra && p.extra !== style.extra && dotExtras(shape.id).includes(p.extra)) {
+      style.extra = p.extra;
+      style.replaceExtra = true;
+    }
+    if (p.extraColour && p.extraColour !== style.extraColour) {
+      style.extraColour = p.extraColour;
+      style.tintExtra = true;
+    }
+  }
   const body = styledBody(source, style);
   return {
     shape,

@@ -1,4 +1,5 @@
 // Run with node --import tsx. PLAYWRIGHT_CORE and CHROMIUM can point to local installations.
+import { launchOptions } from './review-browser.mjs';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -10,7 +11,7 @@ if (!directory) throw Error('Usage: dot-capture.mjs OUTPUT [case ...]. Use DOT_T
 const bundle = await build({ entryPoints: ['scripts/dot-capture-page.ts'], globalName: 'dotReview', format: 'iife', bundle: true, minify: true, write: false });
 if (process.env.DOT_BUNDLE) await writeFile(process.env.DOT_BUNDLE, bundle.outputFiles[0].contents);
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_CORE ?? 'playwright-core');
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM, args: ['--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch(launchOptions);
 try {
   const page = await browser.newPage({ viewport: { width: 512, height: 512 }, deviceScaleFactor: 1, reducedMotion: 'no-preference' });
   await page.setContent('<style>main{position:relative;margin:128px auto}</style><main></main>');

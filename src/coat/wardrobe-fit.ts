@@ -50,24 +50,70 @@ export function rigidAttachment(body: Body, fit: readonly number[], source: Coat
   const seatZ = bow ? source[5] : (source[2] + source[5]) / 2;
   const axes = [scale,0,0, 0,scale,0, 0,0,scale,
     fit[9], fit[10] + (fit[4] - scale) * seatY, fit[11] + (fit[8] - scale) * seatZ];
-  if (!bow) {
+  if (bow) {
+    // Seat the knot on the chin, including recessed chins between two lobes.
+    const skin = prepare(body.outline ?? body), hit = { z: 0, nx: 0, ny: 0, nz: 1 };
+    const knotY = scale * (prop.box[1] + prop.box[4]) / 2;
+    const height = scale * (prop.box[4] - prop.box[1]);
+    for (let step = 0; step <= 8; step++) {
+      const lift = step * height / 8;
+      if (!surfaceTop(skin, axes[9], axes[10] + knotY + lift, hit)) continue;
+      axes[10] += lift;
+      axes[11] = hit.z - scale * prop.box[2] - .025 * scale;
+      break;
+    }
+    // The wings span a wider patch of cheek than the knot. Keep the front
+    // of each wing visible even on a clover or forked chin.
+    let clearance = 0;
+    for (let i = 0; i < prop.vertices.length; i += 6) {
+      const v = prop.vertices;
+      if (v[i+5] < .45) continue;
+      if (surfaceTop(skin, axes[9]+scale*v[i], axes[10]+scale*v[i+1], hit)) {
+        clearance = Math.max(clearance, hit.z + .018*scale - axes[11] - scale*v[i+2]);
+      }
+    }
+    axes[11] += clearance;
+  } else {
     const top = topOf(body), hit = { z: 0, nx: 0, ny: 0, nz: 1 };
+    // A cap belongs on the scalp between two ears or horns. The ear tips
+    // can be far higher than the forehead and should emerge behind the brim.
+    const cx = body.eyes.cx ?? 0, cz = fit[11];
+    const cap = ['Beanie','Beret','Hat','Crown'].includes(extra);
+    let scalp = Infinity;
+    if (cap && surfaceTop(top,cx,cz,hit)) {
+      const forehead = hit.z;
+      const wing = scale * (source[3]-source[0]) * .30;
+      const raised = (x: number) => surfaceTop(top,x,cz,hit) && hit.z > forehead+.22*scale;
+      if (raised(cx-wing) && raised(cx+wing)) {
+        scalp = forehead+.15*scale;
+        axes[11] += .24*scale;
+      }
+    }
     const gaps: number[] = [], verts = prop.vertices;
     const height = prop.box[4] - prop.box[1], lowest = prop.box[1] + .4 * height;
     const stride = 6 * Math.max(1, Math.floor(verts.length / (6 * 768)));
     for (let i = 0; i < verts.length; i += stride) {
       if (verts[i+1] > lowest) continue;
       const x = axes[9] + scale * verts[i], z = axes[11] + scale * verts[i+2];
-      if (surfaceTop(top, x, z, hit)) gaps.push(hit.z - (axes[10] + scale * verts[i+1]));
+      if (surfaceTop(top, x, z, hit) && hit.z <= scalp) gaps.push(hit.z - (axes[10] + scale * verts[i+1]));
     }
     if (gaps.length) {
       // Most of the rim rests on the head. Allow a little overlap for fur and tilted brims.
       gaps.sort((a,b) => a-b);
-      const softCap = extra === 'Beret' || extra === 'Beanie';
-      const contact = softCap ? .45 : .85;
+      const contact = extra === 'Beret' || extra === 'Beanie' ? .78 : .85;
       const shift = gaps[Math.floor(contact * (gaps.length - 1))] - .06 * scale * height;
       // A peaked head can pass through the open middle of a crown before it touches the rim.
-      axes[10] += extra === 'Crown' ? Math.max(0, shift) : shift;
+      axes[10] += extra === 'Crown' && !Number.isFinite(scalp) ? Math.max(0, shift) : shift;
+    }
+    if (extra === 'Beanie' || extra === 'Beret' || extra === 'Hat') {
+      // A pointed head can clear the brim but pierce the roof of a closed cap.
+      let lift = 0;
+      for (let i = 0; i < verts.length; i += stride) {
+        if (verts[i+4] < .55 || verts[i+1] < lowest) continue;
+        if (!surfaceTop(top, axes[9] + scale*verts[i], axes[11] + scale*verts[i+2], hit) || hit.z > scalp) continue;
+        lift = Math.max(lift, hit.z + .018*scale - axes[10] - scale*verts[i+1]);
+      }
+      axes[10] += lift;
     }
   }
   cache.set(prop, axes);
@@ -103,13 +149,28 @@ export function fitHeadband(body: Body, mesh: CoatMesh, axes: readonly number[])
     }
     if (clear) break;
   }
+  // Handles and ears can stand above the centre. Lift the arch while
+  // leaving both lower ends attached to the pads.
+  let rise = 0;
+  for (let i = 0; i < vertices.length; i += stride) {
+    const [x,y] = map(vertices[i], vertices[i+1], exponent);
+    const t = (y-y0)/ry;
+    if (t < .3) continue;
+    if (surfaceTop(top, axes[9]+axes[0]*x, axes[11]+axes[8]*vertices[i+2], hit)) {
+      rise = Math.max(rise, (hit.z + .024*axes[0] - axes[10] - axes[4]*y) / (axes[4]*t));
+    }
+  }
+  function lift(x: number, y: number) {
+    const [px,py] = map(x,y,exponent);
+    return [px,py + rise*(py-y0)/ry];
+  }
   let band = mesh;
-  if (exponent > 2) {
+  if (exponent > 2 || rise > 0) {
     const fitted = vertices.slice(), h = .0001;
     for (let i = 0; i < vertices.length; i += 6) {
-      const [x,y] = map(vertices[i], vertices[i+1], exponent);
-      const [xx,yx] = map(vertices[i]+h, vertices[i+1], exponent);
-      const [xy,yy] = map(vertices[i], vertices[i+1]+h, exponent);
+      const [x,y] = lift(vertices[i], vertices[i+1]);
+      const [xx,yx] = lift(vertices[i]+h, vertices[i+1]);
+      const [xy,yy] = lift(vertices[i], vertices[i+1]+h);
       const det = (xx-x)*(yy-y) - (xy-x)*(yx-y);
       const nx = h*((yy-y)*vertices[i+3] - (yx-y)*vertices[i+4])/det;
       const ny = h*((xx-x)*vertices[i+4] - (xy-x)*vertices[i+3])/det;

@@ -1,4 +1,5 @@
 import { bodyAttachment, fitHeadband, rigidAttachment } from './wardrobe-fit';
+import type { Material } from '../live';
 import type { DotSolid } from '../engine/dot-features';
 // One avatar's coat: a canvas under its body path, painted by the shared renderer and moved with the drawing.
 // mount() and React's useLiveAvatar both use it.
@@ -41,6 +42,8 @@ export interface CoatLayer {
   stop(): void;
   /** Is a coat showing (and the body path's fill turned down for it)? */
   readonly showing: boolean;
+  /** The visible material canvas has composited ultracode beneath the fittings. */
+  readonly paintedPower: boolean;
   /** Is a paint waiting for its turn? */
   readonly pending: boolean;
 }
@@ -189,12 +192,13 @@ const NONE = new Float32Array(0);
  * one on its `coat` ref. The canvas is placed absolutely in the slot, as the svg is. `shown` is told whenever the
  * coat starts or stops showing, which can be outside a frame (a powered skin over it is then painted again).
  */
-export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void, glossy = false): CoatLayer {
+export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void, material: Material = 'fluffy'): CoatLayer {
+  const glossy = material !== 'fluffy';
   let latest: { d: Drawing; size: number; fill?: string } | null = null;
   let drop: (() => void) | null = null;
   let canvas: HTMLCanvasElement | null = null;
   /** Showing: the canvas on and the body path's fill turned down. */
-  let on = false;
+  let on = false, paintedPower = false;
   /** What the canvas holds. */
   let held: { mesh: CoatMesh; rotation: Float64Array; eyes: string; points: number[]; colour: string; box: CoatBox; shape: string; figure: Float32Array } | null = null;
   /** The styles last written, so that only what changed is written again. */
@@ -233,7 +237,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
   };
 
   /** Place the canvas for this frame: where its square is, the frame's affine, and the cross-fade. */
-  const show = (c: DrawnCoat, box: CoatBox, size: number) => {
+  const show = (c: DrawnCoat, box: CoatBox, size: number, powered: boolean) => {
     const el = canvas!;
     const place = `${box.left}|${box.width}`;
     if (place !== placed) {
@@ -253,7 +257,10 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const o = c.opacity, fade = o >= 0.5 ? '' : String(round3(2 * o)), fill = o <= 0.5 ? '' : String(round3(2 * (1 - o)));
     if (fade !== faded) { faded = fade; el.style.opacity = fade; }
     if (fill !== filled) { filled = fill; body.style.fillOpacity = fill; }
-    if (!on) { on = true; el.style.display = ''; shown?.(); }
+    const changed = !on || paintedPower !== powered;
+    paintedPower = powered;
+    if (!on) { on = true; el.style.display = ''; }
+    if (changed) shown?.();
   };
 
   const paint = (immediate = false) => {
@@ -283,7 +290,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     // Stretched, a coat reaches as far as its stretch takes it: the square is made big enough for both. (A figure's
     // mesh is moved about: its square is the furthest any figure goes.)
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
-    const extra = style && !style.character && !style.catalogId && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
+    const extra = style && (style.replaceExtra || !style.character && !style.catalogId) && style.extra !== 'None' && style.extra !== 'Headphones' ? dotRenderer?.dotMesh(style.extra) : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
     const mountKey = extra && style ? (base.body.wardrobeHost ? 'dot-rounded-triangle' : base.body.id) + '/' + style.extra : undefined;
     const fit = mountKey && style && dotRenderer
@@ -296,10 +303,14 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       mesh: ornamentMesh, tint: tint!,
       axes: transferred && model && base.body.wardrobeHost ? rigidAttachment(base.body.wardrobeHost, transferred, model.box, ornamentMesh, style.extra) : (fit ? NEUTRAL_ATTACHMENT : dotRenderer?.dotAttachments[base.body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT), metal: style.extra === 'Crown',
     } : undefined;
+    if (ornament && style?.replaceExtra && dotRenderer) {
+      ornament.axes = dotRenderer.transformAxes(dotRenderer.portraitMount(base.body).shell, ornament.axes);
+    }
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
-    const rgb = dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0), key = rgb.join() + (style ? [style.originalEyes,style.depthScale,style.character,style.catalogId,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
+    const rgb = style ? colourOf(now.fill) : dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0);
+    const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '') + (ornament ? '/' + base.body.id + '/' + style!.extra + '/' + style!.extraColour : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
@@ -309,7 +320,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     if (!same) {
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
-      const field = glossy || style && !base.body.wardrobeHost && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
+      const field = glossy || style && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
       const solids = style ? dotRenderer?.dotFeatures(base.body,c.dotFace,tint) ?? [] : [];
       if (transferred && base.body.wardrobeHost && style?.extra === 'Headphones') {
         const [band, ...pads] = solids.filter(solid => !solid.finish);
@@ -323,7 +334,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
         }
       }
       if (ornament) solids.push(ornament);
-      const frame = { glossy, solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const frame = { glossy, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;
@@ -349,7 +360,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       held = base.warp || c.dotFace?.playback ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
     lastPaintedBody.set(body, base.body);
-    show(c, box, now.size);
+    show(c, box, now.size, !!style && !!now.d.ultra?.amount);
   };
 
   const later = () => { drop ??= soon(() => { drop = null; paint(); }); };
@@ -400,6 +411,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       canvas = null;
     },
     get showing() { return on; },
+    get paintedPower() { return on && paintedPower; },
     get pending() { return drop !== null; },
   };
 }
