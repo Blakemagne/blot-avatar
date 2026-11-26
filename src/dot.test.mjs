@@ -295,3 +295,27 @@ test('mounted beanies follow the band and brim fit for the selected glasses', as
   }
   assert.ok(displacement > .40);
 });
+
+test('the rounded-triangle pile changes density with rendered size', async () => {
+  const { dotFibreCount } = await import('./coat/dot-fibres.ts');
+  const { triangleFibres } = await import('./coat/dot-fibre-data.ts');
+  const { fibreProfiles, fibreViews } = await import('./coat/dot-fibre-views.ts');
+  const roots = Buffer.from(triangleFibres,'base64').length / (9*2);
+  assert.equal(roots,8192);
+  for (const [size,count] of [[32,63],[64,232],[96,357],[128,510],[256,1560],[384,3310],[512,5759],[768,8192]]) {
+    assert.ok(Math.abs(dotFibreCount(size)-count) <= 1, String(size));
+  }
+  assert.equal(dotFibreCount(1024),roots);
+  // Each view stores a visibility mask followed by nine optical values per visible tuft.
+  const profiles = Buffer.from(fibreProfiles,'base64');
+  let cursor = 0;
+  for (const axes of fibreViews) {
+    assert.equal(axes.length,6);
+    let visible = 0;
+    for (const byte of profiles.subarray(cursor,cursor+roots/8)) {
+      for (let mask=byte; mask; mask &= mask-1) visible++;
+    }
+    cursor += roots/8 + visible*9;
+  }
+  assert.equal(cursor,profiles.length);
+});

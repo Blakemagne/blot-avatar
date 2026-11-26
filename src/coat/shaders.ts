@@ -17,6 +17,7 @@ import { glossOptics } from './gloss-optics';
 // or each ball moved and sized. The pile stays fixed to the mesh at rest, so it moves with the figure, and it
 // lies down where a piece gets thin.
 
+import { fibreDyeShader } from './dot-fibre-dye-shader';
 import { dotSoftboxes } from './dot-light';
 import { DYE_RAMP_RANGE } from '../engine/dye';
 import { COAT_UNIT } from '../engine/coat';
@@ -51,7 +52,7 @@ layout(location = 2) in vec2 seed;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
-uniform bool orthographic, ornament, portraitCoat, builderPile;
+uniform bool orthographic, ornament, portraitCoat, builderPile, substrateRGB;
 uniform vec2 feltExtent;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
@@ -141,7 +142,7 @@ void main() {
     vec3 look = normalize(transpose(rotation)*vec3(0.,0.,1.)/poseScale);
     float incidence = max(.22,dot(look,Nm));
     vec3 parallax = look/incidence-Nm;
-    float opticalGap = portraitCoat ? .022 : .007-(pass == SHELL ? .0185*shell : 0.);
+    float opticalGap = substrateRGB ? 0. : portraitCoat ? .022 : .007-(pass == SHELL ? .0185*shell : 0.);
     groomPoint += opticalGap*${(.54945*512/296).toFixed(9)}*parallax*smoothstep(.08,.38,dot(look,Nm));
   }
   groomSide = Nm.z;
@@ -252,7 +253,9 @@ uniform highp sampler2DArray opticalDensity;
 uniform highp sampler2D contactField;
 uniform highp sampler2DShadow portraitShadow;
 uniform vec3 directLight[9], feltGain[9];
-uniform vec4 feltScale;
+uniform vec4 feltScale, substrateScale[3];
+${fibreDyeShader}
+uniform bool substrateRGB;
 uniform mat3 rotation;
 uniform vec4 shadowWeights[2];
 ${dotLightProjection}
@@ -433,19 +436,28 @@ void main() {
     vec3 variationRGB = grain * (.23 + .77 * base);
     if (opticalLayer >= 0) {
       vec2 uv = .5 + groomPoint.xy / ((builderPile ? 2.125 : 2.18) * ${(.54945*512/296).toFixed(9)});
-      vec4 front = texture(opticalDensity,vec3(uv,float(opticalLayer)));
-      vec4 back = texture(opticalDensity,vec3(uv,float(opticalLayer+1)));
-      front = (front*255.-128.)*feltScale/127.;
-      back = (back*255.-128.)*feltScale/127.;
       vec3 key = normalize(vec3(-.6,.8,1.)), incoming = transpose(rotation)*key;
-      float relief = mix(dot(back,vec4(1.,incoming-key*vec3(1.,1.,-1.))),
-        dot(front,vec4(1.,incoming-key)),smoothstep(-.12,.12,groomSide));
-      vec3 gain = feltGain[0]+n.x*feltGain[1]+n.y*feltGain[2]+n.z*feltGain[3]
-        +n.x*n.x*feltGain[4]+n.x*n.y*feltGain[5]+n.y*n.y*feltGain[6]
-        +n.x*n.z*feltGain[7]+n.y*n.z*feltGain[8];
-      variationRGB = relief*clamp(gain,vec3(0.),vec3(3.))+.025*variationRGB;
+      if (substrateRGB) {
+        for (int i=0; i<3; i++) {
+          int layer = opticalLayer+2*i;
+          vec4 f = (texture(opticalDensity,vec3(uv,float(layer)))*255.-128.)*substrateScale[i]/127.;
+          vec4 b = (texture(opticalDensity,vec3(uv,float(layer+1)))*255.-128.)*substrateScale[i]/127.;
+          variationRGB[i] = mix(dot(b,vec4(1.,incoming-key*vec3(1.,1.,-1.))),dot(f,vec4(1.,incoming-key)),smoothstep(-.12,.12,groomSide));
+        }
+      } else {
+        vec4 front = texture(opticalDensity,vec3(uv,float(opticalLayer)));
+        vec4 back = texture(opticalDensity,vec3(uv,float(opticalLayer+1)));
+        front = (front*255.-128.)*feltScale/127.;
+        back = (back*255.-128.)*feltScale/127.;
+        float relief = mix(dot(back,vec4(1.,incoming-key*vec3(1.,1.,-1.))),
+          dot(front,vec4(1.,incoming-key)),smoothstep(-.12,.12,groomSide));
+        vec3 gain = feltGain[0]+n.x*feltGain[1]+n.y*feltGain[2]+n.z*feltGain[3]
+          +n.x*n.x*feltGain[4]+n.x*n.y*feltGain[5]+n.y*n.y*feltGain[6]
+          +n.x*n.z*feltGain[7]+n.y*n.z*feltGain[8];
+        variationRGB = relief*clamp(gain,vec3(0.),vec3(3.))+.025*variationRGB;
+      }
     }
-    vec3 colour = (base + variationRGB) * socket;
+    vec3 colour = (substrateRGB ? dyedFibre(base+variationRGB) : base+variationRGB) * socket;
     if (portraitCoat && opticalLayer >= 0 && furLightLayer >= 0) {
       colour -= portraitLightLoss(scenePlace,n);
     }

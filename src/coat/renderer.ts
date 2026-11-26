@@ -127,7 +127,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const u = {
     poseScale: uniform('poseScale'), poseOffset: uniform('poseOffset'), rotation: uniform('rotation'), view: uniform('view'), middle: uniform('middle'), extent: uniform('extent'), camera: uniform('camera'),
     matteBodyLayer: uniform('matteBodyLayer'), feltScale: uniform('feltScale'), feltGain: uniform('feltGain[0]'), feltExtent: uniform('feltExtent'), directLight: uniform('directLight[0]'), shadowWeights: uniform('shadowWeights[0]'),
-    builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), opticalLayer: uniform('opticalLayer'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
+    fibreDye: uniform('fibreDye[0]'), substrateRGB: uniform('substrateRGB'), substrateScale: uniform('substrateScale[0]'), builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), opticalLayer: uniform('opticalLayer'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
     glossCoefficients: uniform('glossCoefficients[0]'), pigmentControls: uniform('pigmentControls'), glossPigment: uniform('glossPigment'), finish: uniform('finish'), ornament: uniform('ornament'), axes: uniform('ornamentAxes'), offset: uniform('ornamentOffset'), metal: uniform('metal'),
     portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
@@ -220,7 +220,7 @@ function createRenderer(restored: () => void): Renderer | null {
     const layer = 2 * opticalLayers.size, size = assets.feltSize;
     gl.activeTexture(gl.TEXTURE6);
     if (layer === 0) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, size, size,
-      2 * (Object.keys(assets.feltReliefs).length + Object.keys(assets.builderReliefs).length), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      2 * (Object.keys(assets.feltReliefs).length + Object.keys(assets.builderReliefs).length + Object.keys(assets.fibreSubstrates).length), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     const optical = assets.feltField(field,size);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,size,size,2,gl.RGBA,gl.UNSIGNED_BYTE,optical);
     gl.activeTexture(gl.TEXTURE2);
@@ -241,6 +241,7 @@ function createRenderer(restored: () => void): Renderer | null {
   gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,1,1,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
   gl.activeTexture(gl.TEXTURE2);
   let contact: ReturnType<NonNullable<typeof dotRenderer>['createDotContact']> | undefined;
+  let fibres: ReturnType<NonNullable<typeof dotRenderer>['createDotFibres']> | undefined;
   const geometries = new Map<CoatMesh, Geometry>();
   let sweepPending = false;
 
@@ -344,13 +345,23 @@ function createRenderer(restored: () => void): Renderer | null {
     const assets = f.dotBody ? dotRenderer : undefined;
     const builder = assets && f.dotBody && !f.character && !f.glossy && assets.builderGain[key] ? assets.builderReliefs[f.dotBody] : undefined;
     const portrait = f.character && !f.glossy ? assets?.feltReliefs[f.character] : undefined;
-    const relief = portrait ?? builder;
-    const name = f.character ?? f.dotBody;
+    const fibreDye = builder && f.dotBody === 'dot-rounded-triangle' ? assets?.fibreDyes[key] : undefined;
+    const substrate = fibreDye && assets ? assets.fibreSubstrates.channel0 : undefined;
+    const relief = substrate ?? portrait ?? builder;
+    const name = substrate ? f.dotBody + '/fibres' : f.character ?? f.dotBody;
     gl.uniform1i(u.builderPile,builder ? 1 : 0);
     gl.uniform1i(u.opticalLayer,relief && name && assets ? opticalLayer(name,relief.field,assets) : -1);
+    gl.uniform1i(u.substrateRGB, substrate ? 1 : 0);
+    if (fibreDye && assets) {
+      gl.uniform3fv(u.fibreDye,fibreDye[0]);
+      const channels = assets.fibreSubstrates;
+      opticalLayer(name+'/g',channels.channel1.field,assets);
+      opticalLayer(name+'/b',channels.channel2.field,assets);
+      gl.uniform4fv(u.substrateScale, [...channels.channel0.scale,...channels.channel1.scale,...channels.channel2.scale]);
+    }
     const felt = portrait && f.character && assets ? assets.feltLayers[f.character] : undefined;
-    gl.uniform1i(u.furLightLayer, assets && relief ? tintLayer(f.colour,2,assets,felt) : -1);
-    if (relief && assets) {
+    gl.uniform1i(u.furLightLayer, assets && relief ? tintLayer(substrate ? [0,177,255] : f.colour,2,assets,felt) : -1);
+    if (relief && assets && !substrate) {
       gl.uniform4fv(u.feltScale,relief.scale);
       gl.uniform3fv(u.feltGain,portrait?.gain ?? assets.builderGain[key]);
     }
@@ -465,7 +476,16 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.enable(gl.CULL_FACE);
     gl.uniform1i(u.pass, PASS.body);
     gl.drawElements(gl.TRIANGLES, geometry.indices, gl.UNSIGNED_INT, 0);
-    if (relief) {
+    if (fibreDye && assets) {
+      fibres ??= assets.createDotFibres(gl,link);
+      gl.disable(gl.CULL_FACE);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+      fibres(rotation, [s?.[0] ?? 1,s?.[1] ?? 1,(s?.[2] ?? 1)*(f.depthScale ?? 1)], origin ?? [0,0,0],
+        [f.cx,f.cy,f.half,f.solids?.length ? Math.max(3,geometry.deep) : geometry.deep],
+        pixels*VIEW_UNIT*DOT_RADIUS*3.64*Math.max(1,f.depthScale ?? 1)/(2*f.half), fibreDye[1],contactColour || undefined,pixels);
+      gl.depthMask(true); gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE);
+      gl.useProgram(program);
+    } else if (relief) {
       // The solid pile sits on the unexpanded body. Translucent shells approximate the measured
       // alpha profile of the short cards at its edge without changing the opaque depth surface.
       const opacity = portrait ? [.896,.802,.646,.425,.196,.054,.008] : [.80,.73,.30,.13,.053,.032,.009];
