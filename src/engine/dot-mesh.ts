@@ -1,8 +1,6 @@
+import { radialMesh } from './dot-radial-mesh';
 import { fixedMicrogeometry } from './dot-fixed-microgeometry';
 import { fixedRims } from './dot-fixed-rims';
-import { microgeometry } from './dot-microgeometry';
-import { bodyRims } from './dot-rims';
-import { normalCorrections } from './dot-normals';
 import { finishMesh, type CoatMesh } from './coat-surface';
 import { catalogVolumes } from './dot-catalog-volumes';
 import { portraitVolumes } from './dot-portrait-volumes';
@@ -18,6 +16,8 @@ const cache = new WeakMap<DotVolume, CoatMesh>();
 
 /** Tessellate both sheets of the implicit volume; they share the vertices along their equator. */
 export function dotMesh(id: string): CoatMesh | undefined {
+  const radial = radialMesh(id);
+  if (radial) return radial;
   if (id === 'Bulb') return bulbMesh(DOT_RADIUS);
   const solid = wardrobeMesh(id, DOT_RADIUS);
   if (solid) return solid;
@@ -26,7 +26,7 @@ export function dotMesh(id: string): CoatMesh | undefined {
   const cached = cache.get(field);
   if (cached) return cached;
   const origin = field.origin ?? [0, 0, 0], radius = field.radius ?? 1;
-  const rim = bodyRims[id] ?? fixedRims[id];
+  const rim = fixedRims[id];
   const bytes = rim ? Uint8Array.from(atob(rim), c => c.charCodeAt(0)) : undefined;
   const equator = bytes && new DataView(bytes.buffer);
   const { thicknessSquared, grid } = field;
@@ -44,16 +44,14 @@ export function dotMesh(id: string): CoatMesh | undefined {
     return slope*distance*(1-blend) + value*blend;
   }
   const m = (x: number, y: number) => field.centre ? sample(field.centre, field.grid, x, y) : 0;
-  const profile = normalCorrections[id];
-  const corrections = profile ? Int8Array.from(atob(profile), c => c.charCodeAt(0)) : undefined;
-  const mesh = sectionMesh(origin, radius, equator ? 128 : 96, q, m, !field.origin, corrections, microgeometry[id] ?? fixedMicrogeometry[id]);
+  const mesh = sectionMesh(origin, radius, equator ? 128 : 96, q, m, !field.origin, fixedMicrogeometry[id]);
   cache.set(field, mesh);
   return mesh;
 }
 
 /** Triangulate the front and back of a measured section, sharing the zero-thickness edge. */
 export function sectionMesh(origin: readonly number[], radius: number, steps: number,
-  q: (x: number, y: number) => number, m: (x: number, y: number) => number, hair = false, normals?: Int8Array, fine?: string): CoatMesh {
+  q: (x: number, y: number) => number, m: (x: number, y: number) => number, hair = false, fine?: string): CoatMesh {
   const stride = steps + 1, delta = 1 / 512;
   const verts: number[] = [], indices: number[] = [];
   const values = new Float64Array(stride * stride);
@@ -63,21 +61,9 @@ export function sectionMesh(origin: readonly number[], radius: number, steps: nu
   const coord = (i: number) => HALF * (2 * i / steps - 1);
 
   function vertex(x: number, y: number, height: number) {
-    let nx = -(q(x + delta, y) - q(x - delta, y) + 2 * height * (m(x + delta, y) - m(x - delta, y))) / (2 * delta);
-    let ny = -(q(x, y + delta) - q(x, y - delta) + 2 * height * (m(x, y + delta) - m(x, y - delta))) / (2 * delta);
-    let nz = 2 * height, length = Math.hypot(nx, ny, nz) || 1;
-    if (normals && height !== 0) {
-      const u = (x / HALF + 1) * 32, v = (y / HALF + 1) * 32;
-      const i = Math.max(0, Math.min(63, Math.floor(u))), j = Math.max(0, Math.min(63, Math.floor(v)));
-      const a = u-i, b = v-j;
-      const at = 3 * (i + 65*j + (height < 0 ? 65*65 : 0));
-      const weight = Math.min(1, Math.abs(height)/.15) / 256;
-      const adjust = (channel: number) => weight * (
-        (1-b)*((1-a)*normals[at+channel]+a*normals[at+channel+3]) +
-        b*((1-a)*normals[at+channel+195]+a*normals[at+channel+198]));
-      nx = nx/length + adjust(0); ny = ny/length + adjust(1); nz = nz/length + adjust(2);
-      length = Math.hypot(nx, ny, nz) || 1;
-    }
+    const nx = -(q(x + delta, y) - q(x - delta, y) + 2 * height * (m(x + delta, y) - m(x - delta, y))) / (2 * delta);
+    const ny = -(q(x, y + delta) - q(x, y - delta) + 2 * height * (m(x, y + delta) - m(x, y - delta))) / (2 * delta);
+    const nz = 2 * height, length = Math.hypot(nx, ny, nz) || 1;
     const at = verts.length / 6;
     verts.push((origin[0] + x * radius) * DOT_RADIUS, (origin[1] + y * radius) * DOT_RADIUS,
       (origin[2] + (m(x, y) + height) * radius) * DOT_RADIUS, nx / length, ny / length, nz / length);

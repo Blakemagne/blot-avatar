@@ -32,7 +32,7 @@ function randomFrom(seed: number): () => number {
 }
 
 /** Scatter deterministic roots over the triangles and measure the finished mesh. */
-export function finishMesh(verts: number[], idx: number[], skipFace?: (index: number) => boolean,
+export function finishMesh(verts: number[] | Float32Array, idx: number[] | Uint32Array, skipFace?: (index: number) => boolean,
   buried?: (index: number, x: number, y: number, z: number, nx: number, ny: number, nz: number) => boolean, withRoots = true): CoatMesh {
   // Roots by area, open-bot-avatar's way: per triangle, floor(area * density + a random share).
   const random = randomFrom(51821);
@@ -69,5 +69,5 @@ export function finishMesh(verts: number[], idx: number[], skipFace?: (index: nu
     x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
     radius = Math.max(radius, Math.hypot(x, y, z));
   }
-  return { vertices: Float32Array.from(verts), indices: Uint32Array.from(idx), roots: passes, box: [x0, y0, z0, x1, y1, z1], radius };
+  return { vertices: verts instanceof Float32Array ? verts : Float32Array.from(verts), indices: idx instanceof Uint32Array ? idx : Uint32Array.from(idx), roots: passes, box: [x0, y0, z0, x1, y1, z1], radius };
 }
