@@ -543,8 +543,27 @@ tabs('use');
 // A button that opens a list under it. A click outside, Escape, or a choice from it closes it.
 for (const menu of document.querySelectorAll<HTMLElement>('[data-menu]')) {
   const trigger = $<HTMLButtonElement>(':scope > button', menu), list = $(':scope > .menu-list', menu);
+  const settings = menu.classList.contains('settings');
+  const placeSettings = () => {
+    if (!settings || list.hidden) return;
+    const anchor = trigger.getBoundingClientRect();
+    const above = anchor.top - 14, below = window.innerHeight - anchor.bottom - 14;
+    const upwards = below < list.scrollHeight + 2 && above > below;
+    list.classList.toggle('above', upwards);
+    list.style.maxHeight = Math.max(64, upwards ? above : below) + 'px';
+  };
   const open = (on: boolean) => {
     list.hidden = !on;
+    if (settings) {
+      if (on) {
+        placeSettings();
+        window.addEventListener('resize', placeSettings);
+        window.addEventListener('scroll', placeSettings, { passive: true });
+      } else {
+        window.removeEventListener('resize', placeSettings);
+        window.removeEventListener('scroll', placeSettings);
+      }
+    }
     trigger.setAttribute('aria-expanded', String(on));
   };
   trigger.addEventListener('click', () => {

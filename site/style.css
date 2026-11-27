@@ -138,7 +138,6 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 .stage .hint { color: var(--stage-hint, var(--muted)); pointer-events: none; }
 .stage-ground { position: absolute; top: 50%; left: 50%; pointer-events: none; }
 .stage-avatar { cursor: pointer; }
-.chips.doing { margin: 6px 0 12px; }
 .stage-col > .sub { justify-content: center; margin-top: 0; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 .action-said:empty { display: none; }
@@ -157,7 +156,8 @@ h2 { font-size: 19px; margin-bottom: 4px; }
 .menu-list > button:disabled { opacity: 0.45; cursor: not-allowed; }
 .menu-list strong { font-size: 15px; font-weight: 600; }
 .menu-list span { font-size: 13px; color: var(--muted); }
-.settings-list { left: auto; right: 0; gap: 14px; padding: 14px 16px; min-width: 260px; }
+.settings-list { left: auto; right: 0; gap: 14px; padding: 14px 16px; min-width: 260px; overflow-y: auto; overscroll-behavior: contain; }
+.settings-list.above { top: auto; bottom: calc(100% + 6px); }
 
 .stage .stage-palette { position: absolute; bottom: 8px; left: 8px; z-index: 3; }
 .stage-palette > button { width: 44px; padding: 0; }

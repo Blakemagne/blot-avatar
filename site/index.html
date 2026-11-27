@@ -100,6 +100,11 @@
               <div class="menu-list settings-list" role="dialog" aria-label="settings" hidden>
                 <label class="toggle"><input type="checkbox" data-follow checked autocomplete="off"> eyes follow your pointer</label>
                 <label class="range">size <input type="range" min="22" max="240" step="1" value="180" data-size autocomplete="off"><output data-size-out>180 px</output></label>
+                <section aria-labelledby="feel-label">
+                  <h2 class="field-label" id="feel-label">feel</h2>
+                  <div class="feel" data-feel></div>
+                  <p class="sub-label note">the engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. try a hop or a bounce.</p>
+                </section>
               </div>
             </div>
           </div>
@@ -167,19 +172,10 @@
           </div>
 
           <div class="tabpanel" role="tabpanel" id="panel-play" aria-labelledby="tab-play">
-            <span class="sub-label" id="activity-label">activity</span>
-            <div class="chips doing" data-choice="activity" role="group" aria-labelledby="activity-label"></div>
-            <div class="sub" data-form-row hidden>
-              <span class="sub-label" id="form-label">turns into</span>
-              <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
-            </div>
-            <div class="sub" data-progress-row hidden>
-              <label class="range">how far <input type="range" min="0" max="1" step="0.05" value="0" data-progress autocomplete="off"><output data-progress-out aria-live="off">0</output></label>
-            </div>
             <div class="seg" role="tablist" aria-label="play with" data-tabs="play">
               <button type="button" role="tab" id="seg-face" aria-controls="play-face">face</button>
               <button type="button" role="tab" id="seg-moves" aria-controls="play-moves">moves</button>
-              <button type="button" role="tab" id="seg-feel" aria-controls="play-feel">feel</button>
+              <button type="button" role="tab" id="seg-activity" aria-controls="play-activity">activity</button>
             </div>
             <div role="tabpanel" id="play-face" aria-labelledby="seg-face">
               <div class="chips" data-choice="face"></div>
@@ -200,9 +196,15 @@
                 <div class="chips" data-visit role="group" aria-labelledby="visit-label"></div>
               </div>
             </div>
-            <div role="tabpanel" id="play-feel" aria-labelledby="seg-feel">
-              <div class="feel" data-feel></div>
-              <p class="sub-label note">the engine's own feel is weight, squash and wobble at 0.5, flare and float at 0. try a hop or a bounce.</p>
+            <div role="tabpanel" id="play-activity" aria-labelledby="seg-activity">
+              <div class="chips" data-choice="activity" role="group" aria-labelledby="seg-activity"></div>
+              <div class="sub" data-form-row hidden>
+                <span class="sub-label" id="form-label">turns into</span>
+                <div class="chips" data-choice="form" role="group" aria-labelledby="form-label"></div>
+              </div>
+              <div class="sub" data-progress-row hidden>
+                <label class="range">how far <input type="range" min="0" max="1" step="0.05" value="0" data-progress autocomplete="off"><output data-progress-out aria-live="off">0</output></label>
+              </div>
             </div>
           </div>
 

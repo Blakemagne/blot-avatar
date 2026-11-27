@@ -336,6 +336,30 @@ try {
       assert.equal(await tile.getAttribute('aria-pressed'), 'true');
     }
   }
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.locator('#tab-play').click();
+  await page.locator('#seg-face').focus();
+  await page.keyboard.press('End');
+  assert.equal(await page.locator('#seg-activity').getAttribute('aria-selected'),'true');
+  const activities = page.locator('[data-choice="activity"]');
+  await activities.getByRole('button',{name:'working',exact:true}).click();
+  await page.locator('[data-choice="form"]').getByRole('button',{name:'progress',exact:true}).click();
+  assert.ok(await page.locator('[data-progress]').isVisible());
+  await page.locator('#seg-moves').click();
+  assert.ok(await activities.isHidden());
+  const settings = page.getByRole('button',{name:'settings',exact:true});
+  await settings.click();
+  const weight = page.getByRole('slider',{name:'weight',exact:true});
+  const originalWeight = await weight.inputValue();
+  await weight.focus();
+  await weight.press('End');
+  assert.match(await page.locator('[data-code]').textContent(),/weight: 1/);
+  await weight.fill(originalWeight);
+  await weight.press('Escape');
+  assert.ok(await weight.isHidden());
+  await page.locator('#seg-activity').click();
+  assert.ok(await page.locator('[data-progress]').isVisible());
+  await activities.getByRole('button',{name:'idle',exact:true}).click();
   const play = page.locator('[data-avatar=play]');
   for (const reducedMotion of ['reduce','no-preference']) {
     await page.emulateMedia({ reducedMotion });
