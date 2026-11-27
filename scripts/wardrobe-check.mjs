@@ -29,13 +29,14 @@ try {
       return ctx;
     }
     async function eyes(extraColour) {
-      const ctx = await snapshot({ shape: 'dot-rounded-head-with-two-ears', colour: '#B6D80B', texture: 'Fur', extra: 'Headphones', extraColour });
+      const ctx = await snapshot({ editable:true, shape: 'dot-rounded-head-with-two-ears', colour: '#B6D80B', texture: 'Fur', extra: 'Headphones', extraColour });
       return ctx.getImageData(155, 162, 202, 55).data;
     }
     // A pale region fully enclosed by a dark pupil is a socket poking through.
     let socketLeaks = 0;
-    for (const yaw of [0,.6,1.1,-.8]) {
-      const ctx = await snapshot({ preset: 'Todd', turn: [yaw,yaw*.22,0] });
+    for (const recipe of [{preset:'Todd'}, ...['Glossy','Fur'].map(texture =>
+      ({editable:true,shape:'dot-rounded-head-with-two-ears',colour:'#B6D80B',texture}))]) for (const yaw of [0,.6,1.1,-.8]) {
+      const ctx = await snapshot({ ...recipe, turn: [yaw,yaw*.22,0] });
       const {data,width,height} = ctx.getImageData(0,0,512,288);
       const state = new Uint8Array(width*height), queue = [];
       for (let i = 0; i < state.length; i++) {

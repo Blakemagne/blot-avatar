@@ -37,6 +37,8 @@ export interface DotStyle {
   tintExtra?: boolean;
   /** Base dye used to calibrate the authored shell's lighting. */
   portraitDye?: number;
+  /** Socket assembly on the studio frog. Raw dot recipes retain their builder rig. */
+  socketRig?: 'todd';
   replaceEyes?: boolean;
   replaceGlasses?: boolean;
   replaceExtra?: boolean;
@@ -132,7 +134,7 @@ export function dotFace(
   }
   const activity = state.dotPlayback?.activity;
   const named = activity && activity.slug !== 'ready';
-  const socketsInMotion = frog && named && (!style.catalogId || style.replaceEyes) && dotRenderer?.socketMotion(style.character === 'Todd' ? 'todd' : 'frog', activity);
+  const socketsInMotion = frog && named && (!style.catalogId || style.replaceEyes) && dotRenderer?.socketMotion(style.socketRig ?? (style.character === 'Todd' ? 'todd' : 'frog'), activity);
   const restingLids = style.character === 'Alfred' && !style.replaceEyes;
   for (const side of [-1, 1] as const) {
     if (style.originalEyes || coversEyes(style)) continue;
@@ -140,15 +142,16 @@ export function dotFace(
     const name = side < 0 ? 'left' : 'right';
     const lid = restingLids ? 1 : Math.max(0, state.lid * (state.lids?.[index] ?? 1));
     const x = cx + side * (spacing + (native && glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
-    const shifts = named && !socketsInMotion ? dotRenderer?.vectorEyeGaze(body,side,activity.gaze) : undefined;
+    const shifts = named && !socketsInMotion ? dotRenderer?.vectorEyeGaze(body,side,activity.gaze)
+      : frog && !named && (style.socketRig || style.character === 'Todd') ? dotRenderer?.vectorEyeGaze(body,side,
+        [body.eyes.slideX*state.eye.x/.0391,body.eyes.slideY*state.eye.y/.0512]) : undefined;
     const gazeX = restingLids || socketsInMotion || shifts ? 0 : body.eyes.slideX * state.eye.x;
     const gazeY = restingLids || socketsInMotion || shifts ? 0 : body.eyes.slideY * state.eye.y;
     function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false, layer = 0) {
       const polys: Float64Array[] = [];
       const step = shifts?.[layer];
       const du = step?.[0] ?? (fixed ? 0 : gazeX), dv = step?.[1] ?? (fixed ? 0 : gazeY);
-      // The resting frog pupils sit slightly toward the bridge of the nose.
-      const centre = frog && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
+      const centre = frog && !style.socketRig && style.character !== 'Todd' && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
       for (const loop of loops) {
         if (body.wardrobeHost) {
           if (rotation[8] > 0) {

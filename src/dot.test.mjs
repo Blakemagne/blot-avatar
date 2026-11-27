@@ -119,6 +119,32 @@ test('Frog picker portraits keep both raised eye sockets facing the viewer', () 
   }
 });
 
+test('the editable frog shares todd’s socket and pupil geometry and motion without his bow', async () => {
+  const { DOT_CHARACTERS, DOT_CLIPS } = await import('./index.ts');
+  const todd = dotAvatar(DOT_CHARACTERS.Todd).body;
+  const frog = avatarParts('dot-rounded-head-with-two-ears').body;
+  function compare(playback) {
+    for (const [x,y] of [[0,0],[-.8,.9],[1,-1]]) {
+      const motion = { x,y,left:1,right:1,playback };
+      const expected = dotFeatures(todd,motion).filter(s => s.finish);
+      const actual = dotFeatures(frog,motion);
+      assert.equal(actual.length,expected.length);
+      actual.forEach((part,i) => {
+        assert.equal(part.mesh,expected[i].mesh);
+        assert.deepEqual(part.axes,expected[i].axes);
+      });
+    }
+  }
+  compare();
+  for (const clip of Object.values(DOT_CLIPS)) {
+    for (const dir of [-1,1]) {
+      const channels = {yaw:0,pitch:0,roll:0};
+      clip.apply(channels,{u:.42,cue:{dir,amount:1}});
+      compare(channels.dotPlayback);
+    }
+  }
+});
+
 test('headphones add only the arch and two pads to each editable wearer', () => {
   for (const shape of DOT_SHAPES) {
     const bare = dotFeatures(dotAvatar({ shape: shape.id }).body);

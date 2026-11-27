@@ -193,16 +193,18 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
 const INK: Rgb = [32,32,32], WHITE: Rgb = [254,254,254];
 const IDENTITY = [1,1,0,0,1,0,0,0] as const;
 const STILL: DotFaceMotion = { x:0, y:0, left:1, right:1 };
+// The editable frog wears Todd's two socket/pupil pairs independently of his outfit.
+const raisedEyes = featureSections.Todd.filter(s => s.role === 'socket' || s.role === 'eye');
 /** Project the same moving ink and highlight centres onto the SVG contours. */
 export function vectorEyeGaze(body: Body, side: number, look: readonly number[]): number[][] | undefined {
   const style = body.dotStyle!;
   const fixed = !style.replaceEyes && (style.catalogId ? catalogParts(style.catalogId) : style.character && featureSections[style.character]);
-  if (style.eyes === 'Oval' && (!fixed || style.character === 'Felipe flower' || style.character === 'Blossie')) return;
   const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
+  if (!style.socketRig && style.eyes === 'Oval' && (!fixed || style.character === 'Felipe flower' || style.character === 'Blossie')) return;
   const key = fixed ? style.catalogId ? 'catalog/'+style.catalogId : 'portrait/'+style.character
-    : (body.wardrobeHost ? 'dot-rounded-triangle' : body.id)+'/'+(frog ? 'Raised sockets' : style.eyes);
+    : style.socketRig ? 'portrait/Todd' : (body.wardrobeHost ? 'dot-rounded-triangle' : body.id)+'/'+(frog ? 'Raised sockets' : style.eyes);
   if (!hasGazeRig(key)) return;
-  const pieces = fixed || featureSections[frog ? 'Raised sockets' : style.eyes];
+  const pieces = fixed || (style.socketRig ? raisedEyes : featureSections[frog ? 'Raised sockets' : style.eyes]);
   const offsets: number[][] = [];
   for (const [i,s] of pieces.entries()) {
     if (s.side !== side || (s.role !== 'socket' && s.role !== 'eye' && s.role !== 'catch')) continue;
@@ -243,12 +245,13 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
   const fixed = style.catalogId ? catalogParts(style.catalogId) : style.character ? featureSections[style.character] : undefined;
   const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
   const glasses = featureSections[style.glasses] ?? [];
-  const eyes = coversEyes(style) || style.originalEyes ? [] : featureSections[frog ? 'Raised sockets' : style.eyes];
+  const eyes = coversEyes(style) || style.originalEyes ? [] : style.socketRig ? raisedEyes : featureSections[frog ? 'Raised sockets' : style.eyes];
   const phones = style.extra === 'Headphones' ? featureSections[body.wardrobeHost ? 'Headphones/circle' : 'Headphones/' + body.id.slice(4)] ?? [] : [];
   const pieces = fixed ?? [...eyes,...glasses,...phones];
   const fits = fixed || body.wardrobeHost ? undefined : faceFits[body.id];
   const gazeKey = style.catalogId ? 'catalog/' + style.catalogId : style.character ? 'portrait/' + style.character
     : (body.wardrobeHost ? 'blot' : body.id) + '/' + (frog ? 'Raised sockets' : style.eyes);
+  const eyeGazeKey = style.socketRig && !fixed ? 'portrait/Todd' : gazeKey;
   const mountedKey = gazeKey + '/' + style.glasses;
   const relativeEyes = !fixed && eyewearFits[mountedKey];
   const mountedFrames = !fixed && frameFits[mountedKey];
@@ -291,12 +294,12 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
   });
   const activity = motion.playback?.activity;
   const sockets = frog && (!fixed || style.character === 'Todd') && activity
-    ? socketMotion(fixed ? 'todd' : 'frog', activity) : undefined;
+    ? socketMotion(style.socketRig ?? (fixed ? 'todd' : 'frog'), activity) : undefined;
   // Oval eye solids also perform expressive deformations independent of gaze.
   // The other measured rigs move the individual ink, socket and highlight layers.
-  const focusKey = body.wardrobeHost ? 'dot-rounded-triangle/' + style.eyes : gazeKey;
+  const focusKey = body.wardrobeHost ? 'dot-rounded-triangle/' + style.eyes : eyeGazeKey;
   const useFocus = activity && !sockets && hasGazeRig(focusKey)
-    && (style.eyes !== 'Oval' || fixed && style.character !== 'Felipe flower' && style.character !== 'Blossie');
+    && (style.eyes !== 'Oval' || style.socketRig || fixed && style.character !== 'Felipe flower' && style.character !== 'Blossie');
   const restingLids = style.character === 'Alfred' && !style.replaceEyes;
   const result: DotSolid[] = [];
   for (const [index, s] of pieces.entries()) {
@@ -364,7 +367,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
           lookX + (usePointer ? eyeX/.0391 : 0), lookY + (usePointer ? eyeY/.0512 : 0));
         if (local) gaze = transformAxes([...axes.slice(0,9), ...axes.slice(9).map(v => v/DOT_RADIUS)], local);
       } else if (!host) {
-        gaze = gazeTransform(gazeKey,index,axes,lookX + (usePointer ? eyeX/.0391 : 0),lookY + (usePointer ? eyeY/.0512 : 0));
+        gaze = gazeTransform(eyeGazeKey,index,axes,lookX + (usePointer ? eyeX/.0391 : 0),lookY + (usePointer ? eyeY/.0512 : 0));
       }
     }
     if (!gaze && isEye && usePointer) {

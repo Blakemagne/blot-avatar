@@ -300,7 +300,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const dpr = ratio(), box = coatBox(now.size, dpr, reach), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = style ? colourOf(now.fill) : dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0);
-    const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');
+    const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.socketRig,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&

@@ -9,7 +9,7 @@ import { DOT_CLIPS } from './engine/dot-motion';
 import { DOT_SHAPES } from './dot-shapes';
 import type { MountOptions } from './mount';
 
-export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'originalEyes' | 'portraitDye' | 'replaceEyes' | 'replaceGlasses' | 'replaceExtra'>> {
+export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'originalEyes' | 'socketRig' | 'portraitDye' | 'replaceEyes' | 'replaceGlasses' | 'replaceExtra'>> {
   /** Builder depth from 0 to 1, with a neutral setting of 0.5. Fixed furry portraits retain their depth. */
   depth?: number;
   /** A DOT_SHAPES definition id, e.g. 'dot-rounded-triangle'. */
@@ -82,6 +82,7 @@ export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
   const definition = DOT_SHAPES.find(item => item.id === source.id);
   const native = definition && bodyOf(definition) === source;
   const style: DotStyle = {
+    ...(native && source.id === 'dot-rounded-head-with-two-ears' ? { socketRig: 'todd' as const } : {}),
     ...(!native && !eyes ? { originalEyes: true } : {}),
     eyes: native && source.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : eyes ?? 'Oval',
     glasses: parts.glasses ?? prior?.glasses ?? 'None',
