@@ -52,6 +52,17 @@ try {
       console.log('wearer '+i+', '+result.views+' motion frames, '+result.failures.length+' failures', result.failures.slice(0,2));
     }
   }
+  if (run('lenses')) {
+    const count = await page.evaluate(() => review.lensWearerCount);
+    let views = 0, pixels = 0;
+    for (let i=0; i<count; i++) {
+      const result = await page.evaluate(i => review.checkLenses(i),i);
+      errors.push(...result.errors);
+      views += result.views;
+      pixels += result.interiorPixels;
+    }
+    console.log(`${views} dark glasses views, ${pixels} interior pixels checked for fur`);
+  }
   if (run('berets')) {
     const count = await page.evaluate(() => review.beretCount);
     let views = 0;

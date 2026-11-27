@@ -548,9 +548,10 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 8, rootsIn(geometry.roots, strandPasses));
     }
     const hasFacePatches = f.solids?.some(p => p.faceLayer !== undefined);
-    if (hasFacePatches && !f.glossy) {
-      // Seat printed eyes under the tips of the pile. Use the real skin as
-      // their occluder, so random strand tips cannot punch holes in the pupil.
+    const hasEyewear = f.solids?.some(p => p.eyewear);
+    if (!f.glossy && !relief && (hasFacePatches || hasEyewear)) {
+      // Shells and strands write depth. Restore the skin as the occluder for
+      // fitted eyes and glasses so pile tips cannot show through the lenses.
       gl.colorMask(false,false,false,false);
       gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.CULL_FACE);

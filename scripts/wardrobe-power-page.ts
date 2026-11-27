@@ -167,6 +167,55 @@ function detachedPixels({ width, height, data }: ImageData) {
   return sizes.sort((a,b) => b-a)[1] ?? 0;
 }
 
+// A custom dye exercises strand depth on every body. The standard lime also
+// exercises the native dot pile materials, including the triangle's fibre cards.
+const lensCases = [
+  ...wearers.map(shape => ({ shape, color: '#80ff12' })),
+  ...DOT_SHAPES.map(({id}) => ({ shape: id, color: '#B6D80B' })),
+];
+export const lensWearerCount = lensCases.length;
+
+/** Locate opaque lens interiors on smooth skin, then check the same pixels for green pile. */
+export async function checkLenses(index: number) {
+  const { shape, color } = lensCases[index];
+  const host = document.querySelector<HTMLElement>('main')!;
+  const errors: string[] = [];
+  let views = 0, interiorPixels = 0;
+  for (const glasses of ['Classic sunglasses', 'Round sunglasses', 'Separate trapezoid lenses'] as const) {
+    const bot = mount(host, { ...avatarParts(shape, { glasses }), color, size: 200, follow: false });
+    try {
+      const rig = bot.live.rig;
+      rig.step = () => true;
+      for (const yaw of [0, -.75, .9, -1.2, 1.35]) {
+        Object.assign(rig.state.pose, { yaw, pitch: .18*yaw, roll: -.08*yaw });
+        async function capture(material: Material) {
+          bot.update({ material });
+          bot.live.motion();
+          return materialPixels(host);
+        }
+        const smooth = await capture('glossy'), furry = await capture('fluffy');
+        const { width, height, data } = smooth;
+        if (width !== furry.width || height !== furry.height) throw new Error('lens framing changed');
+        const dark = (i: number) => data[i+3] === 255 && Math.max(data[i],data[i+1],data[i+2]) < 90
+          && Math.abs(data[i+1]-data[i]) < 12 && Math.abs(data[i+1]-data[i+2]) < 12;
+        let interior = 0, exposed = 0;
+        for (let y = 1; y < height-1; y++) for (let x = 1; x < width-1; x++) {
+          const i = 4*(y*width+x);
+          if (!(dark(i) && dark(i-4) && dark(i+4) && dark(i-4*width) && dark(i+4*width))) continue;
+          interior++;
+          if (furry.data[i+1] > 16 + Math.max(furry.data[i],furry.data[i+2])) exposed++;
+        }
+        if (exposed || (!yaw && interior < 50)) {
+          errors.push(`${typeof shape === 'string' ? shape : shape.id} ${color} ${glasses} yaw ${yaw}: ${exposed} fur pixels in ${interior} lens pixels`);
+        }
+        views++;
+        interiorPixels += interior;
+      }
+    } finally { bot.destroy(); }
+  }
+  return { errors, views, interiorPixels };
+}
+
 const capWearers = wearers.filter(shape => dotExtras(shape).includes('Beret'));
 export const beretCount = capWearers.length;
 
