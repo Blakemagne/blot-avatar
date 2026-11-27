@@ -967,3 +967,21 @@ test('sleepy brows keep their open shape during sleep, blinks and one-sided wink
     assert.equal(top(closed),top(open));
   }
 });
+
+test('small closed eyes retain ink thickness at their own centre while the other eye stays open', () => {
+  for (const wearer of ['blob','dot-rounded-triangle',GALLERY.find(row => row.definition.id === 'paint-brush').definition]) {
+    const { body } = avatarParts(wearer,{eyes:'Dots'});
+    const motion = {x:0,y:0,left:0,right:1};
+    const [left,right] = dotFeatures(body,motion);
+    const height = part => part.axes[4] * (part.mesh.box[4]-part.mesh.box[1]);
+    const centre = part => part.axes[10] + part.axes[4]*(part.mesh.box[4]+part.mesh.box[1])/2;
+    for (const size of [40,80,144,512]) {
+      const minStroke = 2*1.2/size;
+      const [shut,open] = dotFeatures(body,{...motion,minStroke});
+      assert.deepEqual(open.axes,right.axes);
+      assert.ok(Math.abs(centre(left)-centre(shut))<1e-9);
+      assert.ok(height(shut)>=Math.min(minStroke,.48*Math.abs(shut.axes[0])*(shut.mesh.box[4]-shut.mesh.box[1]))-1e-9);
+      assert.ok(height(shut)<height(open));
+    }
+  }
+});

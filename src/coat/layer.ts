@@ -20,7 +20,7 @@ import type { Material } from '../live';
 
 import type { Body } from '../engine/body';
 import { PILE_REACH, coatMesh, type CoatMesh } from '../engine/coat';
-import { VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
+import { LINE_PX, VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
 import type { Rgb } from '../engine/dye';
 import { FIGURE_REACH, type FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
@@ -288,7 +288,10 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     // mesh is moved about: its square is the furthest any figure goes.)
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
-    const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
+    const bodyRadius = c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
+    // Sunglasses can project beyond the shell on a sweep even without headwear.
+    const dressed = style && (style.glasses !== 'None' || style.extra !== 'None');
+    const radius = dressed ? Math.max(bodyRadius, 2.1) : bodyRadius;
     // Dot playback moves the geometry inside WebGL, before the canvas is
     // composited. Its resting sphere no longer encloses a roll or a dash.
     const playback = c.dotFace?.playback;
@@ -311,7 +314,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
       const field = glossy || style && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
-      const solids = style ? wardrobeSolids(base.body, mesh, c.dotFace, tint) : [];
+      const solids = style ? wardrobeSolids(base.body, mesh, { ...c.dotFace!, minStroke: 2*LINE_PX/now.size }, tint) : [];
       const frame = { glossy, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }

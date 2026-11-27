@@ -61,6 +61,8 @@ sunny and onyx now use a fitted cap with a continuous dome and a brim. across th
 
 the heart and capsule offer original, left and right positions for the beanie, hat and beret. imported shapes can define their own accessory and glasses lists and named horizontal positions. [shape definition and example](../site/prompt.md)
 
+on moxie, classic sunglasses touched the canvas edge during low sweep, considering two options and disagreeing. the old bounds included hats but used only the body radius on wearers with glasses alone. replaying the same 1,102 motion frames at 144 px reduced clipped frames from 11 to zero. the motion regression includes moxie, both directions, normal and double strength, and the midpoint of every clip.
+
 ## reference results
 
 the revised build was captured at native resolution in chromium using hardware OpenGL on the same AMD radeon 890m used for the archived reference. the catalog and neutral comparisons isolated 769 visible component regions. exact pixels are sensitive to the graphics backend. these are the measurements from this run. [builder and starters](../golden/dots/metrics-neutral.csv) · [turns](../golden/dots/metrics-rotation.csv) · [catalog](../golden/dots/metrics-catalog.csv)

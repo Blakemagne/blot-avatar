@@ -342,6 +342,7 @@ const motionWearers = [
   avatarParts('teardrop',{eyes:'Crescent inset'}),
   avatarParts(GALLERY.find(row => row.definition.id === 'egg')!.definition,{extra:'Headphones'}),
   { shape: 'blob' },
+  dotAvatar(DOT_CATALOG.find(row => row.id === 'moxie')!.appearance),
   avatarParts('dot-rounded-head-with-two-ears',{glasses:'Tall oval frames',extra:'Bow tie'}),
   avatarParts(GALLERY.find(row => row.definition.id === 'paint-brush')!.definition,{extra:'Beret',glasses:'Monocle'}),
   avatarParts(GALLERY.find(row => row.definition.id === 'paint-brush')!.definition,{extra:'Beret',extraMount:'handle-tip'}),
@@ -359,9 +360,9 @@ export async function checkMotionBounds(index: number) {
     const rig = bot.live.rig;
     rig.step = () => true;
     for (const [name,clip] of Object.entries(DOT_CLIPS)) {
-      for (const dir of [-1,1]) {
+      for (const dir of [-1,1]) for (const amount of [1,2]) {
         const track = new Rig({clips:DOT_CLIPS,idle:false,blinks:false});
-        track.play(name,{dir,amount:dir===1?1:2});
+        track.play(name,{dir,amount});
         const peaks = [-Infinity,-Infinity,-Infinity];
         const samples = [0,0,0];
         const frames = [];
@@ -375,7 +376,8 @@ export async function checkMotionBounds(index: number) {
             if (value > peaks[k]) { peaks[k] = value; samples[k] = i; }
           });
         }
-        for (const i of new Set(samples)) {
+        // The frame can face the edge halfway through a turn, between body extrema.
+        for (const i of new Set([...samples,32])) {
           Object.assign(rig.state.pose,frames[i].pose);
           rig.state.dotPlayback = frames[i].playback;
           rig.state.ultra = dir<0 ? {amount:1,phase:.3} : undefined;
@@ -387,7 +389,7 @@ export async function checkMotionBounds(index: number) {
             occupied++;
             if (!x || !y || x===width-1 || y===height-1) edge++;
           }
-          if (edge || !occupied) failures.push(name+' direction '+dir+' sample '+i+' border '+edge+' painted '+occupied);
+          if (edge || !occupied) failures.push(name+' direction '+dir+' amount '+amount+' sample '+i+' border '+edge+' painted '+occupied);
           views++;
         }
       }

@@ -23,6 +23,8 @@ import { dotMesh, DOT_RADIUS, sectionMesh } from './dot-mesh';
 import { featureSections, type FeatureSection } from './dot-feature-sections';
 
 export interface DotFaceMotion {
+  /** Minimum height of closed ink in body units at the displayed size. */
+  minStroke?: number;
   x: number;
   y: number;
   left: number;
@@ -451,6 +453,17 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
       else if (!frog && style.eyes === 'Crescent inset') insetSurface = index % 3;
     }
     const dyedExtra = style.tintExtra && s.role === 'extra';
+    const placed = bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes;
+    if (motion.minStroke && isEye && !s.brow && !s.light && lid < .5) {
+      // A fully shut pupil can be narrower than one display pixel on a small
+      // avatar. Thicken the stroke around its centre without moving the eye.
+      const bottom = mesh.box[1], top = mesh.box[4];
+      const target = Math.min(.48 * Math.abs(placed[0]), motion.minStroke / (top - bottom));
+      if (placed[4] >= 0 && placed[4] < target) {
+        placed[10] -= (target - placed[4]) * (top + bottom) / 2;
+        placed[4] = target;
+      }
+    }
     result.push({
       mesh, beret: s.role === 'extra' && style.extra === 'Beret', faceLayer, skinInk: !frog && !host && isEye && style.eyes !== 'Oval' && style.character !== 'Josh' && !!activity && activity.slug !== 'ready',
       eyewear: s.role === 'glass',
@@ -458,7 +471,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
         rigidFrame && style.glasses === 'Monocle' ? 'monocle' :
         s.role === 'glass' && (style.glasses === 'Tall oval frames' || style.glasses === 'Separate trapezoid lenses') ? 'frame' : undefined,
       tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
-      axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
+      axes: placed,
       metal: dyedExtra && style.extra === 'Crown',
       material: dyedExtra ? undefined : (index < eyes.length && materials ? materials[index] : undefined) ?? s.material,
       insetSurface,
