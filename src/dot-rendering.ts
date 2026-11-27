@@ -8,7 +8,7 @@ import { insetEyeRadiance } from './coat/dot-inset-radiance';
 import { readyIdle, socketMotion } from './engine/dot-motion';
 import { createDotContact } from './coat/dot-contact';
 import { contactColor, customMatteContact, matteDyes } from './coat/dot-contact-color';
-import { mattePartLayers, mattePartRadiance } from './coat/dot-part-radiance';
+import { mattePartLayers, mattePartRadiance, roundLensRadiance, flowerEyeRadiance } from './coat/dot-part-radiance';
 import { matteBodyLayers, matteBodyRadiance } from './coat/dot-matte-radiance';
 import { catalogCrownLayers } from './coat/dot-catalog-crown-light';
 import { extraRadiance } from './coat/dot-extra-radiance';
@@ -32,14 +32,24 @@ import { portraitParts, portraitMaterials } from './coat/dot-portrait-materials'
 import { ornamentPile } from './coat/dot-ornament-pile';
 import { portraitLight } from './coat/dot-portrait-light';
 
+const insetLayer = extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length;
+const firstPortraitLayer = insetLayer + insetEyeRadiance.length;
+const portraitPartLayers: Readonly<Record<string, Readonly<Record<number, number>>>> = {
+  Jojo: { 0:firstPortraitLayer, 4:firstPortraitLayer },
+  'Felipe flower': { 0:firstPortraitLayer+1, 1:firstPortraitLayer+1 },
+};
+
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
 export const dotRendering = {
   headwearBounds, eyewearDepth, beretProfile, beretSections, readyIdle, socketMotion, createDotContact, createDotFibres, fibreSubstrates, fibreDyes, contactColor, customMatteContact, matteDyes, dotMesh, dotFeatures, faceDepthAt, vectorEyeGaze, portraitMount, transformAxes, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
   matteBodyLayers, mattePartLayers,
-  insetLayer: extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length,
-  extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },
+  insetLayer, portraitPartLayers,
+  extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance, roundLensRadiance, flowerEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },
   extraSwatches: [...DOT_COLOURS, ...DOT_EXTRA_COLOURS.slice(-2)].map(([hex]) => parseInt(hex.slice(1), 16)),
   builderGain, builderReliefs, feltLayers, feltShadow,
+  // Optical depth of the coat in front, at a quarter turn and past profile,
+  // in widths of the measured fringe. Each fit was checked on the dressed wearer.
+  fittingDepth: { 'Felipe flower':[1,1,3], Felipe:[1,1,3], Jojo:[1,1,3], Iggy:[-3,1,1] } as Readonly<Record<string,readonly number[]>>,
   feltExtent: { 'Felipe flower': [.09,.86], Josh: [.15,.67], Alfred: [.11,.90], Blossie: [-.01,.89],
     Iris: [.11,.91], Thelma: [.08,.87], Todd: [.16,.89], Iggy: [.15,.64], Jojo: [.12,.89], Felipe: [.14,.67] } as Readonly<Record<string, readonly number[]>>,
   furRadiance: { ...furRadiance, layers: [...furRadiance.layers, ...feltRadiance] },

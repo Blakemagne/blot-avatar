@@ -166,7 +166,9 @@ function createRenderer(restored: () => void): Renderer | null {
   gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, side, side, side, 0, gl.RED, gl.UNSIGNED_BYTE, rootVolume(side));
   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.generateMipmap(gl.TEXTURE_3D);
-  texture(14, 'ornamentDensity', gl.TEXTURE_2D_ARRAY);
+  // The fibre program uses unit 15's 2d binding. Its array on unit 14 must
+  // stay bound when a furry triangle and a portrait share the renderer.
+  texture(15, 'ornamentDensity', gl.TEXTURE_2D_ARRAY);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -567,6 +569,27 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.drawElements(gl.TRIANGLES,geometry.indices,gl.UNSIGNED_INT,0);
       gl.colorMask(true,true,true,true);
     }
+    const fittingDepth = f.character && assets?.fittingDepth[f.character];
+    if (f.character && assets && fittingDepth && f.solids?.length && (portrait || R[8]<.5)) {
+      // The opaque base of the fur lies below the visible skin. Keep buried
+      // eyes and rims behind that skin when a pose exposes the cheek in profile.
+      const [centre,width] = assets.feltExtent[f.character];
+      const quarter = Math.max(0,Math.min(1,(.94-R[8])/.35));
+      const profile = Math.max(0,Math.min(1,(.08-R[8])/.28));
+      const level = fittingDepth[0] + (fittingDepth[1]-fittingDepth[0])*quarter*quarter*(3-2*quarter)
+        + (fittingDepth[2]-fittingDepth[1])*profile*profile*(3-2*profile);
+      gl.bindVertexArray(geometry.surface);
+      gl.enable(gl.CULL_FACE);
+      gl.uniform1i(u.portraitCoat,1);
+      gl.colorMask(false,false,false,false);
+      const grazing = Math.max(0,Math.min(1,(.5-R[8])/.4));
+      const exposure = portrait ? 1 : grazing*grazing*(3-2*grazing);
+      gl.uniform2f(u.feltExtent,exposure*(centre+width*level)*DOT_RADIUS/140.6592,0);
+      gl.uniform1i(u.pass,PASS.body);
+      gl.drawElements(gl.TRIANGLES,geometry.indices,gl.UNSIGNED_INT,0);
+      gl.colorMask(true,true,true,true);
+      gl.uniform1i(u.portraitCoat,character && !f.glossy ? 1 : 0);
+    }
     if (f.power?.amount) {
       wardrobePower ??= createWardrobePower(gl,link);
       wardrobePower(pixels,f.cx,f.cy,f.half,f.power.amount,f.power.phase);
@@ -601,7 +624,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const soft = fitting?.pile && !f.unlit;
       if (soft && assets && !pileReady) {
         const { width, height, density } = assets.ornamentPile;
-        gl.activeTexture(gl.TEXTURE14);
+        gl.activeTexture(gl.TEXTURE15);
         gl.texImage3D(gl.TEXTURE_2D_ARRAY,0,gl.R8,width,height,2,0,gl.RED,gl.UNSIGNED_BYTE,
           Uint8Array.from(atob(density), char => char.charCodeAt(0)));
         gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
@@ -612,7 +635,9 @@ function createRenderer(restored: () => void): Renderer | null {
       if (fitting) gl.uniform3fv(u.studio, soft && fitting.pileLight ? fitting.pileLight : fitting.light);
       else if (assets && material !== undefined) gl.uniform3fv(u.studio, assets.catalogLight[material]);
       const matteLayer = material !== undefined ? assets?.mattePartLayers[material] : undefined;
-      const layer = assets && insetSurface !== undefined ? assets.insetLayer + insetSurface : catalogCrownLayer ?? matteLayer;
+      const portraitLayer = !f.unlit && f.character && portraitSection !== undefined
+        ? assets?.portraitPartLayers[f.character]?.[portraitSection] : undefined;
+      const layer = assets && insetSurface !== undefined ? assets.insetLayer + insetSurface : portraitLayer ?? catalogCrownLayer ?? matteLayer;
       const polished = !!metal || catalogCrownLayer !== undefined;
       const measuredTint = assets && (pileTint || portableFelt || layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.authoredTint, layer !== undefined || pileTint ? 1 : 0);

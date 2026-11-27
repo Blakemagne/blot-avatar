@@ -838,6 +838,15 @@ for (const key of Object.keys(choices) as PartKey[]) {
   }
 }
 const extraPalette = $('[data-extra-palette]');
+const originalExtra = $('[data-original-extra]');
+originalExtra.addEventListener('click', () => {
+  const recipe = recipes[preset];
+  if (!recipe) return;
+  tintExtra = false;
+  wardrobe.extraColour = recipe.extraColour ?? '#1F1F1F';
+  syncWardrobe();
+  paint();
+});
 for (const [hex, name] of DOT_EXTRA_COLOURS) {
   const label = name.toLowerCase();
   const button = make('button', { type: 'button', title: label });
@@ -904,8 +913,11 @@ function syncWardrobe() {
   positions.hidden = !options.length;
   for (const button of positions.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.mount === (style?.extraMount ?? 'original')));
   extraPalette.hidden = !style || style.extra === 'None';
-  for (const button of extraPalette.querySelectorAll('button')) {
-    button.setAttribute('aria-pressed', String(button.dataset.hex === style?.extraColour));
+  const hasOriginal = !!preset && style?.extra !== 'None' && style?.extra === recipes[preset]?.extra;
+  originalExtra.hidden = !hasOriginal;
+  originalExtra.setAttribute('aria-pressed', String(hasOriginal && !tintExtra));
+  for (const button of extraPalette.querySelectorAll<HTMLButtonElement>('button[data-hex]')) {
+    button.setAttribute('aria-pressed', String((!hasOriginal || tintExtra) && button.dataset.hex === style?.extraColour));
   }
 }
 syncWardrobe();

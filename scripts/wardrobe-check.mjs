@@ -61,15 +61,24 @@ try {
       if (dark[i+3] > 250 && Math.min(dark[i],dark[i+1],dark[i+2]) > 220) white++;
       if (dark[i+3] > 250 && Math.max(dark[i],dark[i+1],dark[i+2]) < 60) pupils++;
     }
-    return { white, pupils, changed, socketLeaks };
+    let exposed = 0;
+    for (const material of ['flat','glossy','fluffy']) for (const stageColour of ['#4778FF','#FB8070']) {
+      const flower = await snapshot({catalog:'blue_beret',turn:[1.62,.24,.07],material,stageColour});
+      const profile = flower.getImageData(333,193,28,40).data;
+      for (let i=0;i<profile.length;i+=4) {
+        if (profile[i+3]>160 && Math.max(profile[i],profile[i+1],profile[i+2])<62) exposed++;
+      }
+    }
+    return { white, pupils, changed, socketLeaks, exposed };
   });
+  assert.equal(eyeCheck.exposed, 0, 'the far eye must stay behind felipe’s cheek at profile');
   assert.equal(eyeCheck.socketLeaks, 0, 'raised sockets should not show through the portrait pupils');
   assert.equal(eyeCheck.changed, 0, 'tinting the headphones repainted the eye region');
   assert.ok(eyeCheck.white > 400 && eyeCheck.pupils > 1200, 'the pale sockets and dark pupils should both be visible');
 
   // Both pale shells show contact beneath the rims and the brim. Each body mask
   // excludes the fittings, so dark pixels on a lens cannot stand in for its shadow.
-  for (const id of ['margot','watt']) {
+  for (const id of ['margot','watt','purple_heart']) {
     const fixture = async group => (await readFile(new URL(
       '../golden/dots/' + group + '/catalog/catalog-' + id + '.png', import.meta.url))).toString('base64');
     const [reference,sections] = await Promise.all([fixture('reference'),fixture('sections')]);
@@ -91,8 +100,9 @@ try {
       for (let k=0; k<actual.length; k+=4) {
         if (native[k+3] !== 255 || actual[k+3] !== 255) continue;
         const surface = mask[k];
-        if (surface < 1 || surface > 3) continue;
-        const group = surface === 1 ? 0 : 1;
+        const lens = id === 'purple_heart';
+        if (lens ? surface !== 2 && surface !== 6 : surface < 1 || surface > 3) continue;
+        const group = surface === (lens ? 2 : 1) ? 0 : 1;
         for (let c=0; c<3; c++) diff[group]+=Math.abs(native[k+c]-actual[k+c]);
         count[group]++;
       }
@@ -111,11 +121,14 @@ try {
           if (shadow < 100) throw Error('missing frame shadow after recolouring ' + stageColour);
         }
       }
-      return { shell: count[0] > 20000 ? diff[0]/(3*count[0]) : Infinity,
-        eyes: count[1] > 1000 ? diff[1]/(3*count[1]) : Infinity };
+      return {count, mean:diff.map((sum,i) => sum/(3*count[i]))};
     }, {id,reference,sections});
-    assert.ok(error.shell < 2.1, id + ' matte shell channel error ' + error.shell);
-    if (id === 'margot') assert.ok(error.eyes < 1.9, 'banded oval eyes: ' + error.eyes);
+    if (id === 'purple_heart') {
+      assert.ok(error.count.every(n => n>3000) && error.mean.every(n => n<1.65),'jojo lens error '+JSON.stringify(error));
+    } else {
+      assert.ok(error.count[0]>20000 && error.mean[0]<2.1,id+' matte shell channel error '+error.mean[0]);
+      if (id === 'margot') assert.ok(error.count[1]>1000 && error.mean[1]<1.9,'banded oval eye error '+error.mean[1]);
+    }
   }
 
   const catalogue = key => page.locator(`[data-portrait="catalog/${key}"]`).evaluate(el => el.parentElement.click());
@@ -336,6 +349,35 @@ try {
       assert.equal(await tile.getAttribute('aria-pressed'), 'true');
     }
   }
+  // A named extra can have several native colours. Restore its finish after
+  // recolouring it while retaining the user's other edits.
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.locator('#mode-preset').click();
+  await page.locator('#source-catalog').click();
+  await page.locator('button:has([data-portrait="catalog/blue_spectacles"])').click();
+  await page.locator('#mode-custom').click();
+  await page.locator('#choose-Glasses').click();
+  await page.locator('[data-parts="glasses"]').getByRole('button',{name:'monocle',exact:true}).click();
+  await page.locator('#choose-Extras').click();
+  const original = page.locator('[data-original-extra]');
+  const activeDyes = page.locator('[data-extra-palette] button[aria-pressed=true]');
+  const canvasImage = () => stage.evaluate(async host => {
+    await new Promise(requestAnimationFrame);
+    return host.querySelector('canvas').toDataURL();
+  });
+  assert.equal(await original.getAttribute('aria-pressed'),'true');
+  assert.equal(await activeDyes.count(),1);
+  const untouched = await canvasImage();
+  await page.locator('[data-extra-palette] [data-hex="#FA70AB"]').click();
+  assert.ok(await canvasImage() !== untouched,'the extra dye should change the pixels');
+  assert.equal(await activeDyes.count(),1);
+  await original.click();
+  assert.ok(await canvasImage() === untouched,'restoring the original extra should restore its pixels');
+  assert.equal(await activeDyes.count(),1);
+  assert.doesNotMatch(await page.locator('[data-code]').textContent(),/"tintExtra":true/);
+  assert.match(await page.locator('[data-code]').textContent(),/"glasses":"Monocle"/);
+  await page.locator('[data-parts="extra"]').getByRole('button',{name:'bow tie',exact:true}).click();
+  assert.equal(await original.isVisible(),false);
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.locator('#tab-play').click();
   await page.locator('#seg-face').focus();

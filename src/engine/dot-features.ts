@@ -105,6 +105,9 @@ function frameMesh(section: FeatureSection): CoatMesh {
 // Fitted ellipsoids for the beret domes and headphone cushions. Each quadratic
 // describes squared half-thickness, followed by the three mid-plane coefficients.
 const ellipsoids = new Map<FeatureSection, readonly number[]>([
+  // The flower portrait's smooth black eyes, measured separately through a full turn.
+  [featureSections['Felipe flower'][0], [0.2406455,0.0227797,-0.0003786,-0.4765484,0.0237516,-0.2516650,-0.0130592,-0.0501453,-0.1945618]],
+  [featureSections['Felipe flower'][1], [0.2582369,0.0065076,0.0064311,-0.5471085,0.0191954,-0.2702530,-0.0095271,0.2568798,-0.1745759]],
   // Outer cups and inner cushions fitted to the headphone cross-sections.
   [featureSections.Iggy[2], [.44378,.00141,-.00145,-1.56924,.08615,-.46052,.00005,-.00008,0]],
   [featureSections.Iggy[3], [.83653,.06544,-.00044,-6.1108,-.01221,-.85558,.00004,-.00062,-.00006]],
@@ -113,6 +116,25 @@ const ellipsoids = new Map<FeatureSection, readonly number[]>([
   [featureSections.Felipe[3], [.76231,-.00617,.00534,-.96115,1.60110,-3.29987,-.00003,.00261,.04794]],
   [featureSections['Felipe flower'][3], [.76846,-.00339,.00509,-.96672,1.59477,-3.32483,.00002,.02584,.08534]],
 ]);
+
+// The sunglass lenses bend around the cheeks. Their front and back share a
+// mirrored mid-surface, fitted to the two silhouettes in 112 directions.
+const lensMidplane = [-0.0044246,0.1407722,-0.5081149,-0.0680772,0.1863875,-0.1210775,-0.0001677,0.0312244,0.0815625,0.0192559,-0.05189,0.015941,-0.1308555,0.0351771,-0.0492764,-0.0081188,-0.02301,0.0016481,-0.0750795,0.0181153,-0.0273658];
+const lensThickness = [0.1112526,-0.0036308,0.0221347,-0.1493824,-0.0035986,-0.1462681,0.0088635,-0.0565965,-0.0039983,-0.0463884,0.0363563,0.0051671,0.0699752,0.003125,0.0327396,-0.0060192,0.0364043,0.0055314,0.0569066,0.0084719,0.0240485];
+
+function polynomial(coefficients: readonly number[], order: number, x: number, y: number) {
+  let start = 0, value = 0;
+  for (let degree = 0; degree <= order; degree++) {
+    let term = 0, yPower = 1;
+    for (let i = degree; i >= 0; i--) {
+      term = term*x + coefficients[start+i]*yPower;
+      yPower *= y;
+    }
+    start += degree+1;
+    value += term;
+  }
+  return value;
+}
 
 function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): Surface {
   const saved = surfaces.get(section);
@@ -138,26 +160,15 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
     : undefined;
   const parent = support && surfaceOf(support, parts);
   const oval = section.catalogSection === undefined ? undefined : catalogOvals[section.catalogSection];
+  const lens = section === featureSections.Jojo[0] || section === featureSections.Jojo[4];
   const thickness = (x: number, y: number) => {
-    if (oval) {
-      // These depth measurements describe the bevel inside the eye's outline.
-      if (distance(x,y) < -.025) return -.002;
-      let start = 0, squaredThickness = 0;
-      for (let degree = 0; degree <= 6; degree++) {
-        let term = 0, yPower = 1;
-        for (let i = degree; i >= 0; i--) {
-          term = term*x + oval[start+i]*yPower;
-          yPower *= y;
-        }
-        start += degree + 1;
-        squaredThickness += term;
-      }
-      return squaredThickness;
-    }
+    if (lens) return distance(x,y)<-.035 ? -.02 : polynomial(lensThickness,5,x*section.side,y);
+    if (oval) return distance(x,y)<-.025 ? -.002 : polynomial(oval,6,x,y);
     const gain = sample(section.thickness, x, y);
     return distance(x,y)*gain*gain;
   };
   const centre = (x: number, y: number) => {
+    if (lens) return polynomial(lensMidplane,5,x*section.side,y);
     if (oval) return oval[28]+oval[29]*y+oval[30]*x;
     const own = sample(section.centre, x, y);
     const z = parent?.front(cx + radius*x, cy + radius*y);
@@ -168,7 +179,7 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
   const mesh = quad ? sectionMesh(section.origin, radius, 128,
     (x,y) => quad[0]+quad[1]*x+quad[2]*y+quad[3]*x*x+quad[4]*x*y+quad[5]*y*y,
     (x,y) => quad[6]+quad[7]*x+quad[8]*y)
-    : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, oval ? 72 : section.role === 'glass' || section.role === 'extra' ? 72 : 44,
+    : measured && !lens ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, lens ? 128 : oval ? 72 : section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
   const portrait = ['Alfred', 'Felipe', 'Iggy', 'Thelma'].find(name => parts === featureSections[name]);
   if (portrait && !measured) fitFrameNormals(mesh, portrait, parts.indexOf(section));

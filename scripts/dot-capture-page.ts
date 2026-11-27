@@ -1,7 +1,7 @@
-import { avatarParts, dotAvatar, dotStageLayout, mount, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from '../src/index';
+import { avatarParts, dotAvatar, dotStageLayout, mount, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance, type Material } from '../src/index';
 import type { Mounted } from '../src/mount';
 
-type Spec = Partial<DotAppearance> & { editable?: boolean; stageColour?: string; catalog?: string; preset?: keyof typeof DOT_CHARACTERS; turn?: [number, number, number] };
+type Spec = Partial<DotAppearance> & { editable?: boolean; stageColour?: string; material?: Material; catalog?: string; preset?: keyof typeof DOT_CHARACTERS; turn?: [number, number, number] };
 let avatar: Mounted | undefined;
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
@@ -26,7 +26,7 @@ export async function capture(spec: Spec, pixels = 512): Promise<string> {
   const size = pixels * 296 / 512;
   host.style.width = host.style.height = size + 'px';
   const look = recipe(spec);
-  avatar = mount(host, { ...dotAvatar(look), ...(spec.editable && avatarParts(look.shape, look)), ...(spec.stageColour && { color:spec.stageColour }), size, follow: false });
+  avatar = mount(host, { ...dotAvatar(look), ...(spec.editable && avatarParts(look.shape, look)), ...(spec.stageColour && { color:spec.stageColour }), ...(spec.material && {material:spec.material}), size, follow: false });
   const rig = avatar.live.rig;
   const [yaw, pitch, roll] = spec.turn ?? [0, 0, 0];
   Object.assign(rig.state.pose, { yaw, pitch, roll });

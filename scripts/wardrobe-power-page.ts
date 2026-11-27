@@ -333,8 +333,36 @@ export async function checkSleepyBrows() {
   return {views, errors};
 }
 
-// On small avatars a slit can straddle two pixel rows. Count the dark cores
-// separately so a strong left eye cannot conceal a washed-out right eye.
+/** Two live coats share the GPU even when they use different fibre textures. */
+export async function checkSharedPile(portraitFirst: boolean) {
+  const portrait = dotAvatar(DOT_CATALOG.find(row => row.name === 'Josh')!.appearance);
+  const triangle = dotAvatar({shape:'dot-rounded-triangle',colour:'#00B1FF',texture:'Fur',eyes:'Sleepy lids'});
+  const views = portraitFirst ? [portrait,triangle] : [triangle,portrait];
+  const mounted = [];
+  try {
+    for (const options of views) {
+      const host = document.createElement('div');
+      document.querySelector('main')!.append(host);
+      const bot = mount(host,{...options,size:184,follow:false});
+      const rig = bot.live.rig;
+      rig.step = () => true;
+      Object.assign(rig.state.pose,{yaw:.58,pitch:-.2,roll:.04});
+      bot.live.motion();
+      await materialPixels(host);
+      bot.live.motion();
+      mounted.push({host,bot,original:await materialPixels(host)});
+    }
+    for (const {host,bot,original} of mounted) {
+      bot.live.motion();
+      const after = await materialPixels(host);
+      if (after.data.some((v,i) => Math.abs(v-original.data[i])>1)) return false;
+    }
+    return true;
+  } finally {
+    for (const {host,bot} of mounted) { bot.destroy(); host.remove(); }
+  }
+}
+
 /** Dye the original pile at the same pose and check the silhouette, surface detail and round trip. */
 export async function checkOrnamentPile() {
   const host = document.querySelector<HTMLElement>('main')!;
@@ -395,6 +423,8 @@ export async function checkOrnamentPile() {
   return {views,errors};
 }
 
+// On small avatars a slit can straddle two pixel rows. Count the dark cores
+// separately so a strong left eye cannot conceal a washed-out right eye.
 export async function checkSleepingInk() {
   const host = document.querySelector<HTMLElement>('main')!;
   const errors: string[] = [];

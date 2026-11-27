@@ -74,6 +74,13 @@ try {
     console.log(views+' beret seat and profile views');
   }
   if (run('pile')) {
+    for (const portraitFirst of [true,false]) {
+      const fresh = await browser.newPage();
+      await fresh.setContent('<main></main>');
+      await fresh.addScriptTag({content:bundle.outputFiles[0].text});
+      assert.ok(await fresh.evaluate(first => review.checkSharedPile(first),portraitFirst),'one coat overwrote another coat’s fibres');
+      await fresh.close();
+    }
     const result = await page.evaluate(() => review.checkOrnamentPile());
     errors.push(...result.errors);
     console.log(result.views+' ornament dye and restoration frames');

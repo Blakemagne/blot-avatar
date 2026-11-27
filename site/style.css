@@ -395,7 +395,8 @@ pre code { font-size: inherit; }
 [data-parts="eyes"] .part-sample { background: #94dbd4; }
 .part-sample svg { width: 46px; height: 46px; display: block; }
 [data-extra-palette]:not([hidden]) { display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem; }
-[data-extra-palette] button { width:1.65rem;height:1.65rem;border-radius:50%;border:1px solid #8886;cursor:pointer; }
+[data-extra-palette] [data-original-extra] { padding:0 .65rem; min-height:1.65rem; }
+[data-extra-palette] button[data-hex] { width:1.65rem;height:1.65rem;border-radius:50%;border:1px solid #8886;cursor:pointer; }
 .portrait-cell { aspect-ratio: auto; min-height: 88px; align-content: center; gap: 5px; padding: 6px 3px; font: inherit; font-size: .8rem; color: var(--ink); }
 .rendered-thumb { background-image: url('portraits.webp'); background-repeat: no-repeat; }
 .portrait-thumb { position: relative; display: block; width: 48px; height: 48px; pointer-events: none; }

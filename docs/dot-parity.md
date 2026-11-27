@@ -4,11 +4,12 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 
 | Registered comparison | Cases | Median silhouette IoU | Median exact foreground | Median feature channel error, 0–255 | Cases passing all gates |
 |---|---:|---:|---:|---:|---:|
-| Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.31 | 0 |
+| Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.22 | 0 |
 | Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.27 | 0 |
-| Named catalog and its builder control, 512 px | 109 | 99.9257% | 47.0655% | 0.87 | 0 |
+| named catalog and its builder control, 512 px | 109 | 99.9257% | 47.0655% | 0.87 | 0 |
+| ground layers, alpha ≥ 1 | 15 | 98.3947% | 41.2159% | 0.28 | 0 |
 
-Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
+Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [catalog scores](../golden/dots/metrics-catalog.csv) · [ground scores](../golden/dots/metrics-ground.csv)
 
 [wardrobe transfer review and before/after close-ups](wardrobe-review.md)
 
@@ -36,7 +37,7 @@ A case passes when **each** ratio reaches 0.9999. The channel error describes th
 
 The source was the live Dots editor and its renderer build `orbit-character-97341a6ccd8f9b7c/8a99a99685b92b37` on November 25–26, 2026. Four repeated captures and fresh instance controls for glossy, fur and Iris reproduced their original bytes. The port was captured through its public `dotAvatar` and `mount` entry points on the same AMD Radeon 890M and Chromium 152 browser as the reference. The material canvas was composited onto a transparent 512 or 384 px frame at a controlled neutral time. The wider diagnostic turns apply the same rotation to body, fittings and instanced fur draws. Ordinary pointer travel is smaller and was measured independently. The reference frames are development fixtures outside the npm distribution. [Reference frames](../golden/dots/reference) · [Source character](https://chatgpt.com/dots/5c7d15af6e7a2420aef2950b1dcac542089e0f756ae39e54921d9f2d4e5782cf~6b07bce089908192b6d9f7043c33109b)
 
-The regular live stage adds two translucent floor layers and uses a different framing from the neutral capture. Fifteen isolated floor comparisons use alpha ≥ 1 for silhouette coverage. Their median exact premultiplied foreground and mean-channel-error scores are 41.46% and 0.28/255 respectively. The avatar comparisons above use alpha ≥ 128. [Floor scores](../golden/dots/metrics-ground.csv) · [Stage checkpoints](../golden/dots/stage-checkpoints.csv)
+The regular live stage adds two translucent floor layers and uses a different framing from the neutral capture. Fifteen isolated floor comparisons use alpha ≥ 1 for silhouette coverage. Their median exact premultiplied foreground and mean-channel-error scores are 41.22% and 0.28/255 respectively. The avatar comparisons above use alpha ≥ 128. [Floor scores](../golden/dots/metrics-ground.csv) · [Stage checkpoints](../golden/dots/stage-checkpoints.csv)
 
 ## Close-up review
 
