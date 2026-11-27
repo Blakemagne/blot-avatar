@@ -169,29 +169,37 @@ export function headphoneMount(body: Body, mesh: CoatMesh, band: CoatMesh, pads:
     for (const x of [cx-.24*half,cx,cx+.24*half]) {
       if (surfaceTop(skin,x,depth,hit)) scalp = Math.max(scalp,hit.z);
     }
-    // The two pads stay beside the face at their original depth. A handle
-    // can make the outline wider than the head at the actual ear height.
-    const pair = [...pads].sort((a,b) => a.box[0]-b.box[0]);
-    if (pair.length === 2) {
-      const pad = pair[0].box;
-      const y = fit[10] + fit[4]*(pad[1]+pad[4])/2;
-      const z = fit[11] + fit[8]*(pad[2]+pad[5])/2;
-      const edge = (side: number) => {
-        const skin = prepare({ pieces: (body.outline ?? body).pieces.map(p => p.map(([x,y,z,r]) => [y,z,side*x,r])) });
-        return surfaceTop(skin,y,z,hit) ? side*hit.z : NaN;
-      };
-      const left = edge(-1), right = edge(1);
-      if (right > left) {
-        forward[0] = (right-left-.035*half)/(pair[1].box[0]-pad[3]);
-        forward[9] = left+.0175*half-forward[0]*pad[3];
-      }
-    }
     const root = fit[10]+fit[4]*band.box[1];
     if (scalp > root) {
       forward[4] = (scalp+.085*fit[0]-root)/(band.box[4]-band.box[1]);
       forward[10] = root-forward[4]*band.box[1];
     }
     axes = forward;
+  }
+  // A flared base or pointed outline can be much wider than the head at ear height.
+  const pair = [...pads].sort((a,b) => a.box[0]-b.box[0]);
+  if (pair.length === 2) {
+    const centres = pair.map(pad => (pad.box[0]+pad.box[3])/2);
+    const positions = pair.map((pad,i) => {
+      const side = i ? 1 : -1;
+      const profile = prepare({ pieces: (body.outline ?? body).pieces.map(piece =>
+        piece.map(([x,y,z,r]) => [y,z,side*x,r])) });
+      const y = axes[10] + (axes[4]-fit[0])*(pad.box[1]+pad.box[4])/2;
+      const z = fit[11] + (axes[8]-fit[0])*(pad.box[2]+pad.box[5])/2;
+      let gap = Infinity;
+      for (let j=0; j<pad.vertices.length; j+=6) {
+        const v = pad.vertices;
+        if (surfaceTop(profile,y+fit[0]*v[j+1],z+fit[0]*v[j+2],hit)) {
+          gap = Math.min(gap,side*(fit[9]+fit[0]*v[j])-hit.z);
+        }
+      }
+      const centre = fit[9]+fit[0]*centres[i];
+      return Number.isFinite(gap) && (gap>0 || axes!==fit) ? centre-side*(gap+.015*half) : centre;
+    });
+    if (positions[1]>positions[0]) {
+      const width = (positions[1]-positions[0])/(centres[1]-centres[0]);
+      axes = [width,...axes.slice(1,9),positions[0]-width*centres[0],axes[10],axes[11]];
+    }
   }
   phoneMounts.set(body,axes);
   return axes;

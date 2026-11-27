@@ -289,6 +289,50 @@ export async function checkWinks() {
   return { views, errors };
 }
 
+/** Sleep closes the pupils under the heavy brows. Measure the ink that stays
+ * in place at the same pose through an open, half-closed and sleeping frame. */
+export async function checkSleepyBrows() {
+  const host = document.querySelector<HTMLElement>('main')!;
+  const sunny = dotAvatar(DOT_CATALOG.find(row => row.id === 'sunny')!.appearance).body!;
+  const shapes = ['dot-rounded-triangle', 'blob', GALLERY.find(row => row.definition.id === 'paint-brush')!.definition, sunny];
+  const errors: string[] = [];
+  let views = 0;
+  for (const shape of shapes) {
+    const bot = mount(host,{...avatarParts(shape,{eyes:'Sleepy lids'}), color:'#00B1FF', size:196, follow:false});
+    try {
+      const rig = bot.live.rig;
+      rig.step = () => true;
+      for (const material of ['flat','glossy','fluffy'] as const) {
+        bot.update({material});
+        for (const yaw of [0,-.78,1.1]) {
+          Object.assign(rig.state.pose,{yaw,pitch:.06,roll:.08});
+          async function eyes(lid: number) {
+            rig.state.lid = lid;
+            bot.live.motion();
+            const { data, width, height } = await materialPixels(host);
+            const mask = new Uint8Array(width*height);
+            for (let i=0; i<mask.length; i++) {
+              const k=4*i;
+              mask[i] = Number(data[k+3]>240 && Math.max(data[k],data[k+1],data[k+2])<59);
+            }
+            return mask;
+          }
+          const open = await eyes(1), half = await eyes(.5), shut = await eyes(.06);
+          let ink = 0, middle = 0, remaining = 0;
+          for (let i=0; i<open.length; i++) if (open[i]) {
+            ink++; middle += half[i]; remaining += shut[i];
+          }
+          if (ink<20 || remaining < .48*ink || middle <= remaining || ink <= middle) {
+            errors.push(`${typeof shape === 'string' ? shape : shape.id} ${material} yaw ${yaw}: ${ink}/${middle}/${remaining} eye pixels`);
+          }
+          views += 3;
+        }
+      }
+    } finally { bot.destroy(); }
+  }
+  return {views, errors};
+}
+
 const motionWearers = [
   dotAvatar({shape:'dot-rounded-head-with-two-ears'}),
   dotAvatar({shape:'dot-rounded-diamond', depth:1}),

@@ -7,7 +7,7 @@ export const portraitParts: Readonly<Record<string, readonly number[]>> = {
   'Iris': [0, 0, 3, 3, 1, 1],
   'Thelma': [8, 5],
   'Todd': [3, 0, 3, 0, 1, 1],
-  'Iggy': [6, 6, 1, 1, 1, 1, 1],
+  'Iggy': [6, 6, 9, 9, 9, 9, 1],
   'Jojo': [1, 1, 1, 1, 1],
   'Felipe': [7, 7, 1, 1, 1],
 };
@@ -23,4 +23,5 @@ export const portraitMaterials = [
   // Lens slots hold ambient and directional light, lamp position, reflection colour,
   // highlight exponent, and the neutral ink used by the flat finish.
   { pile: false, localReflection: true, light: new Float32Array([0.219639, 0.224948, 0.230424, 0.000480, -0.000690, -0.001827, 0.010047, 0.011129, 0.012041, -0.138893, -0.136947, -0.134880, -4.749649, 6.495967, 5.949226, 0.249701, 0.246554, 0.243365, 29.182959, 0.000000, 0.000000, 0.103166, 0.110164, 0.117451, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000]) },
+  { pile: false, localReflection: true, light: new Float32Array([0.159965, 0.166501, 0.173037, 0.020809, 0.020809, 0.020809, 0.026571, 0.026571, 0.026571, -0.076795, -0.076795, -0.076795, -15.725675, 20, 17.222098, 0.21696, 0.21696, 0.21696, 23.514514, 23.514514, 23.514514, 0.101961, 0.109804, 0.117647, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) },
 ];

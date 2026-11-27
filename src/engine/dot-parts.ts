@@ -207,6 +207,13 @@ export function dotFace(
     if (frog) {
       if (lid >= .12) insert(name + '-socket', LIGHT, [circle(23.5, 24)], lid, true);
       insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid), false, 1);
+    } else if (style.eyes === 'Sleepy lids' && !restingLids) {
+      // The traced outline joins the pupil to the underside of the brow at y=7.2.
+      const loops = eyeProfiles[style.eyes][index][0].loops;
+      const browEdge = 7.2;
+      const closing = lid < 1 ? loops.map(loop => loop.map((v,i) =>
+        i%2 && v>browEdge ? browEdge+(v-browEdge)*lid : v)) : loops;
+      insert(name, INK, closing, 1);
     } else if (lid < .10) {
       insert(name, INK, [circle(14, Math.max(1.5, 120 / size))], 1);
     } else {
@@ -388,7 +395,7 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
   const mount = body.wardrobe?.mounts?.find(m => m.id === style.extraMount && m.extras.includes(style.extra));
   const kind = headwear.find(h => h === style.extra);
   const seat = mount?.seat ?? (kind && body.wardrobe?.seats?.[kind]);
-  if ((style.character || style.catalogId || seat) && dotRenderer && !['Headphones','Bow tie'].includes(style.extra)) {
+  if (dotRenderer) {
     const roll = (seat?.roll ?? 0)*Math.PI/180;
     const target = dotRenderer.headwearBounds(body,roll);
     if (target) {

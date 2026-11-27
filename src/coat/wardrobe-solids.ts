@@ -47,8 +47,8 @@ export function wardrobeSolids(body: Body, mesh: CoatMesh, motion?: DotFaceMotio
     band.mesh = fitHeadband(body.wardrobeHost, band.mesh, axes, transferred[11]);
     band.axes = axes;
     for (const pad of pads) {
-      const [, y0, z0, , y1, z1] = pad.mesh.box, scale = axes[0];
-      pad.axes = [scale,0,0, 0,scale,0, 0,0,scale, axes[9],
+      const [x0, y0, z0, x1, y1, z1] = pad.mesh.box, scale = transferred[0];
+      pad.axes = [scale,0,0, 0,scale,0, 0,0,scale, axes[9] + (axes[0]-scale)*(x0+x1)/2,
         axes[10] + (axes[4]-scale)*(y0+y1)/2,
         transferred[11] + (axes[8]-scale)*(z0+z1)/2];
     }

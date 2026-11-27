@@ -764,7 +764,7 @@ test('each fitted catalog extra retains the observed position and size of its ow
   assert.ok(checked>=77);
 });
 
-test('preset headwear keeps its fitted bounds in the SVG from the front, side and top', async () => {
+test('preset accessories keep their fitted bounds in the SVG from the front, side and top', async () => {
   const { DOT_CATALOG, DOT_CHARACTERS } = await import('./index.ts');
   const { dotExtra } = await import('./engine/dot-parts.ts');
   const { bounds } = await import('./engine/math.ts');
@@ -776,7 +776,7 @@ test('preset headwear keeps its fitted bounds in the SVG from the front, side an
   ];
   const recipes = [...Object.values(DOT_CHARACTERS), ...DOT_CATALOG.map(p => p.appearance)];
   for (const recipe of recipes) {
-    if (!['Crown','Beanie','Hat','Beret','Tuft','Bulb'].includes(recipe.extra)) continue;
+    if (!recipe.extra || recipe.extra === 'None') continue;
     const base = dotAvatar(recipe).body;
     const mounts = base.wardrobe?.mounts?.filter(m => m.extras.includes(recipe.extra)).map(m => m.id) ?? [];
     for (const extraMount of [undefined,...mounts]) {
@@ -918,5 +918,52 @@ test('every rigid eyewear style sits against the rendered cheek of the blob and 
       }
       assert.ok(Math.abs(gap-.008)<.0001,body.id+' '+glasses+' '+gap);
     }
+  }
+});
+test('both headphone cushions touch the surface across built-in and gallery bodies', async () => {
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const { prepare, surfaceTop } = await import('./engine/body.ts');
+  for (const shape of [...Object.keys(BODIES),...GALLERY.map(row => row.definition)]) {
+    const id = typeof shape === 'string' ? shape : shape.id;
+    const { body } = avatarParts(shape, { extra: 'Headphones' });
+    const shell = body.wardrobeHost.outline ?? body.wardrobeHost;
+    const skin = prepare(shell), hit = { z:0, nx:0, ny:0, nz:1 };
+    const [, ...pads] = wardrobeSolids(body,coatMesh(body)).filter(part => !part.finish);
+    assert.equal(pads.length,2);
+    for (const { mesh, axes } of pads) {
+      let contact = false;
+      for (let i = 0; i < mesh.vertices.length; i += 6) {
+        const x = axes[9] + axes[0]*mesh.vertices[i];
+        const y = axes[10] + axes[4]*mesh.vertices[i+1];
+        const z = axes[11] + axes[8]*mesh.vertices[i+2];
+        if (surfaceTop(skin,x,y,hit) && Math.abs(z) < hit.z) { contact = true; break; }
+      }
+      assert.ok(contact,id+' cushion misses the head');
+    }
+  }
+});
+
+test('sleepy brows keep their open shape during sleep, blinks and one-sided winks', async () => {
+  const { DOT_CATALOG } = await import('./index.ts');
+  const { dotFace } = await import('./engine/dot-parts.ts');
+  const sunny = dotAvatar(DOT_CATALOG.find(row => row.id === 'sunny').appearance).body;
+  for (const wearer of ['dot-rounded-triangle','blob',GALLERY.find(row => row.definition.id === 'paint-brush').definition,sunny]) {
+    const { body } = avatarParts(wearer,{eyes:'Sleepy lids'});
+    const rest = dotFeatures(body), [leftEye,leftBrow,rightEye,rightBrow] = rest.filter(s => s.finish).slice(-4);
+    const find = (parts,part) => parts.find(s => s.mesh === part.mesh).axes;
+    for (const [left,right] of [[.5,1],[1,.05],[0,0]]) {
+      const parts = dotFeatures(body,{x:0,y:0,left,right});
+      assert.deepEqual(find(parts,leftBrow),leftBrow.axes);
+      assert.deepEqual(find(parts,rightBrow),rightBrow.axes);
+      assert.equal(find(parts,leftEye)[4] < leftEye.axes[4],left<1);
+      assert.equal(find(parts,rightEye)[4] < rightEye.axes[4],right<1);
+    }
+    const rotation = [1,0,0,0,1,0,0,0,1];
+    const eye = lid => dotFace(body,body.dotStyle,{...front,lid},rotation,160).find(p=>p.id==='left').polys[0];
+    const open = eye(1), closed = eye(0);
+    assert.equal(closed.length,open.length);
+    assert.notDeepEqual(closed,open);
+    const top = p => Math.min(...p.filter((_,i)=>i%2));
+    assert.equal(top(closed),top(open));
   }
 });

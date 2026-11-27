@@ -73,6 +73,11 @@ try {
     }
     console.log(views+' beret seat and profile views');
   }
+  if (run('sleepy')) {
+    const result = await page.evaluate(() => review.checkSleepyBrows());
+    errors.push(...result.errors);
+    console.log(result.views+' sleepy brow frames');
+  }
   if (run('winks')) {
     const result = await page.evaluate(() => review.checkWinks());
     errors.push(...result.errors);

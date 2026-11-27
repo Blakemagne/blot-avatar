@@ -121,10 +121,14 @@ function fittedRim(source: CoatMesh, frame: readonly number[], radius: number): 
   return result;
 }
 
-// The black beret dome is an oblique ellipsoid in both portraits. Its
-// measured silhouette fixes the quadratic section and its depth fixes the
-// centre plane. A smooth surface carries the highlight across the whole hat.
-const beretDomes = new Map<FeatureSection, readonly number[]>([
+// Fitted ellipsoids for the beret domes and headphone cushions. Each quadratic
+// describes squared half-thickness, followed by the three mid-plane coefficients.
+const ellipsoids = new Map<FeatureSection, readonly number[]>([
+  // Outer cups and inner cushions fitted to the headphone cross-sections.
+  [featureSections.Iggy[2], [.44378,.00141,-.00145,-1.56924,.08615,-.46052,.00005,-.00008,0]],
+  [featureSections.Iggy[3], [.83653,.06544,-.00044,-6.1108,-.01221,-.85558,.00004,-.00062,-.00006]],
+  [featureSections.Iggy[4], [.44355,-.00105,-.00175,-1.56803,-.08827,-.46007,-.00001,-.00006,-.00005]],
+  [featureSections.Iggy[5], [.83711,-.06897,-.00121,-6.13359,-.00308,-.85554,-.00012,-.00084,-.00006]],
   [featureSections.Felipe[3], [.76231,-.00617,.00534,-.96115,1.60110,-3.29987,-.00003,.00261,.04794]],
   [featureSections['Felipe flower'][3], [.76846,-.00339,.00509,-.96672,1.59477,-3.32483,.00002,.02584,.08534]],
 ]);
@@ -179,10 +183,10 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
     return z === undefined ? own : Math.max(own, (z + .0018 - cz) / radius);
   };
   const measured = opticalSurfaces.get(section);
-  const dome = beretDomes.get(section);
-  const mesh = dome ? sectionMesh(section.origin, radius, 128,
-    (x,y) => dome[0]+dome[1]*x+dome[2]*y+dome[3]*x*x+dome[4]*x*y+dome[5]*y*y,
-    (x,y) => dome[6]+dome[7]*x+dome[8]*y)
+  const quad = ellipsoids.get(section);
+  const mesh = quad ? sectionMesh(section.origin, radius, 128,
+    (x,y) => quad[0]+quad[1]*x+quad[2]*y+quad[3]*x*x+quad[4]*x*y+quad[5]*y*y,
+    (x,y) => quad[6]+quad[7]*x+quad[8]*y)
     : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, oval ? 72 : section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
   const portrait = ['Alfred', 'Felipe', 'Iggy', 'Thelma'].find(name => parts === featureSections[name]);
@@ -349,10 +353,10 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     const fit = s.role === 'glass' ? fits?.[style.glasses]?.[0]
       : isEye && !frog ? fits?.[style.eyes]?.[s.side < 0 ? 0 : 1] : undefined;
     const [sx,sy,zx,zy,sz,dx,dy,dz] = fit ?? IDENTITY;
-    const donorBone = (isEye || s.role === 'socket') && bones?.[s.side < 0 ? 0 : 1];
+    const donorBone = !s.brow && (isEye || s.role === 'socket') && bones?.[s.side < 0 ? 0 : 1];
     const socketBone = (isEye || s.role === 'socket') && sockets?.[index];
     const bone = socketBone || (!useFocus && donorBone);
-    const blinking = isEye || frog && s.role === 'socket';
+    const blinking = isEye && !s.brow || frog && s.role === 'socket';
     const blink = s.side < 0 ? motion.left : motion.right;
     const playbackLid = (socketBone || useFocus) && donorBone ? Math.min(1, donorBone[4]) : 1;
     const lid = blinking && !restingLids ? Math.max(.055, blink * playbackLid) : 1;
@@ -361,7 +365,9 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     const closed = lid * (bone ? bone[4] : 1) < .12;
     if (closed && (s.role === 'catch' || frog && s.role === 'socket')) continue;
     const pivot = s.role === 'catch' ? pieces.find(part => part.role === 'eye' && part.side === s.side) : s;
-    const lidPivot = (pivot ?? s).origin[1]*DOT_RADIUS;
+    // The sleepy pupil closes under the brow. Each side has its own blink.
+    const brow = style.eyes === 'Sleepy lids' && isEye && pieces.find(p => p.brow && p.side === s.side);
+    const lidPivot = (brow || pivot || s).origin[1]*DOT_RADIUS;
     let axes = [sx,0,zx, 0,sy*lid,zy, 0,0,sz,
       dx*DOT_RADIUS, dy*DOT_RADIUS+lidPivot*sy*(1-lid), dz*DOT_RADIUS];
     const relative = relativeEyes && relativeEyes[index];
