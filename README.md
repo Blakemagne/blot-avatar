@@ -501,6 +501,20 @@ Build with `npm run site` and open `_site/index.html` to try the eleven picker s
 
 a shape definition may include `wardrobe.glasses` and `wardrobe.extras` to limit its fittings. define a named position with `wardrobe.mounts`, for example `{ "id": "left", "extras": ["Hat"], "x": 27 }` as an array entry. `x` places the accessory centre across the width of the shell in percent. select it with `avatarParts(shape, { extra: 'Hat', extraMount: 'left' })` or a portrait’s `parts.extraMount`. the studio reads the same definitions and includes the selected position in saved looks and share links. [wardrobe JSON example](site/prompt.md)
 
+for a hat resting on a particular part of a shape, set a default seat in the definition. the paintbrush places the centre of the beret’s band on its bristles. `x` runs left to right, `y` bottom to top, and `z` back to front, each as a percentage of the bare body's bounds. `width` is the percentage of the body's width and `roll` is the counterclockwise tilt in degrees. a named mount can override the seat when selected.
+
+```json
+{
+  "wardrobe": {
+    "seats": { "Beret": { "label": "bristles", "x": 25, "y": 54, "z": 57, "width": 60, "roll": 27 } },
+    "mounts": [
+      { "id": "handle-tip", "extras": ["Beret"], "x": 88, "seat": { "y": 94, "z": 50, "width": 37, "roll": -28 } }
+    ]
+  }
+}
+```
+
+
 `DOT_PICKER_SHAPES` follows the editor. `DOT_SHAPES` also contains the flower. Use `dotAvatar(DOT_CATALOG.find(item => item.id === id).appearance)` to select a named character. `curatedDot(42n)` selects Rio using the studio’s version 14 seed mapping. Pass its `appearance` to `dotAvatar` to render the selection. to change a single fitting on a portrait, pass the recipe and a `parts` override, for example `dotAvatar({ ...recipe, parts: { glasses: 'Monocle' } })`. the shell and the other fittings keep their portrait geometry. successive calls to `avatarParts(previous.body, changes)` also carry the earlier choices forward. to recolour the shell or switch its finish, override `color` or `material` on the returned mount options. The optional `depth` setting runs from 0 to 1 on builder and matte catalog characters, with a default of 0.5. It changes body thickness, including the depth of mounted eyes and accessories. Fixed fur portraits retain their original depth.
 
 ```ts

@@ -2,6 +2,8 @@ import { frontDepth } from './face-surface';
 import { finishMesh, type CoatMesh } from '../engine/coat-surface';
 import type { Body } from '../engine/body';
 import type { DotSolid } from '../engine/dot-features';
+import { dotRenderer } from '../engine/dot-renderer-registry';
+import { coatMesh } from '../engine/coat';
 
 type Point = [number, number, number];
 type Contact = { source: CoatMesh; mesh: CoatMesh };
@@ -11,6 +13,31 @@ const identity = [1,0,0, 0,1,0, 0,0,1, 0,0,0] as const;
 function pointAt(solid: DotSolid, i: number): Point {
   const a = solid.axes, v = solid.mesh.vertices;
   return [0,1,2].map(k => a[k]*v[i] + a[3+k]*v[i+1] + a[6+k]*v[i+2] + a[9+k]) as Point;
+}
+
+const eyewearDepths = new WeakMap<Body, number>();
+
+/** Slide the assembled rigid frame back to the nearest cheek. A single-eye
+ * frame must be fitted over its own cheek, even on an asymmetric face. */
+export function eyewearDepth(body: Body): number {
+  if (!dotRenderer || !body.wardrobeHost || body.dotStyle?.glasses === 'None') return 0;
+  const cached = eyewearDepths.get(body);
+  if (cached !== undefined) return cached;
+  const shell = coatMesh(body);
+  let nearest = Infinity;
+  for (const solid of dotRenderer.dotFeatures(body)) {
+    if (!solid.eyewear) continue;
+    const { vertices } = solid.mesh;
+    for (let i=0; i<vertices.length; i+=6) {
+      const [x,y,z] = pointAt(solid,i);
+      const depth = frontDepth(shell,x,y);
+      if (depth !== undefined) nearest = Math.min(nearest,z-depth);
+    }
+  }
+  // Opaque sunglasses cover the eye ink. Open rims sit a little ahead of it.
+  const shift = Number.isFinite(nearest) ? .008-nearest : 0;
+  eyewearDepths.set(body,shift);
+  return shift;
 }
 
 /** Seat a small span between the back of the fitting and the nearest point on
@@ -47,8 +74,9 @@ function contactMesh(shell: CoatMesh, start: Point, radius: number): CoatMesh | 
   return finishMesh(vertices,indices,undefined,undefined,false);
 }
 
-function mountContacts(shell: CoatMesh, gear: DotSolid[], bow: boolean): Contact[] {
+function mountContacts(shell: CoatMesh, gear: DotSolid[], kind: 'bow' | 'frame' | 'monocle'): Contact[] {
   if (!gear.length) return [];
+  const bow = kind === 'bow';
   let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
   for (const part of gear) {
     for (let i = 0; i < part.mesh.vertices.length; i += 6) {
@@ -61,7 +89,7 @@ function mountContacts(shell: CoatMesh, gear: DotSolid[], bow: boolean): Contact
   // Use the shortest seat underneath each lens or the centre of the bow.
   // A fitting already touching the shell needs no extra geometry.
   const contacts: Contact[] = [];
-  for (const fraction of bow ? [.5] : [.25,.75]) {
+  for (const fraction of bow ? [.5] : kind === 'monocle' ? [.27] : [.25,.75]) {
     const x = left+fraction*width;
     let closest = Infinity, start: Point | undefined, source: CoatMesh | undefined;
     for (const part of gear) {
@@ -89,8 +117,9 @@ export function seatWardrobe(body: Body, shell: CoatMesh, solids: DotSolid[]): v
   let contacts = byWearer.get(body);
   if (!contacts) {
     const frames = solids.filter(s => s.contact === 'frame');
+    const monocle = solids.filter(s => s.contact === 'monocle');
     const bow = solids.filter(s => s.contact === 'bow');
-    contacts = [...mountContacts(shell,frames,false), ...mountContacts(shell,bow,true)];
+    contacts = [...mountContacts(shell,frames,'frame'), ...mountContacts(shell,monocle,'monocle'), ...mountContacts(shell,bow,'bow')];
     byWearer.set(body,contacts);
   }
   for (const contact of contacts) {

@@ -791,3 +791,132 @@ test('preset headwear keeps its fitted bounds in the SVG from the front, side an
     }
   }
 });
+
+test('the paintbrush seats the portrait beret on the bristles or the handle in body coordinates', async () => {
+  const { coatMesh } = await import('./engine/coat.ts');
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const { beretSections } = await import('./engine/dot-features.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  const brush = GALLERY.find(row => row.definition.id === 'paint-brush').definition;
+  const imported = validateAvatar(JSON.parse(JSON.stringify({ ...brush,id:'brush-import' })));
+  assert.equal(imported.ok,true);
+  assert.deepEqual(imported.value.wardrobe,brush.wardrobe);
+  for (const shape of [brush,imported.value]) for (const mount of [undefined,'handle-tip']) {
+    const { body } = avatarParts(shape,{ extra:'Beret',extraMount:mount });
+    const shell = coatMesh(body);
+    const gear = wardrobeSolids(body,shell).filter(part => !part.finish);
+    assert.deepEqual(gear.map(part => part.mesh),beretSections());
+    const seat = mount ? { ...brush.wardrobe.mounts[0].seat,x:88 } : brush.wardrobe.seats.Beret;
+    const [band] = gear;
+    // The actual band centre must land on the declared point after fitting,
+    // independent of the eye position and even after changing outfits.
+    const centre = [-.1594,.4172,-.0100].map(x => x*DOT_RADIUS);
+    for (let k=0; k<3; k++) {
+      const a=band.axes, actual = a[k]*centre[0]+a[k+3]*centre[1]+a[k+6]*centre[2]+a[k+9];
+      const expected=shell.box[k]+[seat.x,seat.y,seat.z][k]*(shell.box[k+3]-shell.box[k])/100;
+      assert.ok(Math.abs(actual-expected)<1e-6);
+    }
+    const restored=avatarParts(avatarParts(body,{extra:'Hat'}).body,{extra:'Beret',extraMount:mount}).body;
+    assert.deepEqual(wardrobeSolids(restored,coatMesh(restored)).filter(p=>!p.finish).map(p=>p.axes),gear.map(p=>p.axes));
+  }
+  const bad = seat => validateAvatar({ ...brush,wardrobe:{ seats:{ Beret:seat } } }).ok;
+  for (const seat of [{},{ ...brush.wardrobe.seats.Beret,y:101 },{ ...brush.wardrobe.seats.Beret,label:3 },{ ...brush.wardrobe.seats.Beret,width:0 }]) assert.equal(bad(seat),false);
+});
+
+test('the exported crown follows the slope of each paintbrush seat', async () => {
+  const { dotExtra } = await import('./engine/dot-parts.ts');
+  const brush = GALLERY.find(row => row.definition.id === 'paint-brush').definition;
+  const front = new Float64Array([1,0,0,0,1,0,0,0,1]);
+  for (const extraMount of [undefined,'handle-tip']) {
+    const { body } = avatarParts(brush,{extra:'Crown',extraMount});
+    const [band] = dotExtra(body,body.dotStyle,front,48).find(part => part.id === 'crown-band').polys;
+    let left=0,right=0;
+    for (let i=2; i<band.length; i+=2) {
+      if (band[i]<band[left]) left=i;
+      if (band[i]>band[right]) right=i;
+    }
+    const rise = (band[left+1]-band[right+1])/(band[right]-band[left]);
+    assert.ok(extraMount ? rise < -.25 : rise > .25,'the brim must follow the selected seat');
+  }
+});
+
+test('changing the dye on an original catalog beret preserves its geometry and placement', async () => {
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const { coatMesh } = await import('./engine/coat.ts');
+  const { DOT_CATALOG } = await import('./index.ts');
+  for (const {appearance} of DOT_CATALOG.filter(p => p.appearance.extra==='Beret')) {
+    const original=dotAvatar(appearance).body;
+    const tinted=avatarParts(original,{extraColour:'#FA70AB'}).body;
+    const gear=body => wardrobeSolids(body,coatMesh(body)).filter(p=>!p.finish);
+    const before=gear(original), after=gear(tinted);
+    assert.equal(after.length,before.length,appearance.catalogId ?? appearance.character);
+    for (let i=0; i<before.length; i++) {
+      assert.equal(after[i].mesh,before[i].mesh);
+      assert.deepEqual(after[i].axes,before[i].axes);
+    }
+  }
+});
+
+test('editable berets use the portrait surfaces and stay inside their measured mount when eyewear changes', async () => {
+  const { coatMesh } = await import('./engine/coat.ts');
+  const { wardrobeSolids,headwearBounds } = await import('./coat/wardrobe-solids.ts');
+  const { beretSections } = await import('./engine/dot-features.ts');
+  for (const shape of DOT_SHAPES.filter(shape=>dotExtras(shape).includes('Beret'))) {
+    for (const glasses of DOT_GLASSES) {
+      const options={ extra:'Beret',glasses };
+      const {body} = avatarParts(shape.id,options);
+      const gear = wardrobeSolids(body,coatMesh(body)).filter(s=>!s.finish);
+      assert.deepEqual(gear.map(s=>s.mesh),beretSections(),shape.id);
+      const expected = headwearBounds(dotAvatar({shape:shape.id,...options}).body);
+      assert.ok(headwearBounds(body).every((n,i)=>Math.abs(n-expected[i])<.0001),shape.id+' '+glasses);
+    }
+  }
+});
+
+test('transferred eyes remain visible across the profile until the front cheek hides them', async () => {
+  const { dotFace } = await import('./engine/dot-parts.ts');
+  const { rotation,area } = await import('./engine/math.ts');
+  for (const shape of ['blob','teardrop','wedge','clover']) {
+    const {body}=avatarParts(shape,{ eyes:'Crescent inset' });
+    const ink = yaw => dotFace(body,body.dotStyle,{eye:{x:0,y:0},lid:1},
+      rotation({ yaw,pitch:0,roll:0 }),192).filter(p=>p.id==='left'||p.id==='right')
+      .flatMap(p=>p.polys).reduce((sum,p)=>sum+Math.abs(area(p)),0);
+    for (const sign of [-1,1]) {
+      const before=ink(sign*(Math.PI/2-.001)), after=ink(sign*(Math.PI/2+.001));
+      assert.ok(after>0 && Math.abs(after-before)<.001,shape+' profile');
+    }
+    assert.equal(ink(Math.PI),0,shape+' back');
+  }
+});
+
+test('the near frog socket occludes the far pupil in a turned SVG', async () => {
+  const { dotFace } = await import('./engine/dot-parts.ts');
+  const { rotation } = await import('./engine/math.ts');
+  const {body}=avatarParts('dot-rounded-head-with-two-ears');
+  const visible = yaw => dotFace(body,body.dotStyle,{eye:{x:0,y:0},lid:1},
+    rotation({yaw,pitch:.04,roll:0}),192).map(p=>p.id);
+  assert.ok(visible(0).includes('right') && visible(0).includes('left'));
+  assert.ok(!visible(1.7).includes('right'));
+  assert.ok(!visible(-1.7).includes('left'));
+});
+
+test('every rigid eyewear style sits against the rendered cheek of the blob and paintbrush', async () => {
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const { frontDepth } = await import('./coat/face-surface.ts');
+  for (const shape of ['blob', GALLERY.find(p=>p.definition.id==='paint-brush').definition]) {
+    for (const glasses of DOT_GLASSES.slice(1)) {
+      const {body}=avatarParts(shape,{glasses,eyes:'Crescent inset'}), shell=coatMesh(body);
+      const frames = wardrobeSolids(body,shell).filter(p=>p.eyewear && p.mesh.vertices.length>192);
+      let gap=Infinity;
+      for (const {mesh,axes:a} of frames) {
+        const v=mesh.vertices;
+        for (let i=0; i<v.length; i+=6) {
+          const [x,y,z]=[0,1,2].map(k=>a[k]*v[i]+a[k+3]*v[i+1]+a[k+6]*v[i+2]+a[k+9]);
+          const skin=frontDepth(shell,x,y);
+          if (skin!==undefined) gap=Math.min(gap,z-skin);
+        }
+      }
+      assert.ok(Math.abs(gap-.008)<.0001,body.id+' '+glasses+' '+gap);
+    }
+  }
+});

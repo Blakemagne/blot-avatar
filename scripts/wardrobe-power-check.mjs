@@ -52,6 +52,16 @@ try {
       console.log('wearer '+i+', '+result.views+' motion frames, '+result.failures.length+' failures', result.failures.slice(0,2));
     }
   }
+  if (run('berets')) {
+    const count = await page.evaluate(() => review.beretCount);
+    let views = 0;
+    for (let i=0;i<count;i++) {
+      const result = await page.evaluate(i => review.checkBerets(i),i);
+      errors.push(...result.errors);
+      views += result.views;
+    }
+    console.log(views+' beret seat and profile views');
+  }
   if (run('winks')) {
     const result = await page.evaluate(() => review.checkWinks());
     errors.push(...result.errors);

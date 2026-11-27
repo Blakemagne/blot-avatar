@@ -17,7 +17,7 @@ try {
   await page.setContent('<main></main>');
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const { webp, keys, columns, rows } = await page.evaluate(async () => {
-    const { DOT_CATALOG, DOT_CHARACTERS, DOT_GLASSES, DOT_EXTRAS, dotAvatar, mount } = avatar;
+    const { DOT_CATALOG, DOT_CHARACTERS, DOT_GLASSES, DOT_EXTRAS, avatarParts, dotAvatar, mount } = avatar;
     const recipes = [...Object.entries(DOT_CHARACTERS), ...DOT_CATALOG.map(item => ['catalog/' + item.id, item.appearance])];
     const wardrobe = { glasses: DOT_GLASSES, extra: DOT_EXTRAS };
     for (const [part, values] of Object.entries(wardrobe)) {
@@ -36,7 +36,7 @@ try {
     ctx.imageSmoothingQuality = 'high';
     const host = document.querySelector('main');
     for (const [index, [key, recipe]] of recipes.entries()) {
-      const bot = mount(host, { ...dotAvatar(recipe), size: 128, follow: false, seed: 1 });
+      const bot = mount(host, { ...dotAvatar(recipe), ...(key.startsWith('extra/') && avatarParts(recipe.shape,recipe)), size: 128, follow: false, seed: 1 });
       try {
         let canvas;
         for (let i = 0; i < 90; i++) {

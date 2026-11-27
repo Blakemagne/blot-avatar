@@ -260,6 +260,39 @@ try {
   await frogPixels(true);
   await page.locator('[data-shapes] button[aria-label="capsule"]').click();
   assert.ok(await frogPixels(false) === frogDefault,'leaving a dyed shape must restore its thumbnail');
+  await page.locator('[data-shapes] button[aria-label="paint brush"]').click();
+  await page.locator('#choose-Eyes').click();
+  await page.locator('[data-parts="eyes"]').getByRole('button',{name:'original',exact:true}).click();
+  await page.locator('#choose-Extras').click();
+  await page.locator('[data-parts="extra"]').getByRole('button',{name:'beret',exact:true}).click();
+  assert.equal(await page.locator('[data-mount="original"]').textContent(),'bristles');
+  // Compare the centre of the dark felt with the green bristles on the painted stage.
+  // Each placement must survive saving, including switching back to the default.
+  for (const mount of ['handle-tip','original']) {
+    await page.locator('#mode-custom').click();
+    await page.locator('#choose-Extras').click();
+    await page.locator('[data-mount="'+mount+'"]').click();
+    await page.locator('[data-save-look]').click();
+    await page.reload();
+    assert.equal(await page.locator('[data-mount="'+mount+'"]').getAttribute('aria-pressed'),'true');
+    await page.locator('[data-stage]').scrollIntoViewIfNeeded();
+    await page.waitForFunction(mount => {
+      const canvas=document.querySelector('[data-avatar=play] canvas');
+      if (!canvas?.getClientRects().length) return false;
+      const {width,height}=canvas;
+      const {data}=canvas.getContext('2d').getImageData(0,0,width,height);
+      let green=0,greenX=0,cap=0,capX=0;
+      for (let i=0; i<data.length; i+=4) {
+        if (data[i+3]<240) continue;
+        const x=(i/4)%width;
+        if (data[i+1]>80 && data[i+1]>2*data[i]) { green++; greenX+=x; }
+        if (Math.max(data[i],data[i+1],data[i+2])<65) { cap++; capX+=x; }
+      }
+      if (cap<100 || green<500) return false;
+      const dx=(capX/cap-greenX/green)/width;
+      return mount==='handle-tip' ? dx>.06 : dx<-.035;
+    },mount,{timeout:15000});
+  }
   await page.locator('[data-portrait="catalog/sunny"]').evaluate(b => b.closest('button').click());
   await page.locator('[data-mount="left"]').evaluate(b => b.click());
   await page.locator('[data-save-look]').click();
@@ -395,6 +428,35 @@ try {
     });
     assert.ok(position.space >= 0 && position.edge < 2 && position.centres < 2, JSON.stringify({width,position}));
   }
+  // Start the export in the same task as the resize, before a resize observer
+  // or the material queue can update a stale desktop-sized coat.
+  const resizedDownload=page.waitForEvent('download');
+  await page.evaluate(() => {
+    const stage=document.querySelector('[data-stage]');
+    stage.style.height=stage.style.minHeight='170px';
+    document.querySelector('[data-do="png"]').click();
+  });
+  const resizedFrame=await readFile(await (await resizedDownload).path());
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.ok(resizedFrame.equals(await exportPng()),'the first export after resizing used a stale coat size');
+  // Hold image decoding while the stage changes. The downloaded SVG layers
+  // and coat pixels must both belong to the avatar present at the click.
+  const clickFrame = await exportPng();
+  await page.evaluate(() => {
+    const decode=HTMLImageElement.prototype.decode;
+    const held=new Promise(resolve => { window.releaseExportImages = resolve; });
+    HTMLImageElement.prototype.decode = async function () {
+      const pending=decode.call(this);
+      if (this.src.startsWith('blob:')) { window.exportWaiting=true; await held; }
+      await pending;
+    };
+  });
+  const inFlight=exportPng();
+  await page.waitForFunction(()=>window.exportWaiting);
+  await catalogue('cleo');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.evaluate(()=>window.releaseExportImages());
+  assert.ok(clickFrame.equals(await inFlight),'a pending PNG export mixed two wearers');
   assert.deepEqual(errors, []);
   console.log('frog eye pixels, 36 transition frames, preset motion resets, crown tiles and stage fits, matte contact shadows, preset transfers, powered mode, motion pills, shape dyes, saved mounts and responsive palette checks passed.');
 } finally {

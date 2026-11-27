@@ -1,3 +1,5 @@
+import { eyewearDepth } from './coat/wardrobe-contact';
+import { beretProfile } from './coat/beret-profile';
 import { headwearBounds } from './coat/wardrobe-solids';
 import { fibreDyes } from './coat/dot-fibre-dyes';
 import { fibreSubstrates } from './coat/dot-fibre-substrate';
@@ -14,7 +16,7 @@ import { DOT_COLOURS, DOT_EXTRA_COLOURS } from './palette';
 import { dotMesh } from './engine/dot-mesh';
 import { portraitMount } from './engine/dot-portrait-fit';
 import { transformAxes } from './engine/dot-gaze';
-import { dotFeatures, vectorEyeGaze } from './engine/dot-features';
+import { beretSections, dotFeatures, faceDepthAt, vectorEyeGaze } from './engine/dot-features';
 import { builderFittings } from './engine/dot-builder-fittings';
 import { fittedMesh } from './engine/dot-fitted-mesh';
 import { dotAttachments } from './engine/dot-attachments';
@@ -31,7 +33,7 @@ import { portraitLight } from './coat/dot-portrait-light';
 
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
 export const dotRendering = {
-  headwearBounds, readyIdle, socketMotion, createDotContact, createDotFibres, fibreSubstrates, fibreDyes, contactColor, customMatteContact, matteDyes, dotMesh, dotFeatures, vectorEyeGaze, portraitMount, transformAxes, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
+  headwearBounds, eyewearDepth, beretProfile, beretSections, readyIdle, socketMotion, createDotContact, createDotFibres, fibreSubstrates, fibreDyes, contactColor, customMatteContact, matteDyes, dotMesh, dotFeatures, faceDepthAt, vectorEyeGaze, portraitMount, transformAxes, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
   matteBodyLayers, mattePartLayers,
   insetLayer: extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length,
   extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },

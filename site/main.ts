@@ -345,11 +345,13 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncBackdr
 syncBackdrop();
 
 let stageSize = pg.size;
+let stageWidth=0, stageHeight=0;
 let stageLayout: ReturnType<typeof dotStageLayout> | undefined;
 function stageOptions(): MountOptions {
   const options = avatarOptions();
   const { body } = options;
-  const width = stage.clientWidth || Infinity, height = stage.clientHeight || Infinity;
+  stageWidth=stage.clientWidth; stageHeight=stage.clientHeight;
+  const width = stageWidth || Infinity, height = stageHeight || Infinity;
   const frame = studioBodyFrame(body!);
   // The slider sets the resting body's longest visible dimension. Reserve the
   // same headroom for every wearer so changing a hat cannot shrink its body.
@@ -401,7 +403,10 @@ function changed(resetPose = false): void {
   }
   writeCode();
 }
-new ResizeObserver(() => { if (stage.clientWidth) changed(); }).observe(stage);
+function syncStageSize(): void {
+  if (stage.clientWidth && (stage.clientWidth !== stageWidth || stage.clientHeight !== stageHeight)) changed();
+}
+new ResizeObserver(syncStageSize).observe(stage);
 
 // ---- What the studio says, for a moment, beside the actions (and to a screen reader).
 
@@ -856,11 +861,16 @@ function syncWardrobe() {
   const positions = $('[data-extra-mounts]');
   const mounts = body?.wardrobe?.mounts?.filter(m => style && m.extras.includes(style.extra)) ?? [];
   if (!mounts.some(m => m.id === wardrobe.extraMount)) delete wardrobe.extraMount;
-  const ids = mounts.length ? ['original', ...mounts.map(m => m.id)] : [];
-  if (positions.dataset.options !== ids.join('/')) {
+  const primary = Object.entries(body?.wardrobe?.seats ?? {}).find(([name]) => name === style?.extra)?.[1];
+  const options = mounts.length ? [
+    { id:'original',label:primary?.label ?? 'original' },
+    ...mounts.map(m => ({ id:m.id,label:m.seat?.label ?? m.id.replaceAll('-',' ') })),
+  ] : [];
+  const optionKey = JSON.stringify(options);
+  if (positions.dataset.options !== optionKey) {
     positions.replaceChildren();
-    for (const id of ids) {
-      const button = make('button', { type: 'button', className: 'chip', textContent: id.replaceAll('-', ' ') });
+    for (const {id,label} of options) {
+      const button = make('button', { type:'button', className:'chip', textContent:label.toLowerCase() });
       button.dataset.mount = id;
       button.addEventListener('click', () => {
         if (id === 'original') delete wardrobe.extraMount;
@@ -870,9 +880,9 @@ function syncWardrobe() {
       });
       positions.append(button);
     }
-    positions.dataset.options = ids.join('/');
+    positions.dataset.options = optionKey;
   }
-  positions.hidden = !ids.length;
+  positions.hidden = !options.length;
   for (const button of positions.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.mount === (style?.extraMount ?? 'original')));
   extraPalette.hidden = !style || style.extra === 'None';
   for (const button of extraPalette.querySelectorAll('button')) {
@@ -900,7 +910,7 @@ async function copy(text: string, failed: string): Promise<void> {
   if (await copyText(text)) said('copied');
   else said(failed, true);
 }
-doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color, 512, outfit().body, studioEyeFill())); });
+doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color, 512, outfit().body, studioEyeFill(), pg.ultra)); });
 doButton('png').addEventListener('click', async () => {
   const e = entry(pg.key), png = await stagePng();
   if (png) download(`${e.id}.png`, 'image/png', png);
@@ -916,6 +926,8 @@ async function stagePng(): Promise<Blob | null> {
   try { return await drawStage(); } catch { return null; }
 }
 async function drawStage(): Promise<Blob | null> {
+  // The viewport may have changed before its resize observer has delivered.
+  syncStageSize();
   const host = $('[data-avatar="play"]'), box = svgBox(stageSize);
   const coat = [...host.children].find((c): c is HTMLCanvasElement => c instanceof HTMLCanvasElement && c.style.display !== 'none' && c.width > 0);
   const scale = coat ? coat.width / parseFloat(getComputedStyle(coat).width) : Math.max(2, devicePixelRatio || 1);
@@ -927,7 +939,9 @@ async function drawStage(): Promise<Blob | null> {
     const f = getComputedStyle(el).filter;
     return !f || f === 'none' ? 'none' : f.replace(/(-?[\d.]+)px/g, (_, n: string) => `${Number(n) * scale}px`);
   };
-  for (const layer of host.children) {
+  // Capture every layer in the same browser turn. An animation can advance
+  // while SVG images decode, so retain the coat pixels and transforms now.
+  const layers = [...host.children].map(async layer => {
     if (layer instanceof SVGSVGElement) {
       const copy = layer.cloneNode(true) as SVGSVGElement, from = layer.querySelectorAll('*'), to = copy.querySelectorAll<SVGElement>('*');
       from.forEach((el, i) => {
@@ -940,28 +954,38 @@ async function drawStage(): Promise<Blob | null> {
       copy.setAttribute('height', String(side));
       const [vx, vy, vw, vh] = (copy.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
       copy.setAttribute('viewBox', `${vx - vw / 2} ${vy - vh / 2} ${2 * vw} ${2 * vh}`);
+      const filter = glowOf(layer);
       const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' }));
       try {
         const img = new Image();
         img.src = url;
         await img.decode();
-        ctx.filter = glowOf(layer);
-        ctx.drawImage(img, 0, 0, side, side);
-        ctx.filter = 'none';
+        return () => {
+          ctx.filter = filter;
+          ctx.drawImage(img, 0, 0, side, side);
+          ctx.filter = 'none';
+        };
       } finally { URL.revokeObjectURL(url); }
     } else if (layer === coat) {
       // Where the coat sits, and the breath, squash or hop it is moved by (a CSS transform about its corner).
       const cs = getComputedStyle(coat), m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform), w = parseFloat(cs.width);
-      ctx.save();
-      ctx.filter = glowOf(coat);
-      ctx.scale(scale, scale);
-      ctx.translate(parseFloat(cs.left) - box.left + room, parseFloat(cs.top) - box.top + room);
-      ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
-      ctx.globalAlpha = Number(cs.opacity);
-      ctx.drawImage(coat, 0, 0, w, w);
-      ctx.restore();
+      const snapshot = make('canvas',{width:coat.width,height:coat.height});
+      snapshot.getContext('2d')!.drawImage(coat,0,0);
+      const filter=glowOf(coat), alpha=Number(cs.opacity);
+      const x=parseFloat(cs.left)-box.left+room, y=parseFloat(cs.top)-box.top+room;
+      return () => {
+        ctx.save();
+        ctx.filter = filter;
+        ctx.scale(scale,scale);
+        ctx.translate(x,y);
+        ctx.transform(m.a,m.b,m.c,m.d,m.e,m.f);
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(snapshot,0,0,w,w);
+        ctx.restore();
+      };
     }
-  }
+  });
+  for (const paint of await Promise.all(layers)) paint?.();
   // Cut to what is drawn, square, with a little room.
   const px = ctx.getImageData(0, 0, side, side).data;
   let x0 = side, y0 = side, x1 = -1, y1 = -1;

@@ -167,6 +167,41 @@ function detachedPixels({ width, height, data }: ImageData) {
   return sizes.sort((a,b) => b-a)[1] ?? 0;
 }
 
+const capWearers = wearers.filter(shape => dotExtras(shape).includes('Beret'));
+export const beretCount = capWearers.length;
+
+/** Isolate the dyed cap at either profile. It must remain connected to
+ * the wearer when moving between an authored seat and the default one. */
+export async function checkBerets(index: number) {
+  const shape = capWearers[index], id = typeof shape === 'string' ? shape : shape.id;
+  const host = document.querySelector<HTMLElement>('main')!;
+  const options = avatarParts(shape,{ extra:'Beret' });
+  const mounts = options.body.wardrobe?.mounts?.filter(m => m.extras.includes('Beret')).map(m => m.id) ?? [];
+  const bot = mount(host,{ ...options, size:128,material:'glossy',color:'#00B1FF',follow:false });
+  const errors: string[] = [];
+  let views=0;
+  try {
+    const rig = bot.live.rig;
+    rig.step = () => true;
+    for (const extraMount of [undefined,...mounts]) {
+      bot.update(avatarParts(shape,{extra:'Beret',extraMount,extraColour:'#FA70AB'}));
+      for (const yaw of [0,.65,-.65,1.24,-1.24,2.2,-2.2,Math.PI]) {
+        Object.assign(rig.state.pose,{yaw,pitch:-.16,roll:.12});
+        bot.live.motion();
+        const pixels=await materialPixels(host);
+        let dyed=0;
+        for (let k=0;k<pixels.data.length;k+=4) {
+          if (pixels.data[k+3]>190 && pixels.data[k]>pixels.data[k+1]+48 && pixels.data[k]>pixels.data[k+2]+26) dyed++;
+        }
+        const detached=detachedPixels(pixels);
+        if (detached>6 || !dyed) errors.push(id+' '+(extraMount??'original')+' yaw '+yaw+' detached '+detached+' dyed '+dyed);
+        views++;
+      }
+    }
+  } finally { bot.destroy(); }
+  return {views,errors};
+}
+
 /** A wink removes the pale support under a pupil. Check both sides in profile
  * and the turned-away face, where a stroke at the old depth can float free. */
 export async function checkWinks() {
@@ -174,10 +209,10 @@ export async function checkWinks() {
   let views = 0;
   const host = document.querySelector<HTMLElement>('main')!;
   for (const recipe of [
-    { shape: 'dot-rounded-head-with-two-ears' }, DOT_CHARACTERS.Todd,
+    { shape: 'dot-rounded-head-with-two-ears' }, {shape:'dot-rounded-head-with-two-ears',editable:true}, DOT_CHARACTERS.Todd,
     { shape: 'dot-circle-with-two-ears', eyes: 'Crescent inset' as const },
   ]) {
-    const bot = mount(host, { ...dotAvatar(recipe), size: 210, follow: false });
+    const bot = mount(host, { ...dotAvatar(recipe), ...('editable' in recipe && avatarParts(recipe.shape)), size: 210, follow: false });
     try {
       const rig = bot.live.rig;
       rig.step = () => true;
@@ -214,6 +249,9 @@ const motionWearers = [
   avatarParts('teardrop',{eyes:'Crescent inset'}),
   avatarParts(GALLERY.find(row => row.definition.id === 'egg')!.definition,{extra:'Headphones'}),
   { shape: 'blob' },
+  avatarParts('dot-rounded-head-with-two-ears',{glasses:'Tall oval frames',extra:'Bow tie'}),
+  avatarParts(GALLERY.find(row => row.definition.id === 'paint-brush')!.definition,{extra:'Beret',glasses:'Monocle'}),
+  avatarParts(GALLERY.find(row => row.definition.id === 'paint-brush')!.definition,{extra:'Beret',extraMount:'handle-tip'}),
 ];
 export const motionWearerCount = motionWearers.length;
 

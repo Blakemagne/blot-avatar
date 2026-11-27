@@ -4,7 +4,7 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 
 | Registered comparison | Cases | Median silhouette IoU | Median exact foreground | Median feature channel error, 0–255 | Cases passing all gates |
 |---|---:|---:|---:|---:|---:|
-| Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.40 | 0 |
+| Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.31 | 0 |
 | Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.27 | 0 |
 | Named catalog and its builder control, 512 px | 109 | 99.9257% | 47.0655% | 0.87 | 0 |
 
@@ -69,6 +69,8 @@ A nine-second recording shows the linked character and the port responding to th
 
 Two 100-second runs of the live renderer provide a repeatability control. Both used the linked recipe, Ready activity, a centred pointer and 60 clock steps per second. At 192 px, 54 of the 100 once-per-second image pairs matched exactly. In the other 46, exact foreground agreement fell below 99.99%, reaching 21.26% in the least similar pair. Independent live runs can therefore fail the frame-by-frame gate even when the renderer and inputs match. Deterministic pose captures and separately scored spontaneous behaviour distinguish this timing difference from material and geometry errors. [Native-to-native image scores](../golden/dots/ready-repeatability.csv)
 
+a second repeatability check used fresh native instances of the cyan fur triangle with oval eyes and no accessories. each instance rendered 6,000 steps at 60 hz, centred on a transparent 192 px canvas. each pair started with the same javascript random seed and byte sequence for browser entropy. 91 of 100 one-second samples matched. fixing the wall clock and monotonic clock as well produced 89 matches in a fresh pair. the least similar pair in that run matched 11.80% of occupied RGBA pixels. these comparisons measure the native renderer against itself and use the union of the two painted areas. [per-second counts](../golden/dots/ready-clock-repeatability.csv)
+
 The cursor tests include cases where the support stays fixed and its highlights travel independently. They cover a raised-socket face, Iris’s portrait and the largest catalog gaze error measured, Clover. [Held-out gaze observations](../golden/dots/gaze-checkpoints.json)
 
 ### eye placement during activities
@@ -94,6 +96,8 @@ on matte presets, the port missed the contact shadow under glasses and hat brims
 a second close-up of margot revealed horizontal bands across her oval pupils. the same depth interpolation affected 62 eye surfaces on 31 presets. smooth fits to their observed front and back surfaces reduced mean error across the paired eye regions on every affected preset. the average of those 31 region scores fell from 1.40 to 0.77 after the shadow correction. [margot’s eye at 3×](dot-review/catalog-oval-review.webp)
 
 the framing test samples each of the 54 motions at 64 times, then renders the extreme poses for eight wearers at normal strength and mirrored double strength. across 1,984 rendered frames, the earlier build clipped 274 frames in 36 motions. the revised bounds cleared every frame, including barrel roll. in 501 finish combinations, full ultracode preserved all 290,585 sampled interior fitting pixels. [browser regression](../scripts/wardrobe-power-page.ts)
+
+the oval frames and monocle changed thickness when mounted on differently sized eyes. preserving the rim gauge decreased whole-avatar channel error in all seven affected frontal comparisons and all seven independently rendered turns. the unmodified triangle donor is the control. the capsule’s monocle still has a visible edge discrepancy, with 8.14/255 channel error on the labelled rim. [frame close-up](dot-review/fitted-oval-rims.webp)
 
 ## Reproduce a comparison
 

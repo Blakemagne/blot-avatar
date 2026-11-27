@@ -14,7 +14,7 @@ export { glowFilter, paintEffects, roleColour, type FxPaint } from './paint';
 export { smooth, track } from './engine/ease';
 export { onFrame, onMotion, onSeen, pointer, reducedMotion, ticking, watchPointer } from './ticker';
 export { OVERDRAW, PORTRAIT_FROM, bodyOf, stillState, svgBox, type Shape } from './still';
-export { LARGE, SMALL, SMALL_LOOK, createLive, lookFor, lookWithin, type Feel, type Live, type LiveProps, type Material, type Reach } from './live';
+export { CALM_ULTRA, LARGE, SMALL, SMALL_LOOK, createLive, lookFor, lookWithin, type Feel, type Live, type LiveProps, type Material, type Reach } from './live';
 export { mount, type MountOptions, type Mounted } from './mount';
 export { coatable } from './coat/renderer';
 export { DOT_PICKER_SHAPES, DOT_SHAPES } from './dot-shapes';
@@ -26,5 +26,5 @@ export { ULTRA_INK, ULTRA_LAVENDER, ULTRA_PALETTE, eyeInk, furShown, paintSkin, 
 export { DOT_CLIPS, DOT_MOTIONS } from './engine/dot-motion';
 export { dotStageLayout } from './dot-stage';
 export { avatarParts, type AvatarParts, dotExtras, dotAvatar, curatedDot, DOT_CURATED_VERSION, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from './dot';
-export type { WardrobeDefinition, WardrobeMount } from './engine/wardrobe';
+export type { HeadwearSeat, WardrobeDefinition, WardrobeMount } from './engine/wardrobe';
 export { DOT_EYES, DOT_GLASSES, DOT_EXTRAS, type DotStyle } from './engine/dot-parts';

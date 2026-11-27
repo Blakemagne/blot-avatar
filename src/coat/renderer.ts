@@ -578,7 +578,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const [x0,y0,,x1,y1] = f.mesh.box;
       gl.uniform4f(u.faceBounds,x0,y0,1/(x1-x0),1/(y1-y0));
     }
-    for (const { mesh, tint, axes, metal, finish, material, insetSurface, portraitSection, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
+    for (const { mesh, tint, axes, metal, beret, finish, material, insetSurface, portraitSection, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
       if (skinInk) gl.enable(gl.STENCIL_TEST);
       const part = geometryOf(mesh);
       gl.uniform1i(u.eyePatch,faceLayer !== undefined ? 1 : 0);
@@ -588,15 +588,16 @@ function createRenderer(restored: () => void): Renderer | null {
         gl.uniform4f(u.eyeRelief,.006 + faceLayer*relief*1.2,mesh.box[2],1/thickness,relief);
       }
       const portraitIndex = f.character && portraitSection !== undefined ? assets?.portraitParts[f.character]?.[portraitSection] : undefined;
-      const fitting = portraitIndex === undefined ? undefined : assets?.portraitMaterials[portraitIndex];
+      const portableFelt = beret && material === undefined && portraitIndex === undefined;
+      const fitting = portableFelt ? assets?.portraitMaterials[1] : portraitIndex === undefined ? undefined : assets?.portraitMaterials[portraitIndex];
       if (fitting) gl.uniform3fv(u.studio, fitting.light);
       else if (assets && material !== undefined) gl.uniform3fv(u.studio, assets.catalogLight[material]);
       const matteLayer = material !== undefined ? assets?.mattePartLayers[material] : undefined;
       const layer = assets && insetSurface !== undefined ? assets.insetLayer + insetSurface : catalogCrownLayer ?? matteLayer;
       const polished = !!metal || catalogCrownLayer !== undefined;
-      const measuredTint = assets && (layer !== undefined || (!fitting && material === undefined && !finish));
+      const measuredTint = assets && (portableFelt || layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.authoredTint, layer !== undefined ? 1 : 0);
-      gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
+      gl.uniform1i(u.finish, layer !== undefined ? 0 : portableFelt ? 9 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
         finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
       gl.uniform1i(u.tintLayer, measuredTint ? tintLayer(tint,polished ? 1 : 0,assets,layer) : -1);
       gl.bindVertexArray(part.surface);

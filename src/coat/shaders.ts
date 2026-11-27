@@ -421,6 +421,7 @@ void main() {
   if (unlit) {
     vec3 dye = color;
     if (ornament && finish >= 5) dye = studioLight(vec3(0.,0.,1.));
+    if (ornament && finish == 9) dye = color;
     if (ornament && finish == 8) dye = studio[7];
     if (ornament && authoredTint) dye = tintedRadiance(vec2(.5), tintLayer, metal ? 1 : 0);
     result = vec4(dye, 1.);
@@ -428,6 +429,15 @@ void main() {
   }
   vec3 n = normalize(N);
   if (ornament) {
+    if (finish == 9) {
+      // Keep the soft reflection on dyed felt, including charcoal at its original exposure.
+      vec3 felt = studioLight(n);
+      vec3 dyed = tintLayer >= 0 ? tintedRadiance(normalUV(n),tintLayer,0) : color*(.89+.55*felt);
+      float chroma = max(color.r,max(color.g,color.b));
+      float dye = smoothstep(31./255.,.5,chroma);
+      result = vec4(clamp(mix(felt+(color-vec3(31./255.)),dyed+.18*(felt-.12),dye),0.,1.),1.);
+      return;
+    }
     if (finish == 8) {
       // The softbox reflection depends on the position and curvature of each eye or lens.
       vec3 normal = n*vec3(1.,-1.,1.);

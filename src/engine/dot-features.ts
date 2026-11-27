@@ -17,7 +17,7 @@ import { catalogParts } from './dot-catalog-parts';
 import { eyewearFits, eyeMaterials, frameFits } from './dot-eyewear-fits';
 import { faceFits } from './dot-face-fits';
 import type { Body } from './body';
-import type { CoatMesh } from './coat';
+import { finishMesh, type CoatMesh } from './coat-surface';
 import type { Rgb } from './dye';
 import { dotMesh, DOT_RADIUS, sectionMesh } from './dot-mesh';
 import { featureSections, type FeatureSection } from './dot-feature-sections';
@@ -34,7 +34,9 @@ export interface DotSolid {
   axes: readonly number[];
   tint: Rgb;
   metal?: boolean;
-  contact?: 'bow' | 'frame';
+  beret?: boolean;
+  contact?: 'bow' | 'frame' | 'monocle';
+  eyewear?: boolean;
   material?: number;
   insetSurface?: number;
   portraitSection?: number;
@@ -93,6 +95,30 @@ function frameMesh(section: FeatureSection): CoatMesh {
   }, x => -FRAME_CURVE * DOT_RADIUS * (cx + radius * x) ** 2 / radius);
   rigidFrames.set(section, mesh);
   return mesh;
+}
+
+// Adjusting the lens opening changes the extent of the frame. The moulded
+// rim retains the same gauge as it wraps a narrower face.
+const rimMeshes = new WeakMap<CoatMesh, WeakMap<readonly number[], CoatMesh>>();
+function fittedRim(source: CoatMesh, frame: readonly number[], radius: number): CoatMesh {
+  if (frame[0] === 1 && frame[4] === 1 && frame[6] === 0) return source;
+  let byMount = rimMeshes.get(source);
+  if (!byMount) rimMeshes.set(source, byMount = new WeakMap());
+  const saved = byMount.get(frame);
+  if (saved) return saved;
+  const v = source.vertices.slice();
+  let left = Infinity, right = -Infinity;
+  for (let i=0; i<v.length; i+=6) {
+    const x = frame[0]*v[i] + frame[3]*v[i+1] + frame[6]*v[i+2];
+    left = Math.min(left,x); right = Math.max(right,x);
+  }
+  const offset = radius * DOT_RADIUS * ((source.box[3]-source.box[0])/(right-left) - 1);
+  for (let i=0; i<v.length; i+=6) {
+    for (let k=0; k<3; k++) v[i+k] += offset*v[i+k+3];
+  }
+  const result = finishMesh(v,source.indices,undefined,undefined,false);
+  byMount.set(frame,result);
+  return result;
 }
 
 // The black beret dome is an oblique ellipsoid in both portraits. Its
@@ -190,11 +216,26 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
   return surface;
 }
 
+/** The band, dome and button share the portrait's original local coordinates. */
+let cap: CoatMesh[] | undefined;
+export function beretSections(): CoatMesh[] {
+  const parts = featureSections.Felipe;
+  return cap ??= parts.filter(part => part.role === 'extra').map(part => surfaceOf(part, parts).mesh);
+}
+
 const INK: Rgb = [32,32,32], WHITE: Rgb = [254,254,254];
 const IDENTITY = [1,1,0,0,1,0,0,0] as const;
 const STILL: DotFaceMotion = { x:0, y:0, left:1, right:1 };
 // The editable frog wears Todd's two socket/pupil pairs independently of his outfit.
 const raisedEyes = featureSections.Todd.filter(s => s.role === 'socket' || s.role === 'eye');
+/** The front surface also occludes the far eye across a nose or a raised
+ * socket. Cache its rasterized depth through the same mesh used by WebGL. */
+export function faceDepthAt(body: Body) {
+  const style = body.dotStyle!;
+  const surface = dotMesh(style.character ?? (style.catalogId ? 'catalog-'+body.id : body.id));
+  return surface && ((x: number,y: number) => frontDepth(surface,x,y));
+}
+
 /** Project the same moving ink and highlight centres onto the SVG contours. */
 export function vectorEyeGaze(body: Body, side: number, look: readonly number[]): number[][] | undefined {
   const style = body.dotStyle!;
@@ -397,6 +438,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     else if (style.character === 'Thelma' && s.role === 'extra') mesh = dotMesh('Thelma bulb')!;
     else if (rigidFrame) mesh = frameMesh(s);
     else mesh = surfaceOf(s, pieces).mesh;
+    if (frame && (style.glasses === 'Tall oval frames' || style.glasses === 'Monocle')) mesh = fittedRim(mesh,frame,style.glasses === 'Monocle' ? .043 : .027);
     let insetSurface: number | undefined;
     if (!fixed && index < eyes.length) {
       if (frog && s.role === 'socket') insetSurface = 0;
@@ -404,8 +446,10 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     }
     const dyedExtra = style.tintExtra && s.role === 'extra';
     result.push({
-      mesh, faceLayer, skinInk: !frog && !host && isEye && style.eyes !== 'Oval' && style.character !== 'Josh' && !!activity && activity.slug !== 'ready',
+      mesh, beret: s.role === 'extra' && style.extra === 'Beret', faceLayer, skinInk: !frog && !host && isEye && style.eyes !== 'Oval' && style.character !== 'Josh' && !!activity && activity.slug !== 'ready',
+      eyewear: s.role === 'glass',
       contact: s.role === 'extra' && style.extra === 'Bow tie' ? 'bow' :
+        rigidFrame && style.glasses === 'Monocle' ? 'monocle' :
         s.role === 'glass' && (style.glasses === 'Tall oval frames' || style.glasses === 'Separate trapezoid lenses') ? 'frame' : undefined,
       tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,

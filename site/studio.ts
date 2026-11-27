@@ -4,7 +4,7 @@
 // Scholz and its contributors (MIT; see THIRD_PARTY_NOTICES.md).
 
 import {
-  avatarParts, BOT_COLOURS, bodyOf, bounds, coatMesh, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
+  avatarParts, BOT_COLOURS, CALM_ULTRA, eyeInk, roleColour, skinMarkup, skinPaint, bodyOf, bounds, coatMesh, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
 
 const front = rotation({ yaw: 0, pitch: 0, roll: 0 });
@@ -278,7 +278,7 @@ export function shareLink(base: string, pick: { id: string; kind: 'body' | 'gall
 
 // ---- A still to download
 
-interface SvgPath { d: string; fill: string }
+interface SvgPath { d: string; fill: string; opacity?: number; overlay?: string }
 
 /** A square view of the visible paths, including a little breathing room around their edges. */
 function croppedSvg(paths: SvgPath[], size: number, fallback: string): string {
@@ -289,17 +289,27 @@ function croppedSvg(paths: SvgPath[], size: number, fallback: string): string {
   }
   const side = Math.max(x1 - x0, y1 - y0) * 1.12, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
   const box = xy.length ? [cx - side / 2, cy - side / 2, side, side].map(v => Math.round(v * 100) / 100).join(' ') : fallback;
-  const content = paths.filter(p => p.d).map(p => `<path d="${p.d}" fill="${p.fill}"/>`).join('');
+  const content = paths.filter(p => p.d).map(p => `<path d="${p.d}" fill="${p.fill}"${p.opacity === undefined ? '' : ` opacity="${p.opacity}"`}/>${p.overlay ?? ''}`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${box}">${content}</svg>\n`;
 }
 
 /** The avatar as a standalone SVG still, including its selected wardrobe. */
-export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf(shape), eyeFill?: string): string {
-  const d = drawAvatar(body, colour, stillState(shape, size), size);
-  const layers = d.layers ?? [];
+export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf(shape), eyeFill?: string, powered = false): string {
+  const state = stillState(shape,size);
+  if (powered) {
+    state.ultra = { amount:1,phase:CALM_ULTRA.phase };
+    state.fx = [{ kind:'ultra',u:0,t:CALM_ULTRA.t,dir:1,amount:1 }];
+  }
+  const d = drawAvatar(body,colour,state,size);
+  const layers = d.layers ?? [], ink=eyeInk(eyeFill ?? d.eyeFill,powered ? 1 : 0);
+  const id='blot-power', colours={fill:d.fill,eyeFill:ink,...skinPaint(id)};
+  const effects = (side: 'front'|'back') => (d.effects ?? []).filter(p=>p.layer===side)
+    .map(p=>({d:p.d,fill:roleColour(p.role,colours),opacity:p.opacity}));
   return croppedSvg([
-    ...layers.filter(l => !l.front), { d: d.body, fill: d.fill }, ...layers.filter(l => l.front && !l.overEyes),
-    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? d.eyeFill })), ...layers.filter(l => l.overEyes),
+    ...effects('back'), ...layers.filter(l => !l.front),
+    { d:d.body, fill:d.fill, overlay:skinMarkup(d,id,size) },
+    ...layers.filter(l => l.front && !l.overEyes), ...d.eyes.map(path => ({ d:path,fill:ink })),
+    ...layers.filter(l => l.overEyes), ...effects('front'),
   ], size, d.viewBox);
 }
 

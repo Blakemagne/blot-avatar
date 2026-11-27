@@ -1,5 +1,6 @@
 import { prepare, surfaceTop, type Body, type Prep } from '../engine/body';
 import { finishMesh, type CoatMesh } from '../engine/coat-surface';
+import type { HeadwearSeat } from '../engine/wardrobe';
 import type { DotStyle } from '../engine/dot-parts';
 
 const attachments = new WeakMap<Body, readonly number[]>();
@@ -37,6 +38,26 @@ function topOf(body: Body) {
     topSurfaces.set(body, top);
   }
   return top;
+}
+
+const scalpSeats = new WeakMap<Body,HeadwearSeat>();
+
+/** Support an unmarked beret on the local scalp and follow its tangent.
+ * Authored seats take precedence on heads with handles, horns or several lobes. */
+export function scalpSeat(body: Body, box: CoatMesh['box']): HeadwearSeat {
+  const cached = scalpSeats.get(body);
+  if (cached) return cached;
+  const top = topOf(body), hit = { z:0, nx:0, ny:0, nz:1 };
+  const width = box[3]-box[0], height = box[4]-box[1];
+  const face = body.eyes.cx ?? 0, half = Math.min(face-box[0],box[3]-face);
+  const cx = face - .19*half, cz = (box[2]+box[5])/2;
+  const sample = (x: number) => surfaceTop(top,x,cz,hit) ? hit.z : undefined;
+  const y = sample(cx) ?? box[4], dx = .19*half;
+  const roll = Math.atan2((sample(cx+dx) ?? y)-(sample(cx-dx) ?? y), 2*dx);
+  const seat = { x: 100*(cx-box[0])/width, y:100*(y-box[1]-.095*half)/height, z:50,
+    width: 137*half/width, roll: Math.max(-35, Math.min(35,roll*180/Math.PI)) };
+  scalpSeats.set(body,seat);
+  return seat;
 }
 
 /** Keep a prop rigid and seat its lower edge on the local surface of the wearer. */

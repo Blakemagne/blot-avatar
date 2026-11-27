@@ -3,8 +3,8 @@ import { dotRenderer } from './dot-renderer-registry';
 import { dotDepth, DOT_RADIUS } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, project, type Mat3 } from './math';
-import { eyePolys } from './eyes';
-import { fittedSilhouette, silhouette } from './silhouette';
+import { barWidth, eyePolys } from './eyes';
+import { fittedSilhouette, projectedHull, silhouette } from './silhouette';
 import type { RigState } from './rig';
 
 export const DOT_EYES = [
@@ -17,7 +17,7 @@ export const DOT_EYES = [
   'Crescent inset',
   'Sleepy lids',
 ] as const;
-import { DOT_GLASSES, DOT_EXTRAS, mountShift } from './wardrobe';
+import { DOT_GLASSES, DOT_EXTRAS, headwear, mountShift } from './wardrobe';
 export { DOT_GLASSES, DOT_EXTRAS } from './wardrobe';
 export interface DotStyle {
   /** Local Z multiplier for an editable body and its mounted parts. */
@@ -37,6 +37,8 @@ export interface DotStyle {
   tintExtra?: boolean;
   /** Base dye used to calibrate the authored shell's lighting. */
   portraitDye?: number;
+  /** Use the transferable portrait cap on an editable wardrobe selection. */
+  portableBeret?: boolean;
   /** Socket assembly on the studio frog. Raw dot recipes retain their builder rig. */
   socketRig?: 'todd';
   replaceEyes?: boolean;
@@ -115,11 +117,12 @@ export function dotFace(
 ): Part[] {
   const parts: Part[] = [];
   const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
-  if (rotation[8] < -.55) return parts;
+  if (!body.wardrobeHost && rotation[8] < -.55) return parts;
   const native = !body.wardrobeHost && sockets[body.id];
   const [spacing, centreY, scale] = native || [body.eyes.x*DESIGN_RADIUS,256-body.eyes.y*DESIGN_RADIUS,body.eyes.x/.2];
   const cx = native ? 0 : body.eyes.cx ?? 0;
-  const depth = (x:number,y:number) => native ? dotDepth(body.id,x,y) : wardrobeDepth(body,x,y);
+  const sideDepth = native && rotation[8] < .7 ? dotRenderer?.faceDepthAt(body) : undefined;
+  const depth = sideDepth ?? ((x:number,y:number) => native ? dotDepth(body.id,x,y) : wardrobeDepth(body,x,y));
   const eyeY = (256 - centreY) / DESIGN_RADIUS;
   const glasses = frameProfiles[style.glasses];
   const circle = (rx: number, ry: number) => Array.from({ length: 64 }, (_, i) => [
@@ -154,32 +157,50 @@ export function dotFace(
       const centre = frog && !style.socketRig && style.character !== 'Todd' && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
       for (const loop of loops) {
         if (body.wardrobeHost) {
-          if (rotation[8] > 0) {
-            const offsets = loop.map((value,i) => value * scale / DESIGN_RADIUS * (i % 2 ? -open : 1));
-            polys.push(...eyePolys(body.wardrobeHost,rotation,centre+du,eyeY+dv,offsets));
-          }
+          const offsets = loop.map((value,i) => value * scale / DESIGN_RADIUS * (i % 2 ? -open : 1));
+          polys.push(...eyePolys(body.wardrobeHost,rotation,centre+du,eyeY+dv,offsets,undefined,true));
           continue;
         }
         const poly = new Float64Array(loop.length);
-        let facing = 0;
+        const facing = rotation[8] < .7 ? new Float64Array(loop.length/2) : undefined;
         for (let i = 0; i < loop.length; i += 2) {
           const u = centre + du + loop[i] * scale / DESIGN_RADIUS;
           const v = eyeY + dv - loop[i+1] * open * scale / DESIGN_RADIUS;
           const z = (depth(u,v) ?? depth(x,eyeY) ?? .55) + .025;
           const bone = socketsInMotion && socketsInMotion[index*2 + (fixed ? 0 : 1)];
-          if (bone) {
-            facePoint(bone[0]*u+bone[3]*v+bone[6]*z+DOT_RADIUS*bone[9],
-              bone[1]*u+bone[4]*v+bone[7]*z+DOT_RADIUS*bone[10],
-              bone[2]*u+bone[5]*v+bone[8]*z+DOT_RADIUS*bone[11],poly,i);
-          } else facePoint(u, v, z, poly, i);
-          if (rotation[8] >= .7) facing++;
-          else {
+          const px = bone ? bone[0]*u+bone[3]*v+bone[6]*z+DOT_RADIUS*bone[9] : u;
+          const py = bone ? bone[1]*u+bone[4]*v+bone[7]*z+DOT_RADIUS*bone[10] : v;
+          const pz = bone ? bone[2]*u+bone[5]*v+bone[8]*z+DOT_RADIUS*bone[11] : z;
+          facePoint(px,py,pz,poly,i);
+          if (facing) {
             const dx = ((depth(u+.004,v) ?? z) - (depth(u-.004,v) ?? z)) / .008;
             const dy = ((depth(u,v+.004) ?? z) - (depth(u,v-.004) ?? z)) / .008;
-            if (rotation[8]-dx*rotation[6]-dy*rotation[7] > 0) facing++;
+            let visibility = rotation[8]-dx*rotation[6]-dy*rotation[7];
+            if (frog && sideDepth && visibility > 0) {
+              // Both socket bumps can face the camera. The nearer one can
+              // still cover the far eye as the head approaches profile.
+              for (let t=.055; t<2 && visibility>0; t+=.055) {
+                const shell = sideDepth(px+t*rotation[6],py+t*rotation[7]);
+                if (shell !== undefined) visibility = Math.min(visibility,(pz+t*rotation[8]-shell)*12);
+              }
+            }
+            facing[i/2] = visibility;
           }
         }
-        if (facing * 2 >= loop.length / 2) polys.push(poly);
+        if (!facing || facing.every(distance => distance > 0)) polys.push(poly);
+        else if (facing.some(distance => distance > 0)) {
+          // Clip at the tangent of the turning cheek. Dropping a whole loop
+          // at its midpoint made the far pupil pop off while still visible.
+          const visible: number[] = [];
+          for (let i=0, j=facing.length-1; i<facing.length; j=i++) {
+            if ((facing[i]>0) !== (facing[j]>0)) {
+              const t=facing[j]/(facing[j]-facing[i]);
+              visible.push(poly[2*j]+t*(poly[2*i]-poly[2*j]),poly[2*j+1]+t*(poly[2*i+1]-poly[2*j+1]));
+            }
+            if (facing[i]>0) visible.push(poly[2*i],poly[2*i+1]);
+          }
+          if (visible.length>=6 && barWidth(visible) >= .8/size) polys.push(Float64Array.from(visible));
+        }
       }
       if (polys.length) parts.push({ id, part: id, front: true, solid: true, fill, polys });
     }
@@ -198,7 +219,7 @@ export function dotFace(
   if (glasses && rotation[8] > 0) {
     const mount = body.wardrobeHost && frameMount(body.wardrobeHost);
     const frameScale = mount?.scale ?? scale;
-    const bridge = mount?.depth ?? (depth(cx,eyeY) ?? .76) + .12;
+    const bridge = mount ? mount.depth + (dotRenderer?.eyewearDepth(body) ?? 0) : (depth(cx,eyeY) ?? .76) + .12;
     for (const frame of glasses) {
       const polys = frame.loops.map(loop => {
         const result = new Float64Array(loop.length);
@@ -220,6 +241,15 @@ export function dotFace(
 /** Solid pieces in body coordinates. Use the frontal bounds so headwear stays seated as the body rotates. */
 export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: number): Part[] {
   if (style.extra === 'None') return [];
+  if (style.extra === 'Beret' && dotRenderer) {
+    const profiles = dotRenderer.beretProfile(body);
+    return profiles.map((points,i) => {
+      const id = profiles.length === 1 || i === 1 ? 'beret' : i === 0 ? 'beret-band' : 'beret-button';
+      return { id, part:id, solid:true, front:true, fill: i === 0 && profiles.length > 1
+        ? `color-mix(in srgb, ${style.extraColour} 78%, black)` : style.extraColour,
+        polys:[projectedHull(points,rotation,!!body.wardrobeHost)] };
+    });
+  }
   let parts = ornaments.get(body);
   if (!parts) {
     parts = makeOrnament(body, style);
@@ -232,7 +262,7 @@ export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: numbe
     solid: true,
     fill,
     front,
-    polys: partsFit ? fittedSilhouette(solid, rotation, rim, partsFit) : silhouette(solid, rotation, rim, style.depthScale),
+    polys: partsFit ? fittedSilhouette(solid, rotation, rim, partsFit, !!body.wardrobeHost) : silhouette(solid, rotation, rim, style.depthScale),
   }));
 }
 
@@ -355,8 +385,12 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
   }
   // The lightweight SVG pieces share the authored prop's three-dimensional mount,
   // including its depth when the face turns. Look it up once per dressed wearer.
-  if ((style.character || style.catalogId) && dotRenderer && !['Headphones','Bow tie'].includes(style.extra)) {
-    const target = dotRenderer.headwearBounds(body);
+  const mount = body.wardrobe?.mounts?.find(m => m.id === style.extraMount && m.extras.includes(style.extra));
+  const kind = headwear.find(h => h === style.extra);
+  const seat = mount?.seat ?? (kind && body.wardrobe?.seats?.[kind]);
+  if ((style.character || style.catalogId || seat) && dotRenderer && !['Headphones','Bow tie'].includes(style.extra)) {
+    const roll = (seat?.roll ?? 0)*Math.PI/180;
+    const target = dotRenderer.headwearBounds(body,roll);
     if (target) {
       const balls = groups.flatMap(group => group.solid.pieces.flat());
       const offset: number[] = [], scale: number[] = [];
@@ -366,11 +400,10 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
         scale[axis] = (target[axis+3]-target[axis])/(high-low);
         offset[axis] = target[axis]-scale[axis]*low;
       }
-      ornamentFits.set(body,[...scale,...offset]);
+      ornamentFits.set(body,[...scale,...offset,roll]);
       return groups;
     }
   }
-  const mount = body.wardrobe?.mounts?.find(m => m.id === style.extraMount && m.extras.includes(style.extra));
   if (mount) {
     const balls = groups.flatMap(group => group.solid.pieces.flat());
     const low = Math.min(...balls.map(([x,,,r]) => x-r)), high = Math.max(...balls.map(([x,,,r]) => x+r));

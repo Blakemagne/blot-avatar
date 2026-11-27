@@ -73,10 +73,18 @@ export function silhouette(body: Body | Solid, R: Mat3, k: number, depthScale = 
   return out;
 }
 
-/** Project a fitted group of spheres through the same orthographic camera as its Dot wearer.
- * Each scaled sphere projects to an ellipse. The hull joins the ellipses of one solid piece. */
-export function fittedSilhouette(solid: Solid, R: Mat3, k: number, fit: readonly number[]): Float64Array[] {
-  const [sx,sy,sz,dx,dy,dz] = fit;
+/** Fit a schematic ornament in its brim coordinates and then turn it with its wearer. */
+export function fittedSilhouette(solid: Solid, rotation: Mat3, k: number, fit: readonly number[], perspective = false): Float64Array[] {
+  const [sx,sy,sz,dx,dy,dz,roll] = fit;
+  let R = rotation;
+  if (roll) {
+    const c=Math.cos(roll), s=Math.sin(roll);
+    R=rotation.slice();
+    for (let row=0; row<9; row+=3) {
+      R[row]=c*rotation[row]+s*rotation[row+1];
+      R[row+1]=-s*rotation[row]+c*rotation[row+1];
+    }
+  }
   const u = [R[0]*sx,R[1]*sy,R[2]*sz], v = [-R[3]*sx,-R[4]*sy,-R[5]*sz];
   const width = Math.hypot(...u);
   const skew = width ? (u[0]*v[0]+u[1]*v[1]+u[2]*v[2])/width : 0;
@@ -87,6 +95,22 @@ export function fittedSilhouette(solid: Solid, R: Mat3, k: number, fit: readonly
     if (pts.length < total*2) { pts = new Float64Array(total*2); order = new Uint32Array(total); stack = new Uint32Array(total*2); }
     let at = 0;
     for (const [x,y,z,r] of piece) {
+      if (perspective) {
+        // Invert the placement to find the circle of tangency on the original
+        // sphere. Project it through the complete scaled, rolled mount.
+        const vx = (D*R[6]-dx)/sx-x, vy = (D*R[7]-dy)/sy-y, vz = (D*R[8]-dz)/sz-z;
+        const d = Math.hypot(vx,vy,vz), nx=vx/d, ny=vy/d, nz=vz/d;
+        const span = Math.hypot(nx,nz), ex=span ? nz/span : 1, ez=span ? -nx/span : 0;
+        const offset = r*r/d, radius=Math.sqrt(Math.max(0,r*r-offset*offset));
+        for (let j=0; j<k; j++) {
+          const a=radius*ring[2*j], b=radius*ring[2*j+1];
+          project(R,dx+sx*(x+offset*nx+a*ex+b*ny*ez),
+            dy+sy*(y+offset*ny+b*(nz*ex-nx*ez)),
+            dz+sz*(z+offset*nz+a*ez-b*ny*ex),pts,at);
+          at+=2;
+        }
+        continue;
+      }
       const px = u[0]*x+u[1]*y+u[2]*z + R[0]*dx+R[1]*dy+R[2]*dz;
       const py = v[0]*x+v[1]*y+v[2]*z - R[3]*dx-R[4]*dy-R[5]*dz;
       for (let j=0; j<k; j++) {
@@ -96,6 +120,21 @@ export function fittedSilhouette(solid: Solid, R: Mat3, k: number, fit: readonly
     }
     return hull(total);
   });
+}
+
+/** Project a convex accessory already placed in body coordinates. */
+export function projectedHull(points: Float64Array, R: Mat3, perspective: boolean) {
+  const n=points.length/3;
+  if (pts.length < n*2) { pts=new Float64Array(n*2); order=new Uint32Array(n); stack=new Uint32Array(n*2); }
+  for (let i=0; i<n; i++) {
+    const x=points[3*i], y=points[3*i+1], z=points[3*i+2];
+    if (perspective) project(R,x,y,z,pts,2*i);
+    else {
+      pts[2*i]=R[0]*x+R[1]*y+R[2]*z;
+      pts[2*i+1]=-(R[3]*x+R[4]*y+R[5]*z);
+    }
+  }
+  return hull(n);
 }
 
 /** Convex hull (monotone chain) of the first `n` points in `pts`. */

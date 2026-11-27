@@ -129,6 +129,16 @@ test('the still to download is an SVG of the body and both eyes, for a body and 
   }
 });
 
+test('the powered SVG download retains its rainbow behind the fitted beret', async () => {
+  const { avatarParts } = await import('../src/index.ts');
+  const brush=galleryAvatar('paint-brush').definition;
+  const {body}=avatarParts(brush,{extra:'Beret',extraColour:'#FA70AB'});
+  const svg=S.stillSvg(brush,'#14C16F',256,body,undefined,true);
+  assert.match(svg,/<linearGradient[^>]*id="blot-power-rainbow"/);
+  assert.ok(svg.indexOf('blot-power-rainbow') < svg.lastIndexOf('fill="#FA70AB"'));
+  assert.ok(!S.stillSvg(brush,'#14C16F',256,body).includes('blot-power-rainbow'));
+});
+
 test('a share link carries a fluffy finish and leaves a flat one out, and the finish comes back from it', () => {
   const base = 'https://example.test/blot-avatar/';
   assert.equal(S.shareLink(base, { id: 'heart', kind: 'body' }, '#FD690F', '#FD690F', 'idle', 'flat'), `${base}?avatar=heart`);

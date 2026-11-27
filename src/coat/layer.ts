@@ -197,7 +197,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
   /** Showing: the canvas on and the body path's fill turned down. */
   let on = false, paintedPower = false;
   /** What the canvas holds. */
-  let held: { mesh: CoatMesh; rotation: Float64Array; eyes: string; points: number[]; colour: string; box: CoatBox; shape: string; figure: Float32Array } | null = null;
+  let held: { body: Body; mesh: CoatMesh; rotation: Float64Array; eyes: string; points: number[]; colour: string; box: CoatBox; shape: string; figure: Float32Array } | null = null;
   /** The styles last written, so that only what changed is written again. */
   let placed = '', moved = '', faded = '', filled = '';
   /** The body's colour: the last one that could be read. */
@@ -303,7 +303,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.socketRig,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
-    const same = !c.dotFace?.playback && !base.warp && held && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
+    const same = !c.dotFace?.playback && !base.warp && held && held.body === base.body && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
       held.box.cx === box.cx && apart(held.rotation, c.rotation) * mesh.radius * (D / (D - mesh.radius)) * pxPerUnit < SAME_VIEW &&
       drift(held.points, points) * (box.pixels / (2 * box.half)) < SAME_VIEW &&
       held.shape === kindOf(c.shape) && drift(held.figure, numbersIn(c.shape)) * pxPerUnit < SAME_VIEW;
@@ -335,7 +335,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
         ctx.globalAlpha = 1;
       }
       // (A stretched picture is never kept: the next frame's outline is another.)
-      held = base.warp || c.dotFace?.playback ? null : { mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
+      held = base.warp || c.dotFace?.playback ? null : { body:base.body, mesh, rotation: Float64Array.from(c.rotation), eyes: c.eyes, points, colour: key, box, shape: kindOf(c.shape), figure: numbersIn(c.shape).slice() };
     }
     lastPaintedBody.set(body, base.body);
     show(c, box, now.size, !!style && !!now.d.ultra?.amount);
@@ -347,6 +347,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
 
   return {
     draw(d, size, fill) {
+      const resized = on && latest?.size !== size;
       const previous = latest?.d.coat?.body ?? lastPaintedBody.get(body);
       latest = { d, size, fill };
       const c = d.coat;
@@ -359,7 +360,11 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       const crossing = !!c.also && c.also.share > OFF;
       // A selection replaces the visible avatar as one picture. Waiting behind the thumbnail
       // queue here would expose the flat fallback or the previous face for several frames.
-      if (previous && (previous.dotStyle || c.body.dotStyle) && (previous !== c.body || !on && lastPaintedBody.has(body)) && !c.warp && !c.also) {
+      const selection = previous && (previous.dotStyle || c.body.dotStyle)
+        && (previous !== c.body || !on && lastPaintedBody.has(body)) && !c.warp && !c.also;
+      // A visible canvas must also resize with its SVG, including when the
+      // studio exports immediately after a viewport or size-slider change.
+      if (resized || selection) {
         drop?.(); drop = null;
         paint(true);
         return;

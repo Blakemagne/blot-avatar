@@ -194,14 +194,14 @@ let screen = new Float64Array(256);
  * Empty when the eye has gone round the edge. With `trim`, the eye also keeps clear of the body's outline and
  * loses any piece too thin to draw.
  */
-export function eyePolys(of: Body, rot: Mat3, cu: number, cv: number, outline: ArrayLike<number>, trim?: Trim): Float64Array[] {
-  body = of; prep = prepare(of); R = rot;
+export function eyePolys(of: Body, rot: Mat3, cu: number, cv: number, outline: ArrayLike<number>, trim?: Trim, frontOnly = false): Float64Array[] {
+  body = of; prep = prepare(frontOnly ? of.outline ?? of : of); R = rot;
   fenced = false;
   if (trim) fence(trim.outline, trim.rim);
   const thin = trim ? trim.thin : 0;
   many = prep.pieces.length > 1;
   // The face is on whichever side of the body is turned to the viewer.
-  back = R[8] < 0;
+  back = !frontOnly && R[8] < 0;
   [camX, camY, camZ] = cameraInBody(R);
   const n = outline.length / 2;
   if (seen.length < n) { seen = new Uint8Array(n); screen = new Float64Array(n * 2); }
