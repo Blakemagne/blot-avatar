@@ -514,6 +514,31 @@ test('the closed lid hides multilayer catchlights without changing the eyewear',
   }
 });
 
+test('a mirrored or ordinary wink closes at the wearer’s own socket', async () => {
+  const { DOT_CLIPS, DOT_CHARACTERS } = await import('./index.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  for (const recipe of [{ shape: 'dot-rounded-head-with-two-ears' }, DOT_CHARACTERS.Todd]) {
+    const body = dotAvatar(recipe).body;
+    const rest = dotFeatures(body);
+    for (const dir of [-1, 1]) {
+      const channels = { yaw: 0, pitch: 0, roll: 0 };
+      DOT_CLIPS['dot-wink'].apply(channels, { u: .35, cue: { amount: 1, dir } });
+      const playback = channels.dotPlayback;
+      const parts = dotFeatures(body, { x: 0, y: 0, left: 1, right: 1, playback });
+      const stroke = parts.find(part => part.faceLayer === 0);
+      const index = dir === 1 ? 0 : 2;
+      assert.equal(stroke.mesh, rest[index+1].mesh);
+      const box = rest[index].mesh.box;
+      const x = (box[0]+box[3])/2, y = (box[1]+box[4])/2;
+      const a = stroke.axes;
+      assert.ok(Math.abs(a[1]*x+a[4]*y+a[10]-y) < .012*DOT_RADIUS);
+      assert.equal(parts.filter(part => part.finish === 'white').length, 1);
+      const svg = drawAvatar(body, '#ffffff', { ...front, dotPlayback: playback }, 180);
+      assert.equal(svg.layers.filter(layer => layer.id.endsWith('-socket')).length, 1);
+    }
+  }
+});
+
 test('a tinted preset extra retains the portrait mesh, eye fittings and stage rig', async () => {
   const { DOT_CATALOG } = await import('./index.ts');
   for (const name of ['Josh', 'Tavi']) {

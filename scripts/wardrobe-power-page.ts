@@ -1,7 +1,9 @@
 // Browser side of the wardrobe power regression. Freeze the rig's pose so a
 // changed eye or accessory pixel cannot be explained by a blink or a head turn.
-import { BODIES, DOT_CATALOG, DOT_CHARACTERS, DOT_EYES, DOT_EXTRAS, DOT_GLASSES, DOT_SHAPES,
+import { BODIES, DOT_CLIPS, DOT_CATALOG, DOT_CHARACTERS, DOT_EYES, DOT_EXTRAS, DOT_GLASSES, DOT_SHAPES,
   GALLERY, avatarParts, dotAvatar, dotExtras, mount, type Material } from '../src/index';
+
+import { Rig } from '../src/engine/rig';
 
 const wearers = [...Object.keys(BODIES), ...DOT_SHAPES.map(row => row.id), ...GALLERY.map(row => row.definition),
   { ...GALLERY[0].definition, id: 'review-import' }];
@@ -137,4 +139,68 @@ export async function checkTurns(index: number) {
     }
   } finally { bot.destroy(); }
   return { errors,views,largestSpill };
+}
+
+/** Count substantial islands of material separated from the body by transparent pixels. */
+function detachedPixels({ width, height, data }: ImageData) {
+  const mask = new Uint8Array(width * height);
+  for (let i = 0; i < mask.length; i++) mask[i] = Number(data[4*i+3] >= 128);
+  const sizes: number[] = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i]) continue;
+    const stack = [i];
+    mask[i] = 0;
+    let area = 0;
+    while (stack.length) {
+      const at = stack.pop()!;
+      area++;
+      const x = at % width, y = Math.floor(at / width);
+      for (let v = Math.max(0,y-1); v <= Math.min(height-1,y+1); v++) {
+        for (let u = Math.max(0,x-1); u <= Math.min(width-1,x+1); u++) {
+          const next = v*width + u;
+          if (mask[next]) { mask[next] = 0; stack.push(next); }
+        }
+      }
+    }
+    sizes.push(area);
+  }
+  return sizes.sort((a,b) => b-a)[1] ?? 0;
+}
+
+/** A wink removes the pale support under a pupil. Check both sides in profile
+ * and the turned-away face, where a stroke at the old depth can float free. */
+export async function checkWinks() {
+  const errors: string[] = [];
+  let views = 0;
+  const host = document.querySelector<HTMLElement>('main')!;
+  for (const recipe of [
+    { shape: 'dot-rounded-head-with-two-ears' }, DOT_CHARACTERS.Todd,
+    { shape: 'dot-circle-with-two-ears', eyes: 'Crescent inset' as const },
+  ]) {
+    const bot = mount(host, { ...dotAvatar(recipe), size: 210, follow: false });
+    try {
+      const rig = bot.live.rig;
+      rig.step = () => true;
+      for (const material of ['flat','fluffy','glossy'] as const) {
+        bot.update({ material });
+        for (const dir of [-1,1] as const) {
+          const track = new Rig({ clips: DOT_CLIPS, idle: false, blinks: false });
+          track.play('dot-wink', { dir });
+          track.step(.35 * DOT_CLIPS['dot-wink'].ms);
+          rig.state.dotPlayback = track.state.dotPlayback;
+          if (!rig.state.dotPlayback) throw new Error('wink did not enter playback');
+          for (const yaw of [-1.78,-1.54,-1.32,0,1.32,1.54,1.78,Math.PI]) {
+            Object.assign(rig.state.pose,{yaw,pitch:-.23,roll:.05});
+            Object.assign(rig.state.eye,{x:Math.sign(yaw)*.93,y:-.82});
+            rig.state.ultra = dir < 0 ? { amount: 1, phase: .3 } : undefined;
+            bot.live.motion();
+            const spill = detachedPixels(await materialPixels(host));
+            if (spill > 2) errors.push(recipe.shape+' '+material+' wink '+dir+' yaw '+yaw+': '+spill+' isolated pixels');
+            views++;
+          }
+        }
+      }
+    } finally { bot.destroy(); }
+  }
+  return { views, errors };
 }

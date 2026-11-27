@@ -301,7 +301,7 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
   if (playback) {
     // The SVG fallback uses a projected stretch and an eye centre per side.
     const [sx, sy] = playback.scale, stretch = Math.sqrt(sy / sx);
-    const eyelids = playback.eyes.map(m => Math.hypot(m[3], m[4], m[5]));
+    const eyelids = playback.eyes.map(m => Math.hypot(m[3], m[4]));
     const centres = playback.eyes.map((m, i) => {
       const x = i ? .209 : -.209, y = .18, z = .80;
       return [(m[0]-1)*x + m[3]*y + m[6]*z + m[9], m[1]*x + (m[4]-1)*y + m[7]*z + m[10]];

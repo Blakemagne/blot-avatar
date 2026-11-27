@@ -187,6 +187,28 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
   const mountedFrames = !fixed && frameFits[mountedKey];
   const materials = !fixed && eyeMaterials[gazeKey];
   const eyeX = motion.x * body.eyes.slideX, eyeY = motion.y * body.eyes.slideY;
+  // Motion tracks were sampled on the oval donor. Conjugate each bone around
+  // the wearer's resting eye so a wink on a high brow closes at that brow.
+  const bones = motion.playback?.eyes.map((bone, index) => {
+    const side = index === 0 ? -1 : 1;
+    const donor = featureSections.Oval[index].origin;
+    const socket = pieces.find(section => section.side === side && section.role === 'socket');
+    const anchor = socket ?? pieces.find(section => section.side === side && section.role === 'eye');
+    if (!anchor) return bone;
+    const host = body.wardrobeHost;
+    const fit = !frog && fits?.[style.eyes]?.[index] || IDENTITY;
+    const relative = relativeEyes && relativeEyes[pieces.indexOf(anchor)];
+    const x = host ? ((host.eyes.cx ?? 0) + side*host.eyes.x)/DOT_RADIUS
+      : fit[0]*anchor.origin[0] + fit[5] + (relative ? relative[0] : 0);
+    const y = host ? host.eyes.y/DOT_RADIUS
+      : fit[1]*anchor.origin[1] + fit[6] + (relative ? relative[1] : 0);
+    const dx = x-donor[0], dy = y-donor[1];
+    const fitted = bone.slice();
+    fitted[9] += dx - bone[0]*dx - bone[3]*dy;
+    fitted[10] += dy - bone[1]*dx - bone[4]*dy;
+    fitted[11] -= bone[2]*dx + bone[5]*dy;
+    return fitted;
+  });
   const result: DotSolid[] = [];
   for (const [index, s] of pieces.entries()) {
     if (include && !include(s)) continue;
@@ -194,11 +216,13 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     const fit = s.role === 'glass' ? fits?.[style.glasses]?.[0]
       : isEye && !frog ? fits?.[style.eyes]?.[s.side < 0 ? 0 : 1] : undefined;
     const [sx,sy,zx,zy,sz,dx,dy,dz] = fit ?? IDENTITY;
+    const bone = (isEye || s.role === 'socket') && bones?.[s.side < 0 ? 0 : 1];
     const blinking = isEye || frog && s.role === 'socket';
     const lid = blinking ? Math.max(.055, s.side < 0 ? motion.left : motion.right) : 1;
     // A closed lid hides the socket and its reflections. Compressing white
     // inserts to the minimum thickness leaves a bright stripe through the blink.
-    if (lid < .12 && (s.role === 'catch' || frog && s.role === 'socket')) continue;
+    const closed = lid * (bone ? bone[4] : 1) < .12;
+    if (closed && (s.role === 'catch' || frog && s.role === 'socket')) continue;
     const pivot = s.role === 'catch' ? pieces.find(part => part.role === 'eye' && part.side === s.side) : s;
     const lidPivot = (pivot ?? s).origin[1]*DOT_RADIUS;
     let axes = [sx,0,zx, 0,sy*lid,zy, 0,0,sz,
@@ -216,7 +240,9 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     }
     const host = !fixed && s.role !== 'extra' ? body.wardrobeHost : undefined;
     const rigidFrame = !!host && s.role === 'glass';
-    let faceLayer: number | undefined;
+    // When the white support disappears the closed stroke sits on the skin.
+    // At profile angles leaving it at pupil depth exposes a detached sliver.
+    let faceLayer: number | undefined = closed && isEye ? 0 : undefined;
     if (rigidFrame) {
       const frame = frameMount(host!);
       axes = axes.map(v => v*frame.scale);
@@ -238,7 +264,6 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
       axes[9] += eyeX;
       axes[10] += eyeY;
     }
-    const bone = (isEye || s.role === 'socket') && motion.playback?.eyes[s.side < 0 ? 0 : 1];
     const fitting = s.catalogSection === undefined ? undefined : catalogFittings[s.catalogSection];
     let template: CoatMesh | undefined;
     if (fitting?.piece !== undefined) {

@@ -167,7 +167,7 @@ export function dotFace(
       if (polys.length) parts.push({ id, part: id, front: true, solid: true, fill, polys });
     }
     if (frog) {
-      insert(name + '-socket', LIGHT, [circle(23.5, 24)], Math.max(.06, lid), true);
+      if (lid >= .12) insert(name + '-socket', LIGHT, [circle(23.5, 24)], lid, true);
       insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid));
     } else if (lid < .10) {
       insert(name, INK, [circle(14, Math.max(1.5, 120 / size))], 1);

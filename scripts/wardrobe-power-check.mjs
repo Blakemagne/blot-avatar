@@ -44,6 +44,11 @@ try {
     if ((index+1)%25 === 0) console.log(`${index+1}/${count} wearers`);
   }
   if (cases) console.log(`${cases} finish combinations, ${pixels} fitting pixels, ${changed} changed at full power`);
+  if (run('winks')) {
+    const result = await page.evaluate(() => review.checkWinks());
+    errors.push(...result.errors);
+    console.log(`${result.views} powered and unpowered wink views`);
+  }
   if (run('turns')) {
     const bodies = await page.evaluate(() => review.blotCount);
     let views = 0, largestSpill = 0;
