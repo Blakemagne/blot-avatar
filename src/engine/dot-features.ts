@@ -43,6 +43,8 @@ export interface DotSolid {
   material?: number;
   insetSurface?: number;
   portraitSection?: number;
+  /** Recolour the ornament while retaining its measured short pile. */
+  pileTint?: boolean;
   /** Layer above the host shell in an eye insert (base, pupil, catchlight). */
   faceLayer?: number;
   /** Printed facial ink is only visible over the wearer's projected shell. */
@@ -414,11 +416,11 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     if (spectacle) mesh = spectacle;
     else if (template && fitting) mesh = fittedMesh(template, fitting);
     else if (style.character === 'Josh' && s.role === 'extra') {
-      // Fit the smooth three-lobed tuft to the portrait's measured envelope.
-      // Its coarse optical section has internal depth seams across the forehead.
+      // Register all three lobes to the front, profile and back silhouettes.
+      // The portrait's optical depth section has seams across the forehead.
       mesh = dotMesh('Tuft')!;
-      axes = [.929475,-.791,-.003192, .791775,.899,.004704, -.005164,-.0054,1.08528,
-        -.402,-.232,.00504];
+      axes = [.8960396,-.7851481,-.0046651, .7904791,.8911822,.0017961, .0024359,-.0056959,1.1974057,
+        -.4149871,-.2264368,.0063313];
     }
     else if (style.character === 'Thelma' && s.role === 'extra') mesh = dotMesh('Thelma bulb')!;
     else if (rigidFrame) mesh = frameMesh(s);
@@ -430,6 +432,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
       else if (!frog && style.eyes === 'Crescent inset') insetSurface = index % 3;
     }
     const dyedExtra = style.tintExtra && s.role === 'extra';
+    const pileTint = !!(dyedExtra && fixed && (style.character === 'Josh' || style.character === 'Thelma'));
     const placed = bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes;
     if (motion.minStroke && isEye && !s.brow && !s.light && lid < .5) {
       // A fully shut pupil can be narrower than one display pixel on a small
@@ -453,7 +456,8 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
       material: dyedExtra ? undefined : (index < eyes.length && materials ? materials[index] : undefined) ?? s.material,
       insetSurface,
       catalogCrownLayer: !dyedExtra && fitting?.mesh === 'Crown' ? (s.material === 10 ? 13 : 12) : undefined,
-      portraitSection: !dyedExtra && style.character ? index : undefined,
+      portraitSection: (!dyedExtra || pileTint) && style.character ? index : undefined,
+      pileTint,
       finish: s.role === 'extra' ? undefined : s.light ? 'white' : !fixed ? 'ink' : s.role === 'glass' ? 'portrait-glass' : 'portrait-ink',
     });
   }

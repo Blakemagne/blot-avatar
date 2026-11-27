@@ -4,6 +4,9 @@ the audit covered 15 original bodies, 12 dot bodies, 23 gallery outlines and one
 
 | finding | change and evidence |
 | --- | --- |
+| josh’s tuft had a hard edge and a fold between its lobes in profile | registered the lobes against 112 independent silhouettes and fitted a short, surface-bound coat. across seven held-out views, mean absolute premultiplied RGBA error on the tuft region fell from 9.91 to 5.27 on a 0–255 scale. [front and side close-ups](dot-review/josh-tuft.webp) |
+| thelma’s bulb had a hard rim and long directional streaks | measured the edge opacity and short fur across the surface. over the same seven held-out directions, region error fell from 8.35 to 3.99, and alpha error from 6.13 to 2.17. [front and side close-ups](dot-review/thelma-bulb.webp) |
+| recolouring the original bulb and tuft made them smooth | a dye change now keeps the same fitted fur. a 288-frame browser regression changes and restores the dye in four directions on flat, glossy and furry bodies and checks the silhouette, colour detail and restored pixels. |
 | sleepy brows collapsed into two fine lines when the avatar blinked or slept | the pupils now close underneath the full-width brows. the browser check compares open, half-closed and sleeping eyes across 108 frames on the rounded triangle, blob, paint brush and sunny, including both turns and all three finishes. |
 | headphone cushions floated beside tapered heads such as the witch hat and rocket | each cushion now seats against the head at its actual wearing height and depth. a geometry check verifies contact on both sides of all 15 built-in and 23 gallery bodies. |
 | the bow tie shifted on SVG export and headphones changed size between finishes | the SVG accessories use the dressed body's fitted bounds. the regression checks front, side and top views for starter and catalog accessories. |

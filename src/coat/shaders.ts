@@ -27,6 +27,7 @@ import { D } from '../engine/math';
 
 /** The values of the `pass` uniform. */
 export const PASS = { body: 0, shell: 1, strand: 2 } as const;
+export const PILE_FINISH = { bulb: 6, tuft: 7 } as const;
 /** The values of the `figure` uniform: a body's coat, a figure's band (the ring's tube), or its balls. */
 export const FIGURE = { none: 0, band: 1, balls: 2 } as const;
 /** Room in the uniforms: rays of a band (morph.ts's rays() is at most 144), and balls. */
@@ -35,7 +36,8 @@ export const MAX_RAYS = 144, MAX_BALLS = 3;
 /** A number as a GLSL float literal. */
 const float = (n: number): string => (Number.isInteger(n) ? `${n}.` : `${n}`);
 
-const passes = `const int BODY = ${PASS.body}, SHELL = ${PASS.shell}, STRAND = ${PASS.strand};`;
+const passes = `const int BODY = ${PASS.body}, SHELL = ${PASS.shell}, STRAND = ${PASS.strand};
+const int BULB_PILE = ${PILE_FINISH.bulb}, TUFT_PILE = ${PILE_FINISH.tuft};`;
 
 /**
  * A strand whose root faces away from the camera further than this (the cosine) is not drawn: half the roots are
@@ -53,6 +55,7 @@ layout(location = 2) in vec2 seed;
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
 uniform bool unlit, orthographic, ornament, portraitCoat, builderPile, substrateRGB;
+uniform int finish;
 uniform vec2 feltExtent;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
@@ -104,6 +107,8 @@ void main() {
   if (ornament) {
     P = ornamentAxes * P + ornamentOffset;
     Nm = normalize(transpose(inverse(ornamentAxes)) * Nm);
+    // The opaque mesh ends inside the short fibres of the two felt ornaments.
+    if (!unlit && (finish == BULB_PILE || finish == TUFT_PILE)) P += shell * Nm;
     if (eyePatch) {
       ivec2 last = textureSize(faceSurface,0) - 1;
       vec2 uv = (P.xy-faceBounds.xy)*faceBounds.zw, grid = uv*vec2(last), f = fract(grid);
@@ -169,6 +174,12 @@ void main() {
     vec3 parallax = look/incidence-Nm;
     float opticalGap = substrateRGB ? 0. : portraitCoat ? .022 : .007-(pass == SHELL ? .0185*shell : 0.);
     groomPoint += opticalGap*${(.54945*512/296).toFixed(9)}*parallax*smoothstep(.08,.38,dot(look,Nm));
+  }
+  if (ornament && !unlit && (finish == BULB_PILE || finish == TUFT_PILE)) {
+    vec3 ray = normalize(transpose(rotation)*vec3(0.,0.,1.)/poseScale);
+    float optical = finish == TUFT_PILE ? .022 : .024;
+    // Sample the optical surface along the camera ray in the ornament's own space.
+    groomPoint += inverse(ornamentAxes)*(shell*Nm + (optical-shell)*ray/max(.28,dot(ray,Nm)));
   }
   groomSide = Nm.z;
   opticalPlace = rotation * ((position * opticalFrame.w - opticalFrame.xyz) * poseScale) + poseOffset * opticalFrame.w;
@@ -275,7 +286,7 @@ uniform vec3 color;
 ${glossOptics}
 uniform bool fittedGloss;
 uniform int opticalLayer;
-uniform highp sampler2DArray opticalDensity;
+uniform highp sampler2DArray opticalDensity, ornamentDensity;
 
 
 uniform highp sampler2D contactField;
@@ -423,7 +434,7 @@ void main() {
     if (ornament && finish >= 5) dye = studioLight(vec3(0.,0.,1.));
     if (ornament && finish == 9) dye = color;
     if (ornament && finish == 8) dye = studio[7];
-    if (ornament && authoredTint) dye = tintedRadiance(vec2(.5), tintLayer, metal ? 1 : 0);
+    if (ornament && authoredTint) dye = tintLayer >= 0 ? tintedRadiance(vec2(.5), tintLayer, metal ? 1 : 0) : color;
     result = vec4(dye, 1.);
     return;
   }
@@ -448,19 +459,22 @@ void main() {
       result = vec4(clamp(base+reflection*studio[5],0.,1.),1.);
       return;
     }
-    if (finish == 7) {
-      // The short pile on the three-lobed portrait tuft stipples the surface
-      // evenly. A directional comb across it reads as ridges on the lobes.
+    if (finish == BULB_PILE || finish == TUFT_PILE) {
+      bool tuft = finish == TUFT_PILE;
+      vec3 direction = tuft
+        ? normalize((groomPoint - vec3(-.3816,.6694,.0002)) / vec3(.2925,.3216,.2048))
+        : normalize(groomPoint - vec3(.0075,1.2484,.0001));
+      vec2 uv = .5 + vec2(atan(direction.x,direction.z)/6.2831853,asin(clamp(direction.y,-1.,1.))/3.14159265);
+      float pile = (texture(ornamentDensity,vec3(uv,tuft ? 1. : 0.)).r - 128./255.) * (255./768.);
+      vec3 response = tuft ? vec3(0.3572,0.6898,1.0000) : vec3(1.0000,0.8271,0.3776);
       vec3 base = studioLight(n);
-      float grain = texture(brushedPile, pilePosition / 16.).r - .5;
-      base = .90 * base + vec3(.021,.060,.105);
-      result = vec4(clamp(base + grain * .21 * (.22 + .78 * base), 0., 1.), 1.);
-      return;
-    }
-    if (finish == 6) {
-      vec3 base = studioLight(n);
-      float grain = .33 * (brushedHeight() - .5);
-      result = vec4(clamp(base + grain * (.22 + .78 * base), 0., 1.), 1.);
+      if (authoredTint) {
+        float wrap = .5 + .5*dot(n,normalize(vec3(-.48,-.65,.78)));
+        base = tintLayer >= 0 ? tintedRadiance(normalUV(n),tintLayer,0) : color*(.72+.28*wrap);
+        response = .14 + .86*base;
+      }
+      float alpha = shellOpacity;
+      result = vec4(alpha*clamp(base + pile*response,0.,1.),alpha);
       return;
     }
     if (finish == 5) { result = vec4(studioLight(n), 1.); return; }

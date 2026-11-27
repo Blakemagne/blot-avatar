@@ -20,7 +20,7 @@ import { DYE_RAMP_SIZE, dyeRamp, type Rgb } from '../engine/dye';
 import type { FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
 import { EYE_REACH, type EyeField } from './mask';
-import { FIGURE, MAX_BALLS, MAX_RAYS, PASS, fragmentShader, vertexShader } from './shaders';
+import { FIGURE, MAX_BALLS, MAX_RAYS, PASS, PILE_FINISH, fragmentShader, vertexShader } from './shaders';
 
 /** The largest picture, device pixels a side. A bigger avatar's is drawn at this and stretched. */
 export const MAX_PIXELS = 1024;
@@ -30,6 +30,7 @@ const KEPT_MESHES = 8;
 const IDLE_MS = 2000;
 /** Room for the pile beyond the mesh, body units, in the depth range. */
 const DEEPER = 0.2;
+const PILE_OPACITY = [.85,.65,.47,.33,.18,.075,.018];
 
 /** One coat to draw. */
 export interface CoatFrame {
@@ -165,6 +166,12 @@ function createRenderer(restored: () => void): Renderer | null {
   gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, side, side, side, 0, gl.RED, gl.UNSIGNED_BYTE, rootVolume(side));
   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.generateMipmap(gl.TEXTURE_3D);
+  texture(14, 'ornamentDensity', gl.TEXTURE_2D_ARRAY);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY,0,gl.R8,1,1,1,0,gl.RED,gl.UNSIGNED_BYTE,null);
+  let pileReady = false;
   texture(7, 'faceSurface', gl.TEXTURE_2D);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -579,7 +586,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const [x0,y0,,x1,y1] = f.mesh.box;
       gl.uniform4f(u.faceBounds,x0,y0,1/(x1-x0),1/(y1-y0));
     }
-    for (const { mesh, tint, axes, metal, beret, finish, material, insetSurface, portraitSection, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
+    for (const { mesh, tint, axes, metal, beret, finish, material, insetSurface, portraitSection, pileTint, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
       if (skinInk) gl.enable(gl.STENCIL_TEST);
       const part = geometryOf(mesh);
       gl.uniform1i(u.eyePatch,faceLayer !== undefined ? 1 : 0);
@@ -591,16 +598,32 @@ function createRenderer(restored: () => void): Renderer | null {
       const portraitIndex = f.character && portraitSection !== undefined ? assets?.portraitParts[f.character]?.[portraitSection] : undefined;
       const portableFelt = beret && material === undefined && portraitIndex === undefined;
       const fitting = portableFelt ? assets?.portraitMaterials[1] : portraitIndex === undefined ? undefined : assets?.portraitMaterials[portraitIndex];
-      if (fitting) gl.uniform3fv(u.studio, fitting.light);
+      const soft = fitting?.pile && !f.unlit;
+      if (soft && assets && !pileReady) {
+        const { width, height, density } = assets.ornamentPile;
+        gl.activeTexture(gl.TEXTURE14);
+        gl.texImage3D(gl.TEXTURE_2D_ARRAY,0,gl.R8,width,height,2,0,gl.RED,gl.UNSIGNED_BYTE,
+          Uint8Array.from(atob(density), char => char.charCodeAt(0)));
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+        gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+        gl.activeTexture(gl.TEXTURE2);
+        pileReady = true;
+      }
+      if (fitting) gl.uniform3fv(u.studio, soft && fitting.pileLight ? fitting.pileLight : fitting.light);
       else if (assets && material !== undefined) gl.uniform3fv(u.studio, assets.catalogLight[material]);
       const matteLayer = material !== undefined ? assets?.mattePartLayers[material] : undefined;
       const layer = assets && insetSurface !== undefined ? assets.insetLayer + insetSurface : catalogCrownLayer ?? matteLayer;
       const polished = !!metal || catalogCrownLayer !== undefined;
-      const measuredTint = assets && (portableFelt || layer !== undefined || (!fitting && material === undefined && !finish));
-      gl.uniform1i(u.authoredTint, layer !== undefined ? 1 : 0);
-      gl.uniform1i(u.finish, layer !== undefined ? 0 : portableFelt ? 9 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
+      const measuredTint = assets && (pileTint || portableFelt || layer !== undefined || (!fitting && material === undefined && !finish));
+      gl.uniform1i(u.authoredTint, layer !== undefined || pileTint ? 1 : 0);
+      gl.uniform1i(u.finish, layer !== undefined ? 0 : portableFelt ? 9 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' ? PILE_FINISH.tuft : PILE_FINISH.bulb) : fitting || material !== undefined ? 5 :
         finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
       gl.uniform1i(u.tintLayer, measuredTint ? tintLayer(tint,polished ? 1 : 0,assets,layer) : -1);
+      const pileOffset = f.character === 'Thelma' ? .0035 : 0;
+      if (soft) {
+        gl.uniform1f(u.shell,pileOffset-.014);
+        gl.uniform1f(u.shellOpacity,1);
+      }
       gl.bindVertexArray(part.surface);
       gl.enable(gl.CULL_FACE);
       gl.uniform1i(u.pass, PASS.body);
@@ -610,6 +633,20 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform3f(u.offset, axes[9], axes[10], axes[11]);
       gl.uniform3f(u.color, tint[0] / 255, tint[1] / 255, tint[2] / 255);
       gl.drawElements(gl.TRIANGLES, part.indices, gl.UNSIGNED_INT, 0);
+      if (soft) {
+        // Draw an opaque core first. Overlapping lobes then occlude one another
+        // before the translucent pile softens their silhouette.
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        for (let i = 0; i < PILE_OPACITY.length; i++) {
+          gl.uniform1f(u.shell,pileOffset-.010+i*.004);
+          gl.uniform1f(u.shellOpacity,PILE_OPACITY[i]);
+          gl.drawElements(gl.TRIANGLES,part.indices,gl.UNSIGNED_INT,0);
+        }
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+      }
       if (skinInk) gl.disable(gl.STENCIL_TEST);
     }
     gl.bindVertexArray(null);

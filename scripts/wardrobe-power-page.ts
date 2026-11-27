@@ -335,6 +335,66 @@ export async function checkSleepyBrows() {
 
 // On small avatars a slit can straddle two pixel rows. Count the dark cores
 // separately so a strong left eye cannot conceal a washed-out right eye.
+/** Dye the original pile at the same pose and check the silhouette, surface detail and round trip. */
+export async function checkOrnamentPile() {
+  const host = document.querySelector<HTMLElement>('main')!;
+  const errors: string[] = [];
+  let views = 0;
+  const recipes = [DOT_CHARACTERS.Thelma, DOT_CATALOG.find(row => row.name === 'Josh')!.appearance];
+  for (const recipe of recipes) for (const material of ['flat','glossy','fluffy'] as const) {
+    const original = dotAvatar(recipe);
+    const bot = mount(host,{...original,material,size:190,follow:false});
+    try {
+      const rig = bot.live.rig;
+      rig.step = () => true;
+      for (const yaw of [0,.73,1.62,2.82]) {
+        Object.assign(rig.state.pose,{yaw,pitch:.24,roll:.07});
+        async function picture(dye?:string) {
+          bot.update(dye ? dotAvatar({...recipe,extraColour:dye,tintExtra:true}) : original);
+          bot.update({material});
+          bot.live.motion();
+          return materialPixels(host);
+        }
+        // Warm the material canvas before comparing repeated readbacks byte for byte.
+        await picture();
+        const reference = await picture();
+        for (const dye of ['#FA70AB','#1F1F1F','#94623B','#38532F']) {
+          const dyed = await picture(dye), restored = await picture();
+          let changed = 0, edgeErrors = 0, restoreErrors = 0;
+          const {data,width,height} = dyed;
+          const mask = new Uint8Array(width*height);
+          for (let i=0;i<mask.length;i++) {
+            const k=i*4;
+            if (Math.abs(reference.data[k+3]-data[k+3])>1) edgeErrors++;
+            let delta=0;
+            for (let c=0;c<4;c++) {
+              delta=Math.max(delta,Math.abs(data[k+c]-reference.data[k+c]));
+              if (restored.data[k+c]!==reference.data[k+c]) restoreErrors++;
+            }
+            if (delta>10 && data[k+3]>=254) { mask[i]=1; changed++; }
+          }
+          // Smooth dyed plastic produces very little local curvature in colour.
+          // Count detail well inside the changed pixels to exclude silhouette edges.
+          let detail=0;
+          for (let y=1;y<height-1;y++) for (let x=1;x<width-1;x++) {
+            const i=y*width+x;
+            if (!(mask[i] && mask[i-1] && mask[i+1] && mask[i-width] && mask[i+width])) continue;
+            for (let c=0;c<3;c++) {
+              const k=i*4+c;
+              if (Math.abs(4*data[k]-data[k-4]-data[k+4]-data[k-4*width]-data[k+4*width])>=3) { detail++; break; }
+            }
+          }
+          if (edgeErrors || restoreErrors || changed<100 || (material!=='flat' && detail<changed*.025)) {
+            errors.push(JSON.stringify({character:recipe.character,material,yaw,dye,changed,detail,edgeErrors,restoreErrors}));
+          }
+          views+=3;
+        }
+      }
+    } finally { bot.destroy(); }
+  }
+  return {views,errors};
+}
+
 export async function checkSleepingInk() {
   const host = document.querySelector<HTMLElement>('main')!;
   const errors: string[] = [];

@@ -567,7 +567,7 @@ test('a mirrored or ordinary wink closes at the wearer’s own socket', async ()
 
 test('a tinted preset extra retains the portrait mesh, eye fittings and stage rig', async () => {
   const { DOT_CATALOG } = await import('./index.ts');
-  for (const name of ['Josh', 'Tavi']) {
+  for (const name of ['Josh', 'Thelma', 'Tavi']) {
     const recipe = DOT_CATALOG.find(item => item.name === name).appearance;
     const original = dotAvatar(recipe).body;
     const dyed = dotAvatar({ ...recipe, extraColour: '#FA70AB', tintExtra: true, catalogGloss: true }).body;
@@ -578,6 +578,9 @@ test('a tinted preset extra retains the portrait mesh, eye fittings and stage ri
     assert.deepEqual(after.map(p => p.mesh), before.map(p => p.mesh));
     assert.deepEqual(after.map(p => p.axes), before.map(p => p.axes));
     assert.ok(after.some(p => !p.finish && p.tint[0] === 250 && p.material === undefined));
+    const pile = after.filter(p => p.pileTint);
+    assert.equal(pile.length, name === 'Tavi' ? 0 : 1);
+    for (const ornament of pile) assert.equal(ornament.portraitSection, before.find(p => p.mesh === ornament.mesh).portraitSection);
   }
 });
 

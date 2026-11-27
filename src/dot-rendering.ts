@@ -29,6 +29,7 @@ import { builderGain, builderReliefs } from './coat/dot-builder-relief';
 import { feltField } from './coat/dot-felt-field';
 import { feltReliefs, feltSize } from './coat/dot-felt-relief';
 import { portraitParts, portraitMaterials } from './coat/dot-portrait-materials';
+import { ornamentPile } from './coat/dot-ornament-pile';
 import { portraitLight } from './coat/dot-portrait-light';
 
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
@@ -42,5 +43,5 @@ export const dotRendering = {
   feltExtent: { 'Felipe flower': [.09,.86], Josh: [.15,.67], Alfred: [.11,.90], Blossie: [-.01,.89],
     Iris: [.11,.91], Thelma: [.08,.87], Todd: [.16,.89], Iggy: [.15,.64], Jojo: [.12,.89], Felipe: [.14,.67] } as Readonly<Record<string, readonly number[]>>,
   furRadiance: { ...furRadiance, layers: [...furRadiance.layers, ...feltRadiance] },
-  feltReliefs, feltSize, feltField, portraitParts, portraitMaterials, portraitLight,
+  feltReliefs, feltSize, feltField, ornamentPile, portraitParts, portraitMaterials, portraitLight,
 };

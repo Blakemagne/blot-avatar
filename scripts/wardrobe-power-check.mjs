@@ -73,6 +73,11 @@ try {
     }
     console.log(views+' beret seat and profile views');
   }
+  if (run('pile')) {
+    const result = await page.evaluate(() => review.checkOrnamentPile());
+    errors.push(...result.errors);
+    console.log(result.views+' ornament dye and restoration frames');
+  }
   if (run('sleepy')) {
     const result = await page.evaluate(() => review.checkSleepyBrows());
     errors.push(...result.errors);
