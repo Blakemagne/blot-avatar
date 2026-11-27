@@ -4,6 +4,11 @@ the audit covered 15 original bodies, 12 dot bodies, 23 gallery outlines and one
 
 | finding | change and evidence |
 | --- | --- |
+| sleepy brows collapsed into two fine lines when the avatar blinked or slept | the pupils now close underneath the full-width brows. the browser check compares open, half-closed and sleeping eyes across 108 frames on the rounded triangle, blob, paint brush and sunny, including both turns and all three finishes. |
+| headphone cushions floated beside tapered heads such as the witch hat and rocket | each cushion now seats against the head at its actual wearing height and depth. a geometry check verifies contact on both sides of all 15 built-in and 23 gallery bodies. |
+| the bow tie shifted on SVG export and headphones changed size between finishes | the SVG accessories use the dressed body's fitted bounds. the regression checks front, side and top views for starter and catalog accessories. |
+| iggy's headphone cups had ridges and an off-centre highlight | smooth ellipsoid surfaces and a fitted reflection reduced mean absolute channel error on the four cup and cushion masks from 4.90 to 3.56 on a 0–255 scale. the held-out turned view also improved. |
+| fur showed through the dark sunglasses | the glasses use skin depth after the fur pass. the lens regression checks the classic, round and trapezoid styles across 945 views. |
 | josh’s tuft had folds through all three lobes, including in the untouched preset | fitted a smooth three-lobed solid to the portrait and matched the short pile to the reference. [tuft and finish close-ups](dot-review/josh-material-review.webp) |
 | choosing a texture, dye or face part on a preset could also replace its shell, glasses and headwear | the starter or catalog rig now owns the shell in every finish. each edited part takes its mounting position from that shell. the other parts retain their original meshes. josh’s connected round rims survive a finish change. the builder’s tall oval frames keep their separate rims. |
 | flat collapsed the tuft and eyewear into simplified shapes | dressed avatars use the same solids and depth ordering in flat, glossy and fur. matte catalog characters can switch back to their original finish. the standalone SVG and the fallback for devices without WebGL2 still use the schematic drawing. |
