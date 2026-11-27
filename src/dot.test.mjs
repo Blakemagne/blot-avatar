@@ -737,3 +737,31 @@ test('each fitted catalog extra retains the observed position and size of its ow
   }
   assert.ok(checked>=77);
 });
+
+test('preset headwear keeps its fitted bounds in the SVG from the front, side and top', async () => {
+  const { DOT_CATALOG, DOT_CHARACTERS } = await import('./index.ts');
+  const { dotExtra } = await import('./engine/dot-parts.ts');
+  const { bounds } = await import('./engine/math.ts');
+  const { headwearBounds } = await import('./coat/wardrobe-solids.ts');
+  const views = [
+    { rotation: [1,0,0, 0,1,0, 0,0,1], axes: [0,1] },
+    { rotation: [0,0,1, 0,1,0, -1,0,0], axes: [2,1] },
+    { rotation: [1,0,0, 0,0,1, 0,-1,0], axes: [0,2] },
+  ];
+  const recipes = [...Object.values(DOT_CHARACTERS), ...DOT_CATALOG.map(p => p.appearance)];
+  for (const recipe of recipes) {
+    if (!['Crown','Beanie','Hat','Beret','Tuft','Bulb'].includes(recipe.extra)) continue;
+    const base = dotAvatar(recipe).body;
+    const mounts = base.wardrobe?.mounts?.filter(m => m.extras.includes(recipe.extra)).map(m => m.id) ?? [];
+    for (const extraMount of [undefined,...mounts]) {
+      const body = dotAvatar({ ...recipe, extraMount }).body, box = headwearBounds(body);
+      for (const { rotation, axes: [u,v] } of views) {
+        const parts = dotExtra(body,body.dotStyle,rotation,48);
+        const actual = bounds(parts.flatMap(p => p.polys));
+        const expected = [box[u],-box[v+3],box[u+3],-box[v]];
+        assert.ok(actual.every((x,i) => Math.abs(x-expected[i]) < .001),
+          [recipe.catalogId ?? recipe.character,extraMount,u,v,actual,expected].join(' '));
+      }
+    }
+  }
+});

@@ -1,6 +1,6 @@
 /** Decode the two optical surfaces. Intensity keeps the full spatial grid. The three
  * directional derivatives change more slowly and use bilinear reconstruction. */
-export function feltField(field: string, size: number): Uint8Array {
+export function feltField(field: string, size: number, portrait = false): Uint8Array {
   const bytes = atob(field);
   const optical = new Uint8Array(8*size*size);
   let cursor = 0;
@@ -36,6 +36,15 @@ export function feltField(field: string, size: number): Uint8Array {
     const offset = side*size*size*4+channel;
     if (!channel) {
       for (let i=0; i<plane.length; i++) optical[offset+4*i] = plane[i];
+      if (portrait) {
+        // Bilinear sampling softens the short fibres in the measured portrait grid.
+        // Restore their contrast on the surface itself so they turn with the wearer.
+        for (let y=2; y<size-2; y++) for (let x=2; x<size-2; x++) {
+          const i = y*size+x, centre = plane[i];
+          const mean = (plane[i-2]+plane[i+2]+plane[i-2*size]+plane[i+2*size])*.25;
+          optical[offset+4*i] = Math.min(255,Math.max(0,Math.round(centre+.55*(centre-mean))));
+        }
+      }
       continue;
     }
     for (let y=0; y<size; y++) for (let x=0; x<size; x++) {

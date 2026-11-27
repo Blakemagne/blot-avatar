@@ -4,7 +4,7 @@ import { dotDepth, DOT_RADIUS } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, project, type Mat3 } from './math';
 import { eyePolys } from './eyes';
-import { silhouette } from './silhouette';
+import { fittedSilhouette, silhouette } from './silhouette';
 import type { RigState } from './rig';
 
 export const DOT_EYES = [
@@ -222,13 +222,14 @@ export function dotExtra(body: Body, style: DotStyle, rotation: Mat3, rim: numbe
     parts = makeOrnament(body, style);
     ornaments.set(body, parts);
   }
+  const partsFit = ornamentFits.get(body);
   return parts.map(({ id, front, fill, solid }) => ({
     id,
     part: id,
     solid: true,
     fill,
     front,
-    polys: silhouette(solid, rotation, rim, style.depthScale),
+    polys: partsFit ? fittedSilhouette(solid, rotation, rim, partsFit) : silhouette(solid, rotation, rim, style.depthScale),
   }));
 }
 
@@ -239,6 +240,7 @@ interface Ornament {
   solid: { pieces: Piece[] };
 }
 const ornaments = new WeakMap<Body, Ornament[]>();
+const ornamentFits = new WeakMap<Body, readonly number[]>();
 
 function makeOrnament(body: Body, style: DotStyle): Ornament[] {
   const cx = body.wardrobeHost?.eyes.cx ?? 0;
@@ -346,6 +348,23 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
         [-1, 1].map((i) => [ball(i * half, y - 0.08, 0.11), ball(i * (half - 0.035), y + 0.11, 0.11)]),
       );
       break;
+    }
+  }
+  // The lightweight SVG pieces share the authored prop's three-dimensional mount,
+  // including its depth when the face turns. Look it up once per dressed wearer.
+  if ((style.character || style.catalogId) && dotRenderer && !['Headphones','Bow tie'].includes(style.extra)) {
+    const target = dotRenderer.headwearBounds(body);
+    if (target) {
+      const balls = groups.flatMap(group => group.solid.pieces.flat());
+      const offset: number[] = [], scale: number[] = [];
+      for (let axis=0; axis<3; axis++) {
+        const low = Math.min(...balls.map(ball => ball[axis]-ball[3]));
+        const high = Math.max(...balls.map(ball => ball[axis]+ball[3]));
+        scale[axis] = (target[axis+3]-target[axis])/(high-low);
+        offset[axis] = target[axis]-scale[axis]*low;
+      }
+      ornamentFits.set(body,[...scale,...offset]);
+      return groups;
     }
   }
   const mount = body.wardrobe?.mounts?.find(m => m.id === style.extraMount && m.extras.includes(style.extra));

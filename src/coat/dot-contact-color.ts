@@ -11,3 +11,23 @@ export const contactColor: Readonly<Record<number, Float32Array>> = {
   0xFFCC38: new Float32Array([1.16397, 0.57201, 0.32757, 2.05223, 0.63193, 0.01491, -2.63494, -1.60092, 0.33287, -4.21679, -1.51039, 0.26287]),
   0xFF8066: new Float32Array([0.91915, 0.21951, 0.24685, 2.19330, 0.05438, 0.07194, -1.97019, -0.39561, 0.04097, -4.35212, 0.45098, 0.48979]),
 };
+
+// The nine matte catalog dyes and the loss of each channel near fitted parts.
+export const matteDyes: Readonly<Record<number, { material: number; contact: Float32Array }>> = {
+  0x00B1FF: { material: 1, contact: new Float32Array([0.01494, 0.39441, 1.86415, -0.01014, -0.23489, -2.17817, 0.00013, -0.72222, -3.67985, 0.00055, 0.51827, 4.74304]) },
+  0x04BB9F: { material: 2, contact: new Float32Array([0.02574, 0.34399, 0.26369, -0.01249, -0.11255, -0.09708, 0.00402, -0.39045, -0.37153, 0.00199, 0.00701, 0.00315]) },
+  0x4778FF: { material: 8, contact: new Float32Array([0.07055, 0.15348, 1.38027, -0.06914, -0.10294, 0.09933, -0.14748, -0.24897, -2.73592, -0.00423, -0.00323, 0.01221]) },
+  0xB6D80B: { material: 11, contact: new Float32Array([0.24851, 0.30476, 0.03073, -0.09085, -0.10290, -0.01616, -0.12625, -0.12831, -0.00419, -0.01126, -0.01804, -0.00138]) },
+  0xA25BFF: { material: 13, contact: new Float32Array([0.34688, 0.30069, 0.59073, -0.20849, -0.18971, -0.40899, -0.12098, -0.10701, -0.60591, -0.06949, -0.07610, 0.41503]) },
+  0xDD6ADC: { material: 14, contact: new Float32Array([0.47779, 0.09227, 0.47473, -0.14038, -0.07102, -0.13990, -0.56999, -0.54090, -0.57128, -0.00082, -0.00177, -0.00061]) },
+  0xFA70AB: { material: 20, contact: new Float32Array([1.57307, 0.14292, 0.28012, -1.03020, -0.08923, -0.13075, -3.04820, -0.26170, -0.28413, 2.40416, -0.00049, 0.00033]) },
+  0xFF8066: { material: 23, contact: new Float32Array([1.82653, 0.20356, 0.12093, -0.36735, -0.12193, -0.10278, -3.58328, -0.49676, -0.46511, 0.98148, -0.00563, -0.00482]) },
+  0xFFCC38: { material: 24, contact: new Float32Array([1.61002, 0.39388, 0.00982, -1.55203, -0.18519, -0.05081, -3.17639, -0.39048, -0.29190, 3.34887, 0.12823, -0.00204]) },
+};
+
+// For colours between the measured dyes, reduce each channel in proportion to its lit intensity.
+// Visibility samples across all nine materials give a loss of intensity × shade × (.2761 − .1158 × shade).
+export const customMatteContact = new Float32Array([
+  .13805, .13805, .13805, -.0579, -.0579, -.0579,
+  .2761, .2761, .2761, -.1158, -.1158, -.1158,
+]);

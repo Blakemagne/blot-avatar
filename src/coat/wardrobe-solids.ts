@@ -3,7 +3,7 @@ import { bodyAttachment, fitHeadband, headphoneMount, rigidAttachment } from './
 import { mountShift } from '../engine/wardrobe';
 import { dotRenderer } from '../engine/dot-renderer-registry';
 import type { Body } from '../engine/body';
-import type { CoatMesh } from '../engine/coat';
+import { coatMesh, type CoatMesh } from '../engine/coat';
 import type { DotFaceMotion, DotSolid } from '../engine/dot-features';
 import type { Rgb } from '../engine/dye';
 
@@ -67,4 +67,19 @@ export function wardrobeSolids(body: Body, mesh: CoatMesh, motion?: DotFaceMotio
   }
   seatWardrobe(body,mesh,solids);
   return solids;
+}
+
+/** The occupied bounds after the complete outfit and any left/right mount have been applied. */
+export function headwearBounds(body: Body): number[] | undefined {
+  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (const { mesh, axes, finish } of wardrobeSolids(body, coatMesh(body))) {
+    if (finish) continue;
+    const v = mesh.vertices;
+    for (let i=0; i<v.length; i+=6) for (let k=0; k<3; k++) {
+      const p = axes[k]*v[i] + axes[k+3]*v[i+1] + axes[k+6]*v[i+2] + axes[k+9];
+      box[k] = Math.min(box[k], p);
+      box[k+3] = Math.max(box[k+3], p);
+    }
+  }
+  return Number.isFinite(box[0]) ? box : undefined;
 }

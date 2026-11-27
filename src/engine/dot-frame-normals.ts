@@ -2,13 +2,16 @@ import type { CoatMesh } from './coat-surface';
 import { DOT_RADIUS } from './dot-depth';
 import { frameNormalFields } from './dot-frame-normal-data';
 
-const cosine = Math.cos(8*Math.PI/180), sine = Math.sin(8*Math.PI/180);
+const portraitYaw = 8*Math.PI/180;
 
 /** Set the front normals in head coordinates so the studio reflection moves
- * across the lens or cup when the head turns away from its portrait pose. */
+ * across the eye, lens or cup when the head turns away from its portrait pose. */
 export function fitFrameNormals(mesh: CoatMesh, name: string, section: number): void {
   const field = frameNormalFields[name+'/'+section];
   if (!field) return;
+  // Alfred’s closed lids were measured before applying the portrait yaw.
+  const yaw = name === 'Alfred' ? 0 : portraitYaw;
+  const cosine = Math.cos(yaw), sine = Math.sin(yaw);
   const [width,height,left,bottom,span,rise,encoded] = field;
   const samples = atob(encoded), v = mesh.vertices;
   for (let i=0;i<v.length;i+=6) {

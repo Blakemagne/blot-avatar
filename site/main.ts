@@ -374,7 +374,7 @@ function stageOptions(): MountOptions {
   return options;
 }
 const bot = mount(stageHost, {
-  ...stageOptions(), followIn: $('[data-stage]'), pokeable: true, label: "the studio's avatar", seed: 7,
+  ...stageOptions(), followIn: stage, pokeable: true, label: "the studio's avatar", seed: 7,
   onDraw: drawing => {
     if (stageLayout) ground.style.transform = stageLayout.groundTransform(drawing.coat?.dotFace?.playback);
   },
@@ -393,7 +393,14 @@ function chips(box: HTMLElement, values: readonly (string | null)[], now: () => 
   return sync;
 }
 
-const changed = (): void => { bot.update(stageOptions()); writeCode(); };
+function changed(resetPose = false): void {
+  bot.update(stageOptions());
+  if (resetPose) {
+    pg.last = null;
+    bot.live.resetPose();
+  }
+  writeCode();
+}
 new ResizeObserver(() => { if (stage.clientWidth) changed(); }).observe(stage);
 
 // ---- What the studio says, for a moment, beside the actions (and to a screen reader).
@@ -585,7 +592,11 @@ function cellFor(e: Entry): HTMLLIElement {
   tiles.set(slot, { entry: e });
   visibleTiles.observe(slot);
   b.append(slot);
-  b.addEventListener('click', () => { preset = ''; select(e.key); });
+  b.addEventListener('click', () => {
+    const leavingPreset = !!preset;
+    preset = '';
+    select(e.key, leavingPreset);
+  });
   // A body made from an outline takes a moment to build, and so does a coat's mesh: start on them before the
   // click, so the change of shape does not stutter as it lands. The body as the pointer comes; the mesh, which
   // holds up the page for up to 150 ms, only once the pointer rests on the cell, so a sweep across the grid
@@ -640,7 +651,7 @@ function coloured(): void {
 // little avatar in the colours so far, for a phone where the stage is off screen.
 const previews: Mounted[] = [];
 const faint = $('[data-eye-note]');
-function paint(): void {
+function paint(freshStage = false): void {
   const tile = cells.get(pg.key);
   if (tile) paintThumb(tile, pg.color);
   for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, studioEyeFill()), material: pg.material });
@@ -648,7 +659,7 @@ function paint(): void {
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
   const eyeOn = (body: string) => contrast(body, studioEyeFill() ?? colours(body).eyeFill);
   faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
-  changed();
+  changed(freshStage);
 }
 const bodyPicker = colorPicker($('[data-picker="body"]'), {
   label: 'body colour', value: pg.color, presets: COLOURS,
@@ -716,7 +727,8 @@ for (const b of materialButtons) {
 }
 
 /** Put an avatar on the stage, in the colour picked for it, or its own. */
-function select(key: string): void {
+function select(key: string, freshWearer = false): void {
+  const freshStage = freshWearer || (key !== pg.key && pg.last !== null);
   const previous = cells.get(pg.key);
   if (previous && key !== pg.key) {
     const outgoing = entry(pg.key);
@@ -731,7 +743,7 @@ function select(key: string): void {
   finished();
   coloured();
   actions();
-  paint();
+  paint(freshStage);
   // Another tab can change yours while Moves is open: its avatar is the studio's, so it changes too.
   if (view === 'moves') moversTurn();
 }
@@ -769,7 +781,7 @@ function applyPreset(key: string): void {
   chosenTexture = true;
   pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
   const shapeKey = 'body:' + recipe.shape;
-  select(shapeKey);
+  select(shapeKey, true);
 }
 type PartKey = 'eyes' | 'glasses' | 'extra';
 const choices = {

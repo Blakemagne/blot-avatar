@@ -73,6 +73,31 @@ export function silhouette(body: Body | Solid, R: Mat3, k: number, depthScale = 
   return out;
 }
 
+/** Project a fitted group of spheres through the same orthographic camera as its Dot wearer.
+ * Each scaled sphere projects to an ellipse. The hull joins the ellipses of one solid piece. */
+export function fittedSilhouette(solid: Solid, R: Mat3, k: number, fit: readonly number[]): Float64Array[] {
+  const [sx,sy,sz,dx,dy,dz] = fit;
+  const u = [R[0]*sx,R[1]*sy,R[2]*sz], v = [-R[3]*sx,-R[4]*sy,-R[5]*sz];
+  const width = Math.hypot(...u);
+  const skew = width ? (u[0]*v[0]+u[1]*v[1]+u[2]*v[2])/width : 0;
+  const height = Math.sqrt(Math.max(0,v[0]**2+v[1]**2+v[2]**2-skew**2));
+  const ring = circle(k);
+  return solid.pieces.map(piece => {
+    const total = piece.length*k;
+    if (pts.length < total*2) { pts = new Float64Array(total*2); order = new Uint32Array(total); stack = new Uint32Array(total*2); }
+    let at = 0;
+    for (const [x,y,z,r] of piece) {
+      const px = u[0]*x+u[1]*y+u[2]*z + R[0]*dx+R[1]*dy+R[2]*dz;
+      const py = v[0]*x+v[1]*y+v[2]*z - R[3]*dx-R[4]*dy-R[5]*dz;
+      for (let j=0; j<k; j++) {
+        pts[at++] = px+r*width*ring[2*j];
+        pts[at++] = py+r*(skew*ring[2*j]+height*ring[2*j+1]);
+      }
+    }
+    return hull(total);
+  });
+}
+
 /** Convex hull (monotone chain) of the first `n` points in `pts`. */
 function hull(n: number): Float64Array {
   for (let i = 0; i < n; i++) order[i] = i;

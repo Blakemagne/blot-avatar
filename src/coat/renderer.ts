@@ -232,7 +232,7 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.activeTexture(gl.TEXTURE6);
     if (layer === 0) gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, size, size,
       2 * (Object.keys(assets.feltReliefs).length + Object.keys(assets.builderReliefs).length + Object.keys(assets.fibreSubstrates).length), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    const optical = assets.feltField(field,size);
+    const optical = assets.feltField(field,size, !!assets.feltReliefs[name]);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,size,size,2,gl.RGBA,gl.UNSIGNED_BYTE,optical);
     gl.activeTexture(gl.TEXTURE2);
     opticalLayers.set(name, layer);
@@ -384,8 +384,10 @@ function createRenderer(restored: () => void): Renderer | null {
       const [centre, width] = assets.feltExtent[character];
       gl.uniform2f(u.feltExtent,centre*DOT_RADIUS/140.6592,width*DOT_RADIUS/140.6592);
     }
-    const matteBody = originalDye && f.catalogId && f.glossy && !f.catalogGloss;
-    const bodyMaterial = assets && matteBody && f.catalogId ? assets.matteBodyLayers[assets.catalogRigs[f.catalogId].body] : undefined;
+    const matte = f.catalogId && f.glossy && !f.catalogGloss;
+    const matteBody = matte && originalDye;
+    const matteDye = matte ? assets?.matteDyes[key] : undefined;
+    const bodyMaterial = matteDye && assets?.matteBodyLayers[matteDye.material];
     gl.uniform1i(u.matteBodyLayer, assets && bodyMaterial !== undefined ? tintLayer(f.colour,0,assets,bodyMaterial) : -1);
     const swatch = !matteBody && f.dotBody && f.glossy ? opticalSwatches[key] : undefined;
     const calibration = f.dotBody && opticalBounds[f.dotBody];
@@ -406,7 +408,7 @@ function createRenderer(restored: () => void): Renderer | null {
     const light = matteBody && f.catalogId && assets ? assets.catalogLight[assets.catalogRigs[f.catalogId].body] : character && !f.glossy ? assets?.portraitLight[character] : f.glossy ? dotLighting[key] : f.orthographic ? furLighting[key] : undefined;
     gl.uniform1i(u.measuredLight, light ? 1 : 0);
     if (light) gl.uniform3fv(u.studio, light);
-    gl.uniform1i(u.dyedMatte, !originalDye && f.catalogId && !f.catalogGloss && f.glossy ? 1 : 0);
+    gl.uniform1i(u.dyedMatte, matte && !originalDye && !matteDye ? 1 : 0);
     gl.uniform1i(u.unlit, f.unlit ? 1 : 0);
     gl.uniform1i(u.glossy, f.glossy ? 1 : 0);
     gl.uniform3f(u.color, r / 255, g / 255, b / 255);
@@ -470,7 +472,9 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform4fv(u.nowBall, now);
     }
 
-    const contactColour = builder && assets?.contactColor[key];
+    const matteContact = matte && !f.unlit && !shape && !f.warp
+      ? matteDye?.contact ?? assets?.customMatteContact : undefined;
+    const contactColour = builder ? assets?.contactColor[key] : matteContact;
     if (felt !== undefined && assets && character) {
       contact ??= assets.createDotContact(gl,link);
       contact(f,pixels,rotation,geometryOf,true);
@@ -592,7 +596,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const polished = !!metal || catalogCrownLayer !== undefined;
       const measuredTint = assets && (layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.authoredTint, layer !== undefined ? 1 : 0);
-      gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.lens ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
+      gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
         finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
       gl.uniform1i(u.tintLayer, measuredTint ? tintLayer(tint,polished ? 1 : 0,assets,layer) : -1);
       gl.bindVertexArray(part.surface);

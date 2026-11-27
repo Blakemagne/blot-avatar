@@ -1,14 +1,14 @@
 import { dotAvatar, dotStageLayout, mount, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from '../src/index';
 import type { Mounted } from '../src/mount';
 
-type Spec = Partial<DotAppearance> & { catalog?: string; preset?: keyof typeof DOT_CHARACTERS; turn?: [number, number, number] };
+type Spec = Partial<DotAppearance> & { stageColour?: string; catalog?: string; preset?: keyof typeof DOT_CHARACTERS; turn?: [number, number, number] };
 let avatar: Mounted | undefined;
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 function recipe(spec: Spec): DotAppearance {
   const config = spec.catalog ? DOT_CATALOG.find(p => p.id === spec.catalog)!.appearance : spec.preset ? DOT_CHARACTERS[spec.preset]
     : { shape: 'dot-rounded-triangle', extraColour: '#FFCC38', ...spec };
-  return { ...config, depth: spec.depth };
+  return { ...config, ...(spec.parts && { parts: spec.parts }), depth: spec.depth };
 }
 
 /** Paint just the two floor layers for an independent alpha comparison against their live passes. */
@@ -25,7 +25,7 @@ export async function capture(spec: Spec, pixels = 512): Promise<string> {
   const host = document.querySelector<HTMLElement>('main')!;
   const size = pixels * 296 / 512;
   host.style.width = host.style.height = size + 'px';
-  avatar = mount(host, { ...dotAvatar(recipe(spec)), size, follow: false });
+  avatar = mount(host, { ...dotAvatar(recipe(spec)), ...(spec.stageColour && { color:spec.stageColour }), size, follow: false });
   const rig = avatar.live.rig;
   const [yaw, pitch, roll] = spec.turn ?? [0, 0, 0];
   Object.assign(rig.state.pose, { yaw, pitch, roll });

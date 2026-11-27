@@ -96,6 +96,8 @@ export interface Live {
   follow(on: boolean | undefined): void;
   /** The shape or size changed: morph (or, under reduced motion, simply be the new shape) and draw. */
   shape(): void;
+  /** Return to the starting pose of the current wearer, keeping its configured activity and face. */
+  resetPose(): void;
   /** The face changed. */
   face(name: string | undefined): void;
   /** The activity, the form, the progress, `rests`, the shape, the size, the mark, the power or the personality changed. */
@@ -239,6 +241,12 @@ export function createLive(p: LiveProps): Live {
     r.setPersonality({ ...PERSONALITY, ...props.personality });
   };
 
+  const resetRig = () => {
+    rig = build();
+    if (faced) rig.setFace(props.face ?? 'neutral');
+    doing(rig);
+  };
+
   return {
     get rig() { return rig; },
     first,
@@ -250,6 +258,7 @@ export function createLive(p: LiveProps): Live {
         // With reduced motion the rig is not stepped, and whatever it was in the middle of is not shown.
         out(drawAvatar(w.body, 'gray', reducedMotion() ? w.calm : rig.state, w.size, w.coat));
       };
+      let tickingRig = rig;
       let last = 0, moves = -1, layout = -1, cx = 0, cy = 0, measured = -Infinity;
       /** The area it follows the pointer in, when it has one (followIn), as last measured. */
       let area: DOMRect | null = null, areaOf: Element | null = null;
@@ -263,6 +272,11 @@ export function createLive(p: LiveProps): Live {
       };
       const tick = (now: number) => {
         const w = want, r = rig;
+        if (tickingRig !== r) {
+          tickingRig = r;
+          last = 0;
+          moves = -1;
+        }
         if (!last) { last = now; return; }
         const dt = now - last;
         if (w.size < SMALL && dt < 32) return;
@@ -314,12 +328,16 @@ export function createLive(p: LiveProps): Live {
       shown = { body: want.body, size: want.size };
       if (reducedMotion()) {
         // The new rig wears the face and does what the old one was told, so they are there when motion comes back.
-        rig = build();
-        if (faced) rig.setFace(props.face ?? 'neutral');
-        doing(rig);
+        resetRig();
       } else rig.setBody(want.body);
       now.draw();
       now.wake();
+    },
+    resetPose() {
+      shown = { body: want.body, size: want.size };
+      resetRig();
+      live?.draw();
+      live?.wake();
     },
     // The face it wears when idle. (Called before doing(), so that at first an activity's own face wins.)
     face(name) {

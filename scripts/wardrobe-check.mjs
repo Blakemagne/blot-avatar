@@ -66,6 +66,86 @@ try {
   assert.equal(eyeCheck.changed, 0, 'tinting the headphones repainted the eye region');
   assert.ok(eyeCheck.white > 400 && eyeCheck.pupils > 1200, 'the pale sockets and dark pupils should both be visible');
 
+  // Both pale shells show contact beneath the rims and the brim. Each body mask
+  // excludes the fittings, so dark pixels on a lens cannot stand in for its shadow.
+  for (const id of ['margot','watt']) {
+    const fixture = async group => (await readFile(new URL(
+      '../golden/dots/' + group + '/catalog/catalog-' + id + '.png', import.meta.url))).toString('base64');
+    const [reference,sections] = await Promise.all([fixture('reference'),fixture('sections')]);
+    const error = await page.evaluate(async ({id,reference,sections}) => {
+      async function pixels(png) {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + png;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img,0,0);
+        return ctx.getImageData(0,0,img.width,img.height).data;
+      }
+      const [actual,native,mask] = await Promise.all([
+        review.capture({catalog:id}).then(pixels), pixels(reference), pixels(sections),
+      ]);
+      const diff = [0,0], count = [0,0];
+      for (let k=0; k<actual.length; k+=4) {
+        if (native[k+3] !== 255 || actual[k+3] !== 255) continue;
+        const surface = mask[k];
+        if (surface < 1 || surface > 3) continue;
+        const group = surface === 1 ? 0 : 1;
+        for (let c=0; c<3; c++) diff[group]+=Math.abs(native[k+c]-actual[k+c]);
+        count[group]++;
+      }
+      if (id === 'margot') {
+        // Removing the frames must lift the shadow on the same exposed cheek,
+        // including after recolouring with a catalog swatch or a custom dye.
+        for (const stageColour of ['#FF8066','#936842']) {
+          const recipe = {catalog:id,stageColour};
+          const dressed = await pixels(await review.capture(recipe));
+          const bare = await pixels(await review.capture({...recipe,parts:{glasses:'None'}}));
+          let shadow = 0;
+          for (let k=0; k<dressed.length; k+=4) {
+            if (mask[k] !== 1 || dressed[k+3] < 255 || bare[k+3] < 255) continue;
+            if (dressed[k] > 65 && bare[k]-dressed[k] > 4) shadow++;
+          }
+          if (shadow < 100) throw Error('missing frame shadow after recolouring ' + stageColour);
+        }
+      }
+      return { shell: count[0] > 20000 ? diff[0]/(3*count[0]) : Infinity,
+        eyes: count[1] > 1000 ? diff[1]/(3*count[1]) : Infinity };
+    }, {id,reference,sections});
+    assert.ok(error.shell < 2.1, id + ' matte shell channel error ' + error.shell);
+    if (id === 'margot') assert.ok(error.eyes < 1.9, 'banded oval eyes: ' + error.eyes);
+  }
+
+  const catalogue = key => page.locator(`[data-portrait="catalog/${key}"]`).evaluate(el => el.parentElement.click());
+  await page.goto(new URL('../_site/index.html', import.meta.url).href);
+  await catalogue('cleo');
+  const auger = page.locator('[data-moves] button').filter({hasText:'auger walk'});
+  await auger.evaluate(el => el.click());
+  await page.waitForFunction(() => document.querySelector('[data-code]').textContent.includes("bot.play('dot-busy-auger-walk'"));
+  await catalogue('cosmo');
+  assert.doesNotMatch(await page.locator('[data-code]').textContent(), /bot\.play\('dot-busy-auger-walk'/);
+  const stage = page.locator('[data-avatar=play]');
+  const still = () => stage.evaluate(host => {
+    const canvas = host.querySelector('canvas');
+    if (!canvas?.getClientRects().length) return;
+    const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+    let ink=0;
+    for (let k=0; k<pixels.length; k+=4) {
+      const y=Math.floor(k/4/canvas.width)/canvas.height;
+      if (y>.46 && y<.55 && pixels[k+3]>240 && Math.max(pixels[k],pixels[k+1],pixels[k+2])<48) ink++;
+    }
+    return ink;
+  });
+  await page.waitForFunction(() => document.querySelector('[data-avatar=play] canvas')?.getClientRects().length);
+  assert.ok(await still() > 20, 'cosmo must face forward with visible eyes when interrupting a turn');
+  await auger.evaluate(el => el.click());
+  await catalogue('cosmo');
+  assert.doesNotMatch(await page.locator('[data-code]').textContent(), /bot\.play\('dot-busy-auger-walk'/);
+  await catalogue('cleo');
+  await auger.evaluate(el => el.click());
+  await page.locator('[data-shapes] button[aria-label="heart (dot)"]').evaluate(b => b.click());
+  assert.doesNotMatch(await page.locator('[data-code]').textContent(), /bot\.play\('dot-busy-auger-walk'|catalogId/);
   for (const reducedMotion of ['no-preference', 'reduce']) {
     await page.emulateMedia({ reducedMotion });
     const studio = new URL('../_site/index.html', import.meta.url);
@@ -84,6 +164,55 @@ try {
       return missed;
     });
     assert.deepEqual(missing, [], reducedMotion);
+  }
+  // Check the actual picker tile as well as the selected stage render. A stale
+  // sheet once showed Cleo with a crown pulled down over both eyes and her chin.
+  const sheet = await readFile(new URL('../_site/portraits.webp', import.meta.url));
+  await stage.scrollIntoViewIfNeeded();
+  const crowns = await page.evaluate(async webp => {
+    const sheet = new Image();
+    sheet.src = 'data:image/webp;base64,' + webp;
+    await sheet.decode();
+    const result = [];
+    for (const id of ['cleo','estelle','cosmo']) {
+      const tile = document.querySelector(`[data-portrait="catalog/${id}"]`);
+      tile.closest('button').click();
+      const deadline = performance.now() + 10000;
+      let surface;
+      do {
+        await new Promise(requestAnimationFrame);
+        surface = document.querySelector('[data-avatar=play] canvas');
+      } while (!surface?.getClientRects().length && performance.now() < deadline);
+      if (!surface?.getClientRects().length) throw Error('missing stage render for ' + id);
+      const percent = tile.style.backgroundPosition.split(' ').map(parseFloat);
+      const size = tile.style.backgroundSize.split(' ').map(parseFloat);
+      const width = Math.round(sheet.width*100/size[0]), height = Math.round(sheet.height*100/size[1]);
+      const thumb = document.createElement('canvas');
+      thumb.width = width; thumb.height = height;
+      thumb.getContext('2d').drawImage(sheet, Math.round(percent[0]*(sheet.width-width)/100),
+        Math.round(percent[1]*(sheet.height-height)/100),width,height,0,0,width,height);
+      for (const [view,canvas] of [['tile',thumb],['stage',surface]]) {
+        const {width,height} = canvas, data = canvas.getContext('2d').getImageData(0,0,width,height).data;
+        let top=height, bottom=0, count=0;
+        for (let k=0; k<data.length; k+=4) {
+          if (data[k+3] < 224 || data[k] < 120 || data[k] < data[k+1]*1.35) continue;
+          const y = Math.floor(k/4/width);
+          top=Math.min(top,y); bottom=Math.max(bottom,y); count++;
+        }
+        let above=0, below=0;
+        for (let k=0; k<data.length; k+=4) {
+          if (data[k+3]<224 || Math.max(data[k],data[k+1],data[k+2])>115) continue;
+          const y=Math.floor(k/4/width);
+          if (y < top+.13*(bottom-top)) above++;
+          if (y > top+.66*(bottom-top)) below++;
+        }
+        result.push({id,view,count,above,below});
+      }
+    }
+    return result;
+  }, sheet.toString('base64'));
+  for (const r of crowns) {
+    assert.ok(r.count > 100 && r.above > r.count*.012 && r.below < r.count*.002, JSON.stringify(r));
   }
   for (const preference of ['no-preference','reduce']) {
     await page.emulateMedia({ reducedMotion: preference });
@@ -266,7 +395,7 @@ try {
     assert.ok(position.space >= 0 && position.edge < 2 && position.centres < 2, JSON.stringify({width,position}));
   }
   assert.deepEqual(errors, []);
-  console.log('frog eye pixels, 36 transition frames, preset transfers, powered mode, motion pills, shape dyes, saved mounts and responsive palette checks passed.');
+  console.log('frog eye pixels, 36 transition frames, preset motion resets, crown tiles and stage fits, matte contact shadows, preset transfers, powered mode, motion pills, shape dyes, saved mounts and responsive palette checks passed.');
 } finally {
   await browser.close();
 }

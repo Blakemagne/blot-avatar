@@ -6,7 +6,7 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 |---|---:|---:|---:|---:|---:|
 | Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.40 | 0 |
 | Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.27 | 0 |
-| Named catalog and its builder control, 512 px | 109 | 99.9257% | 45.4458% | 1.28 | 0 |
+| Named catalog and its builder control, 512 px | 109 | 99.9257% | 47.0655% | 0.87 | 0 |
 
 Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
 
@@ -82,6 +82,14 @@ in the profile review, alfred’s outer rim also projects past the cheek in the 
 a rerender of all 288 registered cases exposed a misplaced crown on cleo. its fitting had inherited another preset’s cap coefficients. restoring cleo’s measured crown reduced her whole-image mean channel error from 52.06 to 0.89. a regression now measures the centres and sizes of all 77 fitted catalog extras against their own reference sections. the held-out side views also confirmed that the raised edges of oval eyes should remain visible beyond the cheek. [cleo before and after](dot-review/cleo-crown-review.webp)
 
 thelma’s left sunglass lens was missing its broad reflection and iggy’s ear cups showed ridges. the updated surface normals follow the lens and cup geometry as the head turns. thelma’s lenses also use the measured position of the studio light. across the 12,185 labelled sunglass pixels, average premultiplied channel error decreased from 6.10 to 3.03. iggy’s whole-image error in the held-out turn went from 6.43 to 6.34. [sunglass close-up](dot-review/lens-review.webp)
+
+a separate pass reproduced cleo’s oversized crown in the saved picker sheet. her stage already had the repaired fit, while the sheet still showed the crown across her face. the refreshed sheet matches the current renderer on all 129 tiles. the browser also checks the crown and exposed face on cleo, esti and cosmo after selection. [catalog and stage close-ups](dot-review/preset-picker-review.webp)
+
+iggy’s closed eyelids lost the curved reflection along their lower edges. the revised inserts use the observed closed-lid surfaces and local light direction. average channel error on the two labelled eye regions fell from 7.92 and 6.65 to 5.83 and 4.76 respectively. preserving more short-fibre detail on the ten furry portrait rigs also improved their frontal renders. after both changes, iggy’s whole-character error fell from 6.08 to 5.83 in front and from 6.34 to 6.03 in the held-out turn. the differences in the fur and the lid highlights are still visible at this magnification. [eyelid close-ups](dot-review/iggy-lid-review.webp)
+
+on matte presets, the port missed the contact shadow under glasses and hat brims. the shell now samples the depth of the current outfit and its own surface. combined with the eye and fur changes, all 108 named portraits improved in mean channel error versus the preceding build. the catalog median including the builder control fell from 1.28 to 0.87. margot’s labelled shell error fell from 3.01 to 1.00 and watt’s from 2.87 to 0.96. in the held-out turns, whole-character error fell from 2.17 to 1.70 for tavi and from 1.92 to 1.24 for nomi. [hat and frame shadows](dot-review/matte-contact-review.webp)
+
+a second close-up of margot revealed horizontal bands across her oval pupils. the same depth interpolation affected 62 eye surfaces on 31 presets. smooth fits to their observed front and back surfaces reduced mean error across the paired eye regions on every affected preset. the average of those 31 region scores fell from 1.40 to 0.77 after the shadow correction. [margot’s eye at 3×](dot-review/catalog-oval-review.webp)
 
 the framing test samples each of the 54 motions at 64 times, then renders the extreme poses for eight wearers at normal strength and mirrored double strength. across 1,984 rendered frames, the earlier build clipped 274 frames in 36 motions. the revised bounds cleared every frame, including barrel roll. in 501 finish combinations, full ultracode preserved all 290,585 sampled interior fitting pixels. [browser regression](../scripts/wardrobe-power-page.ts)
 

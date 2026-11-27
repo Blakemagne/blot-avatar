@@ -190,6 +190,21 @@ test('on mount the face is worn before the activity, so the activity\'s own face
   a.detach();
 });
 
+test('resetting a selected wearer cancels one-shot motion and draws its configured pose immediately', () => {
+  const options = { shape: 'heart', size: 72, seed: 8, face: 'happy', activity: 'thinking', ultra: true };
+  const a = mounted(options), control = mounted(options);
+  assert.equal(a.live.play('spin'), true);
+  a.live.rig.step(100);
+  const count = a.drawn.length;
+  a.live.resetPose();
+  assert.equal(a.drawn.length, count + 1);
+  assert.deepEqual(a.live.rig.state, control.live.rig.state);
+  for (let i = 0; i < 3; i++) { a.live.rig.step(100); control.live.rig.step(100); }
+  assert.deepEqual(a.live.rig.state, control.live.rig.state);
+  a.detach();
+  control.detach();
+});
+
 test('the controller, the hook, mount() and the coat use the shared frame loop only', () => {
   for (const file of ['live.ts', 'react.ts', 'mount.ts', 'coat/layer.ts', 'coat/renderer.ts', 'coat/mask.ts']) {
     const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');

@@ -1,10 +1,11 @@
+import { headwearBounds } from './coat/wardrobe-solids';
 import { fibreDyes } from './coat/dot-fibre-dyes';
 import { fibreSubstrates } from './coat/dot-fibre-substrate';
 import { createDotFibres } from './coat/dot-fibres';
 import { insetEyeRadiance } from './coat/dot-inset-radiance';
 import { readyIdle, socketMotion } from './engine/dot-motion';
 import { createDotContact } from './coat/dot-contact';
-import { contactColor } from './coat/dot-contact-color';
+import { contactColor, customMatteContact, matteDyes } from './coat/dot-contact-color';
 import { mattePartLayers, mattePartRadiance } from './coat/dot-part-radiance';
 import { matteBodyLayers, matteBodyRadiance } from './coat/dot-matte-radiance';
 import { catalogCrownLayers } from './coat/dot-catalog-crown-light';
@@ -30,7 +31,7 @@ import { portraitLight } from './coat/dot-portrait-light';
 
 /** dotAvatar installs these fitted surfaces and finishes before the first Dot is mounted. */
 export const dotRendering = {
-  readyIdle, socketMotion, createDotContact, createDotFibres, fibreSubstrates, fibreDyes, contactColor, dotMesh, dotFeatures, vectorEyeGaze, portraitMount, transformAxes, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
+  headwearBounds, readyIdle, socketMotion, createDotContact, createDotFibres, fibreSubstrates, fibreDyes, contactColor, customMatteContact, matteDyes, dotMesh, dotFeatures, vectorEyeGaze, portraitMount, transformAxes, dotAttachments, builderFittings, fittedMesh, catalogRigs, catalogLight,
   matteBodyLayers, mattePartLayers,
   insetLayer: extraRadiance.matte.layers.length + matteBodyRadiance.length + mattePartRadiance.length,
   extraRadiance: { matte: { ...extraRadiance.matte, layers: [...extraRadiance.matte.layers, ...matteBodyRadiance, ...mattePartRadiance, ...insetEyeRadiance] }, polished: { ...extraRadiance.polished, layers: [...extraRadiance.polished.layers, ...catalogCrownLayers] } },

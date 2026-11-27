@@ -18,6 +18,10 @@ the audit covered 15 original bodies, 12 dot bodies, 23 gallery outlines and one
 | the clover hid the wings of the bow, and the barbell pierced the headphone band | the bow now fits against the chin and both cheeks. the headphone arch clears raised features while its ends stay on the pads. [first pass and refit](dot-review/bow-and-headband.webp) |
 | successive library edits lost previously selected parts | both the studio and the public wardrobe helper retain the host and its current fittings. removing a part, changing the accessory dye, saving, reloading and copying the configuration each preserve the other choices. |
 | tall ornaments could cross the stage boundary on compact screens | the studio sizes the avatar against the available height and width. replacing a portrait’s headwear also selects the camera framing for the new piece. |
+| the oval rims and hat brims on matte presets looked suspended | the shadow follows the fitted surfaces. a browser check removes margot’s frames after recolouring her shell with coral and a custom brown, and verifies that the exposed cheek lightens both times. [margot and watt close-ups](dot-review/matte-contact-review.webp) |
+| cleo’s catalog tile still showed a crown across her eyes and chin | regenerated the sheet from the fitted avatars. the browser now checks that cleo, esti and cosmo have visible faces beneath their crowns in both the picker and the stage. [picker and motion close-ups](dot-review/preset-picker-review.webp) |
+| switching presets during auger walk could show the back of the incoming wearer’s head | selecting or reselecting a preset starts it in its own pose. changing the outfit on the same wearer preserves the current motion. |
+| exported headwear moved to the centre on wearers with off-centre hats and crowns | the SVG fits each schematic prop to the dressed mesh bounds, including left and right mounts. the regression checks front, side and top projections against the 3d fittings. |
 | opening the catalog created a live avatar for each visible tile | the picker uses thumbnails rendered from each actual recipe. the build verifies the thumbnail index against the catalog and starters. the selected avatar remains live on the stage. eye, frame and extra tiles also show rendered samples. |
 
 ## coverage
@@ -31,10 +35,10 @@ the audit covered 15 original bodies, 12 dot bodies, 23 gallery outlines and one
 | studio header | the preset and custom tabs sit on the title line, flush with the right edge of the stage. the tabs also open appearance from play or new and support arrow-key navigation. [desktop and phone](dot-review/studio-heading.webp) |
 | compact stage | six starter or catalog characters wearing a crown or headphones at a 390 × 800 viewport. the painted avatar stayed inside the stage on all four sides. |
 | older bodies at oblique angles | 1,560 rendered views of eight eye styles on all 39 original, gallery and imported bodies. every front view showed the eye. across five turns per style, no opaque eye pixel fell more than one pixel outside the matching body silhouette. |
-| ultracode | 501 combinations across 51 wearers and 116 named entries in flat, glossy and fur. each changed as power rose and the rainbow moved, then restored its original pixels. all 290,878 interior fitting pixels tested kept their original colour. all 167 wearers also rendered the powered SVG fallback with WebGL2 disabled. |
+| ultracode | 501 combinations across 51 wearers and 116 named entries in flat, glossy and fur. each changed as power rose and the rainbow moved, then restored its original pixels. all 290,629 interior fitting pixels tested kept their original colour. all 167 wearers also rendered the powered SVG fallback with WebGL2 disabled. |
 | shape switches | six successive changes with motion enabled and again with reduced motion. the check samples the first three frames of each switch for a missing material or stale headband. |
 
-run the combination and pose checks with `node --import tsx scripts/wardrobe-audit.mjs`. run `npm run site` followed by `node scripts/wardrobe-check.mjs` for the browser regressions. run `node scripts/wardrobe-power-check.mjs` for the powered material, turned eye and SVG fallback checks. the browser scripts accept `PLAYWRIGHT_CORE` and `CHROMIUM` for local installations. use `CHROMIUM_ANGLE=gl` to select hardware OpenGL for reference comparisons. regenerate the preset thumbnails with `node scripts/portrait-sheet.mjs` using the same browser setup.
+run the combination and pose checks with `node --import tsx scripts/wardrobe-audit.mjs`. run `npm run site` followed by `node scripts/wardrobe-check.mjs` for the browser regressions. run `node scripts/wardrobe-power-check.mjs` for the powered material, turned eye and SVG fallback checks. the browser scripts accept `PLAYWRIGHT_CORE` and `CHROMIUM` for local installations. use `CHROMIUM_ANGLE=gl` to select hardware OpenGL for reference comparisons. check all 129 picker tiles against fresh renders with `node scripts/portrait-sheet.mjs --check`. the comparison checks the tile order and the colour and opacity of small regions within each tile. regenerate the sheet with `node scripts/portrait-sheet.mjs` using the same browser setup.
 
 the [reference comparison](dot-parity.md) defines the 99.99% silhouette, exact foreground and exact component gates. all three must pass for each reference case. the wardrobe checks above measure transfer behavior. their counts do not measure pixel agreement.
 
@@ -54,7 +58,7 @@ the revised build was captured at native resolution in chromium using hardware O
 | --- | ---: | ---: | ---: | ---: |
 | builder and starters | 96 | 99.9465% | 87.7223% | 0 |
 | rotations and depth | 83 | 99.9419% | 89.0693% | 0 |
-| catalog and control | 109 | 99.9257% | 45.4458% | 0 |
+| catalog and control | 109 | 99.9257% | 47.0655% | 0 |
 
 josh’s neutral reference mask covers 6,434 pixels on the tuft. on those pixels the mean absolute premultiplied channel error fell from 9.44 to 6.82 on a 0–255 scale. the pale lenses improved from 12.83 to 6.63, the dark pupils from 2.46 to 1.05, and the rims from 5.31 to 3.73. both builds ran through the same capture script. the tuft still has a visible boundary where it meets the body. [reference, before and revised](dot-review/josh-detail-review.webp)
 

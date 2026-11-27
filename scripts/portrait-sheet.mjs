@@ -2,10 +2,14 @@
 // PLAYWRIGHT_CORE and CHROMIUM can point at local browser installations.
 import { launchOptions } from './review-browser.mjs';
 import { createRequire } from 'node:module';
-import { writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_CORE ?? 'playwright-core');
+const check = process.argv.includes('--check');
+const imageFile = new URL('../site/portraits.webp', import.meta.url);
+const manifestFile = new URL('../site/portraits.json', import.meta.url);
 const bundle = await build({ entryPoints: ['src/index.ts'], bundle: true, format: 'iife', globalName: 'avatar', write: false });
 const browser = await chromium.launch(launchOptions);
 try {
@@ -64,6 +68,42 @@ try {
     }
     return { webp: sheet.toDataURL('image/webp', .96).split(',')[1], keys: recipes.map(([key]) => key), columns, rows };
   });
-  await writeFile(new URL('../site/portraits.webp', import.meta.url), Buffer.from(webp, 'base64'));
-  await writeFile(new URL('../site/portraits.json', import.meta.url), JSON.stringify({columns,rows,keys},null,2)+'\n');
+  if (check) {
+    assert.deepEqual(JSON.parse(await readFile(manifestFile, 'utf8')), { columns, rows, keys });
+    const stored = (await readFile(imageFile)).toString('base64');
+    const stale = await page.evaluate(async ({ stored, webp, keys, columns, rows }) => {
+      // Average small blocks so WebP rounding and fine GPU grain do not mask a displaced fitting.
+      async function samples(encoded) {
+        const img = new Image();
+        img.src = 'data:image/webp;base64,' + encoded;
+        await img.decode();
+        if (img.width !== 96 * columns || img.height !== 96 * rows) throw Error('invalid portrait sheet dimensions');
+        const canvas = document.createElement('canvas');
+        canvas.width = columns * 12;
+        canvas.height = rows * 12;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      }
+      const [a, b] = await Promise.all([samples(stored), samples(webp)]);
+      return keys.filter((_, index) => {
+        const x = index % columns * 12, y = Math.floor(index / columns) * 12;
+        let sum = 0, worst = 0;
+        for (let j = 0; j < 12; j++) for (let i = 0; i < 12; i++) {
+          const k = 4 * ((y + j) * columns * 12 + x + i);
+          let error = Math.abs(a[k+3] - b[k+3]);
+          for (let c = 0; c < 3; c++) error += Math.abs(a[k+c]*a[k+3] - b[k+c]*b[k+3]) / 255;
+          sum += error / 4;
+          worst = Math.max(worst, error / 4);
+        }
+        return sum / 144 > 1.5 || worst > 10;
+      });
+    }, { stored, webp, keys, columns, rows });
+    assert.deepEqual(stale, [], 'stale picker tiles: ' + stale.join(', '));
+    console.log(keys.length + ' picker tiles match the renderer');
+  } else {
+    await writeFile(imageFile, Buffer.from(webp, 'base64'));
+    await writeFile(manifestFile, JSON.stringify({columns,rows,keys},null,2)+'\n');
+  }
 } finally { await browser.close(); }

@@ -4,6 +4,7 @@ import { bowNormals } from './dot-bow-normals';
 import { socketMotion } from './dot-motion';
 import { portraitMount } from './dot-portrait-fit';
 import { coversEyes, FRAME_CURVE, frameMount, type DotStyle } from './dot-parts';
+import { lidSurfaces } from './dot-lid-surfaces';
 import { eyeSurfaces } from './dot-eye-surfaces';
 import { spectacleMesh } from './dot-portrait-eye';
 import { eyeSurfaceMesh } from './dot-eye-mesh';
@@ -11,6 +12,7 @@ import { builderFittings } from './dot-builder-fittings';
 import { catalogFittings } from './dot-catalog-fittings';
 import { fittedMesh } from './dot-fitted-mesh';
 import { gazeTransform, hasGazeRig, seatMovingOval, transformAxes } from './dot-gaze';
+import { catalogOvals } from './dot-catalog-ovals';
 import { catalogParts } from './dot-catalog-parts';
 import { eyewearFits, eyeMaterials, frameFits } from './dot-eyewear-fits';
 import { faceFits } from './dot-face-fits';
@@ -51,7 +53,7 @@ interface Surface {
 }
 const surfaces = new WeakMap<FeatureSection, Surface>();
 const opticalSurfaces = new WeakMap<FeatureSection, string>();
-for (const [name, entries] of Object.entries(eyeSurfaces)) {
+for (const [name, entries] of Object.entries({ ...eyeSurfaces, ...lidSurfaces })) {
   entries.forEach((entry, i) => opticalSurfaces.set(featureSections[name][i], entry));
 }
 /** Signed distance to the measured outer contour and its holes, in section radii. */
@@ -124,11 +126,28 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
       .sort((a,b) => a.origin[3]-b.origin[3])[0]
     : undefined;
   const parent = support && surfaceOf(support, parts);
+  const oval = section.catalogSection === undefined ? undefined : catalogOvals[section.catalogSection];
   const thickness = (x: number, y: number) => {
+    if (oval) {
+      // These depth measurements describe the bevel inside the eye's outline.
+      if (distance(x,y) < -.025) return -.002;
+      let start = 0, squaredThickness = 0;
+      for (let degree = 0; degree <= 6; degree++) {
+        let term = 0, yPower = 1;
+        for (let i = degree; i >= 0; i--) {
+          term = term*x + oval[start+i]*yPower;
+          yPower *= y;
+        }
+        start += degree + 1;
+        squaredThickness += term;
+      }
+      return squaredThickness;
+    }
     const gain = sample(section.thickness, x, y);
     return distance(x,y)*gain*gain;
   };
   const centre = (x: number, y: number) => {
+    if (oval) return oval[28]+oval[29]*y+oval[30]*x;
     const own = sample(section.centre, x, y);
     const z = parent?.front(cx + radius*x, cy + radius*y);
     return z === undefined ? own : Math.max(own, (z + .0018 - cz) / radius);
@@ -138,11 +157,10 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
   const mesh = dome ? sectionMesh(section.origin, radius, 128,
     (x,y) => dome[0]+dome[1]*x+dome[2]*y+dome[3]*x*x+dome[4]*x*y+dome[5]*y*y,
     (x,y) => dome[6]+dome[7]*x+dome[8]*y)
-    : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
+    : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, oval ? 72 : section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
-  if (parts === featureSections.Thelma || parts === featureSections.Iggy) {
-    fitFrameNormals(mesh,parts === featureSections.Thelma ? 'Thelma' : 'Iggy',parts.indexOf(section));
-  }
+  const portrait = ['Alfred', 'Felipe', 'Iggy', 'Thelma'].find(name => parts === featureSections[name]);
+  if (portrait && !measured) fitFrameNormals(mesh, portrait, parts.indexOf(section));
   if (section.role === 'extra') {
     const wearer = parts === featureSections.Todd ? 'Todd' : parts === featureSections.Alfred ? 'Alfred' : undefined;
     if (wearer) {

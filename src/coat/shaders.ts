@@ -340,6 +340,26 @@ float eyeDistance(out vec2 outward) {
   return d;
 }
 
+vec3 contactShade(vec3 colour) {
+  if (contactExtent <= 0.) return colour;
+  float shade = 1. - texture(contactField, gl_FragCoord.xy/contactExtent).r;
+  return colour - shade * (contactColor[0] + shade*contactColor[1]
+    + (colour-.5)*(contactColor[2]+shade*contactColor[3]));
+}
+
+vec4 pileSample(vec2 uv, int layer) {
+  vec3 at = vec3(uv,float(layer));
+  if (!portraitCoat) return texture(opticalDensity,at);
+  vec2 dx = dFdx(uv), dy = dFdy(uv);
+  float footprint = float(textureSize(opticalDensity,0).x)*max(length(dx),length(dy));
+  if (footprint <= .9) return texture(opticalDensity,at);
+  // Integrate the projected footprint when a screen pixel covers several fibres.
+  float radius = .5*smoothstep(.9,1.8,footprint);
+  vec3 a = vec3(radius*(dx+dy),0.), b = vec3(radius*(dx-dy),0.);
+  return .25*(texture(opticalDensity,at+a)+texture(opticalDensity,at-a)
+    +texture(opticalDensity,at+b)+texture(opticalDensity,at-b));
+}
+
 vec3 studioLight(vec3 n) {
   vec3 diffuse = studio[0] + n.x * studio[1] + n.y * studio[2] + n.z * studio[3]
     + n.x*n.x * studio[4] + n.x*n.y * studio[5] + n.y*n.y * studio[6]
@@ -409,7 +429,7 @@ void main() {
   vec3 n = normalize(N);
   if (ornament) {
     if (finish == 8) {
-      // A nearby softbox reflects at different angles in the two curved lenses.
+      // The softbox reflection depends on the position and curvature of each eye or lens.
       vec3 normal = n*vec3(1.,-1.,1.);
       vec3 lamp = normalize(studio[4]-scenePlace);
       vec3 halfVector = normalize(lamp+vec3(0.,0.,1.));
@@ -458,10 +478,10 @@ void main() {
   if (glossy) {
     if (dyedMatte) {
       float wrap = .5 + .5 * dot(n, normalize(vec3(-.52,-.78,.65)));
-      result = vec4(color * (.74 + .26 * wrap), 1.);
+      result = vec4(contactShade(color * (.74 + .26 * wrap)), 1.);
       return;
     }
-    if (matteBodyLayer >= 0) { result = vec4(tintedRadiance(normalUV(n),matteBodyLayer,0),1.); return; }
+    if (matteBodyLayer >= 0) { result = vec4(contactShade(tintedRadiance(normalUV(n),matteBodyLayer,0)),1.); return; }
     if (fittedGloss) { result = vec4(measuredGloss(n*vec3(1.,-1.,1.), opticalPlace), 1.); return; }
     if (measuredLight) { result = vec4(studioLight(n), 1.); return; }
     float highlight = pow(max(0., dot(n, normalize(vec3(-.53, -.48, .70)))), 25.);
@@ -506,8 +526,8 @@ void main() {
           variationRGB[i] = mix(dot(b,vec4(1.,incoming-key*vec3(1.,1.,-1.))),dot(f,vec4(1.,incoming-key)),smoothstep(-.12,.12,groomSide));
         }
       } else {
-        vec4 front = texture(opticalDensity,vec3(uv,float(opticalLayer)));
-        vec4 back = texture(opticalDensity,vec3(uv,float(opticalLayer+1)));
+        vec4 front = pileSample(uv,opticalLayer);
+        vec4 back = pileSample(uv,opticalLayer+1);
         front = (front*255.-128.)*feltScale/127.;
         back = (back*255.-128.)*feltScale/127.;
         float relief = mix(dot(back,vec4(1.,incoming-key*vec3(1.,1.,-1.))),
@@ -522,11 +542,7 @@ void main() {
     if (portraitCoat && opticalLayer >= 0 && furLightLayer >= 0) {
       colour -= portraitLightLoss(scenePlace,n);
     }
-    if (contactExtent > 0.) {
-      float shade = 1. - texture(contactField, gl_FragCoord.xy/contactExtent).r;
-      colour -= shade * (contactColor[0] + shade*contactColor[1]
-        + (colour-.5)*(contactColor[2]+shade*contactColor[3]));
-    }
+    colour = contactShade(colour);
     float alpha = 1.;
     if ((builderPile || portraitCoat) && pass == SHELL) {
       // The optical covering thins continuously outside the solid surface.
