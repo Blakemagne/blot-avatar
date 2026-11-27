@@ -652,3 +652,88 @@ test('dot cue strength zero rests both eyes and body, and direction mirrors a fu
     assert.ok(strong.dotPlayback.scale.every(v => Number.isFinite(v) && v > 0));
   }
 });
+
+test('orbit and radar carry two visible eyes on their own disc as the wearer turns', async () => {
+  const { eyeShapes } = await import('./engine/draw.ts');
+  const { figureRadius } = await import('./engine/figures.ts');
+  const { DOT_CHARACTERS } = await import('./index.ts');
+  const wearers = [...DOT_SHAPES.map(s => dotAvatar({shape:s.id}).body),
+    ...Object.values(DOT_CHARACTERS).map(p => dotAvatar(p).body),
+    ...Object.keys(BODIES).map(id => avatarParts(id,{eyes:'Sleepy lids'}).body)];
+  for (const body of wearers) for (const form of ['orbit','radar']) for (const yaw of [-1.5,0,1.5]) {
+    const state = { ...front, dot:1, eyeScale:1, eye:{x:Math.sign(yaw),y:-1}, pose:{yaw,pitch:.55,roll:-.4},
+      figure:{form,k:1,turn:.73,progress:.5} };
+    const [left,right] = eyeShapes(body,state,120);
+    const dots = form === 'orbit' ? [left[0],right[0]] : left.slice(0,2);
+    assert.equal(dots.filter(Boolean).length,2,body.id);
+    const radius = figureRadius(form);
+    for (const dot of dots) for (let i=0;i<dot.length;i+=2) assert.ok(Math.hypot(dot[i],dot[i+1]) < radius*.85);
+    const frame = drawAvatar(body,'#8040ae',state,120);
+    assert.equal(frame.eyeFill,'#202024');
+  }
+});
+
+test('selecting another authored motion hands over the visible pose and eye track', async () => {
+  const { DOT_CLIPS } = await import('./index.ts');
+  const { Rig } = await import('./engine/rig.ts');
+  const { socketMotion } = await import('./engine/dot-motion.ts');
+  const rig = new Rig({ clips:DOT_CLIPS, idle:false, blinks:false });
+  rig.play('dot-barrel-roll');
+  rig.step(DOT_CLIPS['dot-barrel-roll'].ms*.45);
+  const before = [...Object.values(rig.state.pose), ...rig.state.dotPlayback.offset];
+  const eyes = socketMotion('frog',rig.state.dotPlayback.activity);
+  rig.play('dot-curious-tilt');
+  rig.step(0);
+  assert.deepEqual([...Object.values(rig.state.pose), ...rig.state.dotPlayback.offset],before);
+  assert.deepEqual(socketMotion('frog',rig.state.dotPlayback.activity),eyes);
+  rig.step(200);
+  const control = new Rig({ clips:DOT_CLIPS, idle:false, blinks:false });
+  control.play('dot-curious-tilt');
+  control.step(200);
+  assert.deepEqual(rig.state.pose,control.state.pose);
+  assert.deepEqual(rig.state.dotPlayback,control.state.dotPlayback);
+});
+
+test('the svg activity moves iris’s glints while both dark supports stay in place', async () => {
+  const { DOT_CHARACTERS } = await import('./index.ts');
+  const { dotFace } = await import('./engine/dot-parts.ts');
+  const { body } = dotAvatar(DOT_CHARACTERS.Iris);
+  const face = gaze => dotFace(body,body.dotStyle,{
+    ...front,lid:1,eye:{x:0,y:0},dotPlayback:{activity:{slug:'curious-tilt',gaze}},
+  },[1,0,0,0,1,0,0,0,1],192);
+  const neutral = face([0,0]), looking = face([.9,.3]);
+  for (const side of ['left','right']) {
+    const paths = (parts,id) => parts.find(p => p.id === id).polys;
+    assert.deepEqual(paths(looking,side),paths(neutral,side));
+    assert.notDeepEqual(paths(looking,side+'-glint'),paths(neutral,side+'-glint'));
+  }
+});
+
+test('each fitted catalog extra retains the observed position and size of its own preset', async () => {
+  const { DOT_CATALOG } = await import('./index.ts');
+  const { catalogParts } = await import('./engine/dot-catalog-parts.ts');
+  const { dotFeatures } = await import('./engine/dot-features.ts');
+  const { DOT_RADIUS } = await import('./engine/dot-depth.ts');
+  let checked = 0;
+  for (const {id,appearance} of DOT_CATALOG) {
+    const measured = catalogParts(id);
+    if (!measured) continue;
+    const parts = dotFeatures(dotAvatar(appearance).body);
+    for (const [i,section] of measured.entries()) {
+      if (section.role !== 'extra') continue;
+      const {mesh,axes} = parts[i], v = mesh.vertices;
+      let left = Infinity, right = -Infinity, top = -Infinity, bottom = Infinity;
+      for (let j=0;j<v.length;j+=6) {
+        const x = (axes[0]*v[j]+axes[3]*v[j+1]+axes[6]*v[j+2]+axes[9])/DOT_RADIUS;
+        const y = (axes[1]*v[j]+axes[4]*v[j+1]+axes[7]*v[j+2]+axes[10])/DOT_RADIUS;
+        left=Math.min(left,x); right=Math.max(right,x);
+        bottom=Math.min(bottom,y); top=Math.max(top,y);
+      }
+      const [x,y,,radius] = section.origin;
+      assert.ok(Math.hypot((left+right)/2-x,(bottom+top)/2-y)<.015,id+' extra position');
+      assert.ok(Math.abs(Math.max(right-left,top-bottom)/(2*radius)-1)<.03,id+' extra size');
+      checked++;
+    }
+  }
+  assert.ok(checked>=77);
+});

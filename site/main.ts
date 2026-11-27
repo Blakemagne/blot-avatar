@@ -277,8 +277,12 @@ function outfit() {
   if (customParts || typeof shape === 'string' && shape.startsWith('dot-')) return avatarParts(shape, wardrobe);
   return { shape, body: bodyOf(shape) };
 }
+function studioEyeFill(): string | undefined {
+  const style = outfit().body?.dotStyle;
+  return style && !style.originalEyes ? '#202024' : pg.eyes ?? undefined;
+}
 const avatarOptions = (): MountOptions => ({
-  ...outfit(), clips, size: pg.size, ...inked(pg.color, pg.eyes ?? undefined), face: pg.face, activity: pg.activity,
+  ...outfit(), clips, size: pg.size, ...inked(pg.color, studioEyeFill()), face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, progress: pg.progress, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
@@ -639,10 +643,10 @@ const faint = $('[data-eye-note]');
 function paint(): void {
   const tile = cells.get(pg.key);
   if (tile) paintThumb(tile, pg.color);
-  for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, pg.eyes ?? undefined), material: pg.material });
+  for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, studioEyeFill()), material: pg.material });
   // The eyes as drawn: the picked colour, or the automatic one.
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
-  const eyeOn = (body: string) => contrast(body, pg.eyes ?? colours(body).eyeFill);
+  const eyeOn = (body: string) => contrast(body, studioEyeFill() ?? colours(body).eyeFill);
   faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
   changed();
 }
@@ -656,7 +660,7 @@ const bodyPicker = colorPicker($('[data-picker="body"]'), {
     onInput: (v) => { pg.eyes = v; paint(); },
   });
   for (const [i, p] of [bodyPicker, eyePicker].entries()) {
-    previews.push(mount(p.preview, { ...outfit(), size: 40, ...inked(pg.color, pg.eyes ?? undefined), material: pg.material, seed: 300 + i }));
+    previews.push(mount(p.preview, { ...outfit(), size: 40, ...inked(pg.color, studioEyeFill()), material: pg.material, seed: 300 + i }));
   }
   resetColour.addEventListener('click', () => {
     select(pg.key);
@@ -884,7 +888,7 @@ async function copy(text: string, failed: string): Promise<void> {
   if (await copyText(text)) said('copied');
   else said(failed, true);
 }
-doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color, 512, outfit().body, pg.eyes ?? undefined)); });
+doButton('svg').addEventListener('click', () => { const e = entry(pg.key); download(`${e.id}.svg`, 'image/svg+xml', stillSvg(e.shape, pg.color, 512, outfit().body, studioEyeFill())); });
 doButton('png').addEventListener('click', async () => {
   const e = entry(pg.key), png = await stagePng();
   if (png) download(`${e.id}.png`, 'image/png', png);
@@ -978,7 +982,7 @@ function appearanceLink() {
   const url = new URL(shareLink(location.href.split(/[?#]/)[0], e, pg.color, e.own, pg.activity, pg.material));
   for (const [key,v] of Object.entries(wardrobe)) url.searchParams.set(key,v);
   if (e.finish) url.searchParams.set('color', pg.color);
-  if (pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
+  if (pg.eyes && studioEyeFill() === pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
   if (pg.ultra) url.searchParams.set('ultra','1');
   if (preset) url.searchParams.set('preset',preset);
   if (preset && tintExtra) url.searchParams.set('tintExtra', '1');
@@ -1165,7 +1169,7 @@ function writeCode(): void {
   const initial = recipe ? `...dotAvatar(${JSON.stringify(recipe)})` : styled ? `...avatarParts(${shapeOption.replace(/^shape: /,'')}, ${JSON.stringify(wardrobe)})` : shapeOption;
   const o: string[] = [initial, `size: ${Number((stageSize).toFixed(3))}`];
   if (pg.color !== (recipe?.colour ?? DEFAULT_COLOUR)) o.push(`color: '${pg.color}'`);
-  if (pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
+  if (pg.eyes && studioEyeFill() === pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
@@ -1204,11 +1208,11 @@ function writeCode(): void {
 
 const moveStage = $('[data-move-stage]'), moveSaid = $('[data-move-said]');
 const mover = mount($('[data-avatar="moves"]'), {
-  ...outfit(), size: narrow.matches ? 120 : 150, ...inked(pg.color, pg.eyes ?? undefined), follow: true, followIn: moveStage,
+  ...outfit(), size: narrow.matches ? 120 : 150, ...inked(pg.color, studioEyeFill()), follow: true, followIn: moveStage,
   pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT, material: pg.material,
 });
 /** The moves are shown on the avatar in the studio, as it is now. */
-const moversTurn = (): void => mover.update({ ...outfit(), clips, ...inked(pg.color, pg.eyes ?? undefined), personality: pg.feel, material: pg.material });
+const moversTurn = (): void => mover.update({ ...outfit(), clips, ...inked(pg.color, studioEyeFill()), personality: pg.feel, material: pg.material });
 function moveRow(m: Move): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.label ?? m.name }), make('span', { textContent: SAYS[m.name] ?? `a ${m.lane}.` }));
   b.addEventListener('click', () => {

@@ -122,7 +122,7 @@ function createRenderer(restored: () => void): Renderer | null {
   const canvas = document.createElement('canvas');
   // Square, and only ever grown (see below).
   canvas.width = canvas.height = MIN_PIXELS;
-  const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: true, preserveDrawingBuffer: true });
+  const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, stencil: true, premultipliedAlpha: true, preserveDrawingBuffer: true });
   if (!gl) return null;
   // A lost context draws nothing until the browser gives it back; the avatars are flat meanwhile.
   canvas.addEventListener('webglcontextlost', (event) => event.preventDefault());
@@ -445,7 +445,9 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.uniform3f(u.camera, R[6] * D, R[7] * D, R[8] * D);
     gl.uniform3fv(u.middle, geometry.middle);
     gl.uniform3fv(u.extent, geometry.extent);
-    gl.uniform4f(u.square, f.cx, f.cy, f.half, f.solids?.length ? Math.max(3, geometry.deep) : geometry.deep);
+    const stretch = Math.max(1, s?.[0] ?? 1, s?.[1] ?? 1, (s?.[2] ?? 1) * (f.depthScale ?? 1));
+    const deep = (f.solids?.length ? Math.max(3, geometry.deep) : geometry.deep) * stretch + Math.abs(origin?.[2] ?? 0);
+    gl.uniform4f(u.square, f.cx, f.cy, f.half, deep);
     const shape = f.shape;
     if (!shape) gl.uniform1i(u.figure, FIGURE.none);
     else if (shape.kind === 'band') {
@@ -486,7 +488,14 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.uniform1f(u.contactExtent,contactColour ? 2*Math.ceil(pixels/2) : 0);
     gl.viewport(0, 0, pixels, pixels);
     gl.scissor(0, 0, pixels, pixels);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const hasSkinInk = f.solids?.some(p => p.skinInk);
+    if (hasSkinInk) {
+      gl.stencilMask(0xff);
+      gl.enable(gl.STENCIL_TEST);
+      gl.stencilFunc(gl.ALWAYS,1,0xff);
+      gl.stencilOp(gl.KEEP,gl.KEEP,gl.REPLACE);
+    }
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | (hasSkinInk ? gl.STENCIL_BUFFER_BIT : 0));
     // (A picture held to MAX_PIXELS is drawn at the detail it has, not the one asked for.)
     const { shells, strandPasses, strandWidth } = coatDetail((f.pxPerUnit * pixels) / Math.max(1, f.pixels));
     gl.bindVertexArray(geometry.surface);
@@ -495,12 +504,18 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.enable(gl.CULL_FACE);
     gl.uniform1i(u.pass, PASS.body);
     gl.drawElements(gl.TRIANGLES, geometry.indices, gl.UNSIGNED_INT, 0);
+    if (hasSkinInk) {
+      gl.disable(gl.STENCIL_TEST);
+      gl.stencilMask(0);
+      gl.stencilFunc(gl.EQUAL,1,0xff);
+      gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
+    }
     if (fibreDye && assets) {
       fibres ??= assets.createDotFibres(gl,link);
       gl.disable(gl.CULL_FACE);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
       fibres(rotation, [s?.[0] ?? 1,s?.[1] ?? 1,(s?.[2] ?? 1)*(f.depthScale ?? 1)], origin ?? [0,0,0],
-        [f.cx,f.cy,f.half,f.solids?.length ? Math.max(3,geometry.deep) : geometry.deep],
+        [f.cx,f.cy,f.half,deep],
         pixels*VIEW_UNIT*DOT_RADIUS*3.64*Math.max(1,f.depthScale ?? 1)/(2*f.half), fibreDye[1],contactColour || undefined,pixels);
       gl.depthMask(true); gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE);
       gl.useProgram(program);
@@ -559,7 +574,8 @@ function createRenderer(restored: () => void): Renderer | null {
       const [x0,y0,,x1,y1] = f.mesh.box;
       gl.uniform4f(u.faceBounds,x0,y0,1/(x1-x0),1/(y1-y0));
     }
-    for (const { mesh, tint, axes, metal, finish, material, insetSurface, portraitSection, catalogCrownLayer, faceLayer } of f.solids ?? []) {
+    for (const { mesh, tint, axes, metal, finish, material, insetSurface, portraitSection, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
+      if (skinInk) gl.enable(gl.STENCIL_TEST);
       const part = geometryOf(mesh);
       gl.uniform1i(u.eyePatch,faceLayer !== undefined ? 1 : 0);
       if (faceLayer !== undefined) {
@@ -576,7 +592,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const polished = !!metal || catalogCrownLayer !== undefined;
       const measuredTint = assets && (layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.authoredTint, layer !== undefined ? 1 : 0);
-      gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
+      gl.uniform1i(u.finish, layer !== undefined ? 0 : fitting?.lens ? 8 : fitting?.pile ? (f.character === 'Josh' && !finish ? 7 : 6) : fitting || material !== undefined ? 5 :
         finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
       gl.uniform1i(u.tintLayer, measuredTint ? tintLayer(tint,polished ? 1 : 0,assets,layer) : -1);
       gl.bindVertexArray(part.surface);
@@ -588,6 +604,7 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform3f(u.offset, axes[9], axes[10], axes[11]);
       gl.uniform3f(u.color, tint[0] / 255, tint[1] / 255, tint[2] / 255);
       gl.drawElements(gl.TRIANGLES, part.indices, gl.UNSIGNED_INT, 0);
+      if (skinInk) gl.disable(gl.STENCIL_TEST);
     }
     gl.bindVertexArray(null);
     return { canvas, x: 0, y: canvas.height - pixels, size: pixels };

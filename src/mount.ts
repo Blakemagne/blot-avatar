@@ -161,7 +161,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     if (split) split.below.style.filter = split.canvas.style.filter = glow;
   };
   const colour = (): FxPaint => {
-    const c = colours(opts.color ?? '#FD690F');
+    const c = colours(opts.color ?? '#FD690F', opts.body);
     return { fill: opts.fill ?? c.fill, eyeFill: opts.eyeFill ?? c.eyeFill, accent: opts.accent };
   };
   let last = live.first;
@@ -256,7 +256,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       }
       if (changed('face')) live.face(opts.face);
       if (changed('activity', 'form', 'progress', 'rests', 'shape', 'body', 'size', 'mark', 'ultra', 'personality')) live.doing();
-      if (changed('color', 'fill', 'eyeFill', 'accent')) paint();
+      if (changed('color', 'fill', 'eyeFill', 'accent', 'body')) paint();
       if (changed('paint')) layered(latest);
       if (changed('pokeable', 'label')) syncPoke();
       if (paintedMaterial(before) !== paintedMaterial(opts) || changed('material')) { material(paintedMaterial(opts)); paint(); live.motion(); }

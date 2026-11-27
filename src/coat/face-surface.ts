@@ -30,3 +30,24 @@ export function faceSurface(mesh: CoatMesh, side: number): Float32Array {
   }
   return pixels;
 }
+
+const frontGrids = new WeakMap<CoatMesh, Float32Array>();
+const FRONT_GRID = 160;
+
+/** Interpolate the front sheet at a fitting point, renormalizing valid samples on the rim. */
+export function frontDepth(mesh: CoatMesh, x: number, y: number): number | undefined {
+  const [x0,y0,,x1,y1] = mesh.box;
+  if (x < x0 || x > x1 || y < y0 || y > y1) return;
+  let grid = frontGrids.get(mesh);
+  if (!grid) frontGrids.set(mesh,grid = faceSurface(mesh,FRONT_GRID));
+  const u = (x-x0)/(x1-x0)*(FRONT_GRID-1), v = (y-y0)/(y1-y0)*(FRONT_GRID-1);
+  const ix = Math.min(FRONT_GRID-2,Math.floor(u)), iy = Math.min(FRONT_GRID-2,Math.floor(v));
+  let weight = 0, sum = 0;
+  for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+    const at = 4*((iy+j)*FRONT_GRID+ix+i);
+    if (grid[at+3] <= 0) continue;
+    const k = (i ? u-ix : 1-u+ix)*(j ? v-iy : 1-v+iy);
+    sum += k*grid[at]; weight += k;
+  }
+  return weight ? sum/weight : undefined;
+}

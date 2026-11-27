@@ -625,10 +625,18 @@ export class Rig {
       case 'cue': {
         const amount = cue?.amount, i = this.cueNames.indexOf(name);
         if (this.cueing[i]) return true;
-        this.cueing[i] = start(clip, {
+        const next = start(clip, {
           dir: (cue?.dir ?? 1) < 0 ? -1 : 1,
           amount: typeof amount === 'number' && Number.isFinite(amount) ? Math.max(0, Math.min(2, amount)) : 1,
         });
+        if (clip.handoff) {
+          for (const [j,previous] of this.cueing.entries()) {
+            if (previous?.clip.handoff !== clip.handoff) continue;
+            clip.handoff(previous,next);
+            this.cueing[j] = null;
+          }
+        }
+        this.cueing[i] = next;
         return true;
       }
       default: return false;

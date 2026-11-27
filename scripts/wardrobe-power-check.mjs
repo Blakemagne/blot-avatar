@@ -44,6 +44,14 @@ try {
     if ((index+1)%25 === 0) console.log(`${index+1}/${count} wearers`);
   }
   if (cases) console.log(`${cases} finish combinations, ${pixels} fitting pixels, ${changed} changed at full power`);
+  if (run('motion')) {
+    const count = await page.evaluate(() => review.motionWearerCount);
+    for (let i=0; i<count; i++) {
+      const result = await page.evaluate(index => review.checkMotionBounds(index),i);
+      errors.push(...result.failures.map(failure => 'wearer '+i+' '+failure));
+      console.log('wearer '+i+', '+result.views+' motion frames, '+result.failures.length+' failures', result.failures.slice(0,2));
+    }
+  }
   if (run('winks')) {
     const result = await page.evaluate(() => review.checkWinks());
     errors.push(...result.errors);

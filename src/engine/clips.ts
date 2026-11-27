@@ -78,6 +78,8 @@ export type Lane = 'poke' | 'cue' | 'pop' | 'blink' | 'wait' | 'change' | 'mood'
 
 export interface Clip {
   readonly lane: Lane;
+  /** Cues sharing a handoff own one pose. Transfer the visible frame when another is selected. */
+  readonly handoff?: (previous: Playing, next: Playing) => void;
   /** How long it plays, in ms: finite, more than 0. */
   readonly ms: number;
   /** One frame, u in [0, 1). The clip owns its operators, so the order of the arithmetic is the clip's. No randomness. */

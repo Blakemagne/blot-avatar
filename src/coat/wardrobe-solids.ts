@@ -1,3 +1,4 @@
+import { seatWardrobe } from './wardrobe-contact';
 import { bodyAttachment, fitHeadband, headphoneMount, rigidAttachment } from './wardrobe-fit';
 import { mountShift } from '../engine/wardrobe';
 import { dotRenderer } from '../engine/dot-renderer-registry';
@@ -22,7 +23,7 @@ export function wardrobeSolids(body: Body, mesh: CoatMesh, motion?: DotFaceMotio
   const transferred = model && body.wardrobeHost ? bodyAttachment(body.wardrobeHost, mesh, model.box) : undefined;
   const ornamentMesh = extra && fit ? dotRenderer.fittedMesh(extra, fit) : extra;
   const ornament: DotSolid | undefined = ornamentMesh ? {
-    mesh: ornamentMesh, tint,
+    mesh: ornamentMesh, tint, contact: style.extra === 'Bow tie' ? 'bow' : undefined,
     axes: transferred && model && body.wardrobeHost ? rigidAttachment(body.wardrobeHost, transferred, model.box, ornamentMesh, style.extra) : (fit ? NEUTRAL_ATTACHMENT : dotRenderer.dotAttachments[body.id]?.[style.extra] ?? NEUTRAL_ATTACHMENT), metal: style.extra === 'Crown',
   } : undefined;
   if (ornament && style.replaceExtra) {
@@ -64,5 +65,6 @@ export function wardrobeSolids(body: Body, mesh: CoatMesh, motion?: DotFaceMotio
       solid.axes = axes;
     }
   }
+  seatWardrobe(body,mesh,solids);
   return solids;
 }

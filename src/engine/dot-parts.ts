@@ -1,4 +1,5 @@
 import { prepare, surfaceTop, type Body, type Piece, type Sphere } from './body';
+import { dotRenderer } from './dot-renderer-registry';
 import { dotDepth, DOT_RADIUS } from './dot-depth';
 import { eyeProfiles, frameProfiles } from './dot-profiles';
 import { bounds, project, type Mat3 } from './math';
@@ -129,32 +130,45 @@ export function dotFace(
       out[i+1] = -(rotation[3]*x + rotation[4]*y + rotation[5]*z);
     }
   }
+  const activity = state.dotPlayback?.activity;
+  const named = activity && activity.slug !== 'ready';
+  const socketsInMotion = frog && named && (!style.catalogId || style.replaceEyes) && dotRenderer?.socketMotion(style.character === 'Todd' ? 'todd' : 'frog', activity);
+  const restingLids = style.character === 'Alfred' && !style.replaceEyes;
   for (const side of [-1, 1] as const) {
     if (style.originalEyes || coversEyes(style)) continue;
     const index = side < 0 ? 0 : 1;
     const name = side < 0 ? 'left' : 'right';
-    const lid = Math.max(0, state.lid * (state.lids?.[index] ?? 1));
+    const lid = restingLids ? 1 : Math.max(0, state.lid * (state.lids?.[index] ?? 1));
     const x = cx + side * (spacing + (native && glasses && !frog ? 5.5 * scale : 0)) / DESIGN_RADIUS;
-    const gazeX = body.eyes.slideX * state.eye.x, gazeY = body.eyes.slideY * state.eye.y;
-    function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false) {
+    const shifts = named && !socketsInMotion ? dotRenderer?.vectorEyeGaze(body,side,activity.gaze) : undefined;
+    const gazeX = restingLids || socketsInMotion || shifts ? 0 : body.eyes.slideX * state.eye.x;
+    const gazeY = restingLids || socketsInMotion || shifts ? 0 : body.eyes.slideY * state.eye.y;
+    function insert(id: string, fill: string, loops: readonly (readonly number[])[], open: number, fixed = false, layer = 0) {
       const polys: Float64Array[] = [];
+      const step = shifts?.[layer];
+      const du = step?.[0] ?? (fixed ? 0 : gazeX), dv = step?.[1] ?? (fixed ? 0 : gazeY);
       // The resting frog pupils sit slightly toward the bridge of the nose.
       const centre = frog && !fixed ? x - side * 4.5 / DESIGN_RADIUS : x;
       for (const loop of loops) {
         if (body.wardrobeHost) {
           if (rotation[8] > 0) {
             const offsets = loop.map((value,i) => value * scale / DESIGN_RADIUS * (i % 2 ? -open : 1));
-            polys.push(...eyePolys(body.wardrobeHost,rotation,centre+gazeX,eyeY+gazeY,offsets));
+            polys.push(...eyePolys(body.wardrobeHost,rotation,centre+du,eyeY+dv,offsets));
           }
           continue;
         }
         const poly = new Float64Array(loop.length);
         let facing = 0;
         for (let i = 0; i < loop.length; i += 2) {
-          const u = centre + (fixed ? 0 : gazeX) + loop[i] * scale / DESIGN_RADIUS;
-          const v = eyeY + (fixed ? 0 : gazeY) - loop[i+1] * open * scale / DESIGN_RADIUS;
+          const u = centre + du + loop[i] * scale / DESIGN_RADIUS;
+          const v = eyeY + dv - loop[i+1] * open * scale / DESIGN_RADIUS;
           const z = (depth(u,v) ?? depth(x,eyeY) ?? .55) + .025;
-          facePoint(u, v, z, poly, i);
+          const bone = socketsInMotion && socketsInMotion[index*2 + (fixed ? 0 : 1)];
+          if (bone) {
+            facePoint(bone[0]*u+bone[3]*v+bone[6]*z+DOT_RADIUS*bone[9],
+              bone[1]*u+bone[4]*v+bone[7]*z+DOT_RADIUS*bone[10],
+              bone[2]*u+bone[5]*v+bone[8]*z+DOT_RADIUS*bone[11],poly,i);
+          } else facePoint(u, v, z, poly, i);
           if (rotation[8] >= .7) facing++;
           else {
             const dx = ((depth(u+.004,v) ?? z) - (depth(u-.004,v) ?? z)) / .008;
@@ -168,13 +182,13 @@ export function dotFace(
     }
     if (frog) {
       if (lid >= .12) insert(name + '-socket', LIGHT, [circle(23.5, 24)], lid, true);
-      insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid));
+      insert(name, '#181a17', [circle(19.5, 20)], Math.max(.06, lid), false, 1);
     } else if (lid < .10) {
       insert(name, INK, [circle(14, Math.max(1.5, 120 / size))], 1);
     } else {
-      for (const layer of eyeProfiles[style.eyes][index]) {
+      for (const [i,layer] of eyeProfiles[style.eyes][index].entries()) {
         insert(layer.id === 'eye' ? name : name + '-' + layer.id,
-          layer.white ? LIGHT : style.eyes === 'Crescent inset' ? '#191a18' : INK, layer.loops, lid);
+          layer.white ? LIGHT : style.eyes === 'Crescent inset' ? '#191a18' : INK, layer.loops, lid, false, i);
       }
     }
   }

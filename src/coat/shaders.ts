@@ -52,7 +52,7 @@ layout(location = 2) in vec2 seed;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
-uniform bool orthographic, ornament, portraitCoat, builderPile, substrateRGB;
+uniform bool unlit, orthographic, ornament, portraitCoat, builderPile, substrateRGB;
 uniform vec2 feltExtent;
 uniform vec4 opticalFrame;
 uniform mat3 ornamentAxes;
@@ -116,7 +116,8 @@ void main() {
       if (any(lessThan(uv,vec2(0.))) || any(greaterThan(uv,vec2(1.)))) faceCoverage = 0.;
       vec3 outward = normalize(skin.yzw + vec3(0.,0.,.00001));
       P.z = skin.x + eyeRelief.x + clamp((position.z-eyeRelief.y)*eyeRelief.z,0.,1.)*eyeRelief.w;
-      faceCoverage = min(faceCoverage,dot(outward,normalize(camera-P)) + .06);
+      vec3 sight = orthographic ? transpose(rotation)*vec3(0.,0.,1.) : camera-transpose(rotation)*poseOffset-P*poseScale;
+      faceCoverage = min(faceCoverage,dot(outward,normalize(sight/poseScale)) + .06);
       Nm = normalize(vec3(.10*Nm.xy,0.) + (Nm.z >= 0. ? outward : -outward));
     }
   }
@@ -252,6 +253,9 @@ void main() {
   if (orthographic) {
     gl_Position = vec4((VIEW_UNIT * q.x + MID - square.x) / square.z,
                        (VIEW_UNIT * q.y + square.y - MID) / square.z, -q.z / deep, 1.);
+    // Keep the unlit silhouette on the same multisample locations when the
+    // driver specializes the body shader after drawing coloured fittings.
+    if (unlit) gl_Position.xy = round(gl_Position.xy*32768.)/32768.;
     return;
   }
   gl_Position = vec4(
@@ -397,12 +401,23 @@ void main() {
   if (unlit) {
     vec3 dye = color;
     if (ornament && finish >= 5) dye = studioLight(vec3(0.,0.,1.));
+    if (ornament && finish == 8) dye = studio[7];
     if (ornament && authoredTint) dye = tintedRadiance(vec2(.5), tintLayer, metal ? 1 : 0);
     result = vec4(dye, 1.);
     return;
   }
   vec3 n = normalize(N);
   if (ornament) {
+    if (finish == 8) {
+      // A nearby softbox reflects at different angles in the two curved lenses.
+      vec3 normal = n*vec3(1.,-1.,1.);
+      vec3 lamp = normalize(studio[4]-scenePlace);
+      vec3 halfVector = normalize(lamp+vec3(0.,0.,1.));
+      float reflection = pow(max(0.,dot(normal,halfVector)),studio[6].x);
+      vec3 base = studio[0]+normal.x*studio[1]+normal.y*studio[2]+normal.z*studio[3];
+      result = vec4(clamp(base+reflection*studio[5],0.,1.),1.);
+      return;
+    }
     if (finish == 7) {
       // The short pile on the three-lobed portrait tuft stipples the surface
       // evenly. A directional comb across it reads as ridges on the lobes.

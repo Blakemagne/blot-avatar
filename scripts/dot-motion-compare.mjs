@@ -73,3 +73,82 @@ for (const [t, expected] of readyObservations) {
 }
 console.log('Ready idle, next cycle:',readyObservations.length,'checkpoints, median',quantile(swayErrors,.5).toFixed(4),'p95',quantile(swayErrors,.95).toFixed(4),'maximum',Math.max(...swayErrors).toFixed(4));
 if (Math.max(...swayErrors) > 3) process.exitCode = 1;
+
+const { DOT_CATALOG, DOT_CHARACTERS, DOT_CLIPS } = await import('../src/index.ts');
+const { socketMotion } = await import('../src/engine/dot-motion.ts');
+const sockets = JSON.parse(readFileSync(new URL('../golden/dots/socket-motion-checkpoints.json',import.meta.url)));
+const insertError = [];
+let insertFrames = 0;
+function targetAt(slug, ms) {
+  const clip = DOT_CLIPS['dot-'+slug], channels = { yaw:0, pitch:0, roll:0 };
+  clip.apply(channels,{ u:ms/clip.ms, cue:{ amount:1, dir:1 } });
+  return channels.dotPlayback;
+}
+function displacement(a,b) { return Math.hypot(...a.map((x,i) => x-b[i])) * 140.6592; }
+for (const [wearer, motions] of Object.entries(sockets)) {
+  const centres = wearer === 'frog' ? [
+    [-.460938,.476562,.542596],[-.428125,.476562,.561685],[.460938,.476562,.543099],[.428125,.476562,.562142],
+  ] : [
+    [-.459375,.489062,.511467],[-.460938,.489062,.586746],[.459375,.489062,.511467],[.460938,.489062,.586746],
+  ];
+  for (const [slug, frames] of Object.entries(motions)) for (const [ms, points] of frames) {
+    const parts = socketMotion(wearer,targetAt(slug,ms).activity);
+    let offset = 0;
+    for (const [i, m] of parts.entries()) for (const tip of [[0,0,0],[.04,.04,.03]]) {
+      const p = centres[i].map((x,k) => x+tip[k]);
+      insertError.push(displacement(apply3(m,p),points.slice(offset,offset+3)));
+      offset += 3;
+    }
+    insertFrames++;
+  }
+}
+console.log('raised sockets and pupils:',insertFrames,'checkpoints, maximum',Math.max(...insertError).toFixed(3),'px');
+if (Math.max(...insertError) > .18) process.exitCode = 1;
+
+const insertRefs = JSON.parse(readFileSync(new URL('../golden/dots/insert-motion-checkpoints.json',import.meta.url)));
+const presets = { alfred: DOT_CHARACTERS.Alfred, blue_spectacles: DOT_CATALOG.find(p => p.id === 'blue_spectacles').appearance,
+  coral_monocle: DOT_CHARACTERS.Iris, lime_headphones: DOT_CHARACTERS.Iggy };
+const styles = { crescent_inset:'Crescent inset',double_highlights:'Round highlights',highlight_capsules:'Highlight capsules',
+  dots:'Dots',sleepy_lids:'Sleepy lids' };
+function measureInserts(observations, appearance) {
+  const errors = [];
+  for (const [wearer, motions] of Object.entries(observations)) {
+    const {body} = dotAvatar(appearance(wearer));
+    const rest = dotFeatures(body);
+    for (const [slug, frames] of Object.entries(motions)) for (const [tick,...native] of frames) {
+      const playback = targetAt(slug,1000*tick/60);
+      // The native optical transform describes open surfaces. Closed eye designs
+      // also change their contour, which the live wink images check separately.
+      if (playback.eyes.some(m => m[4] < .99)) continue;
+      const parts = dotFeatures(body,{x:0,y:0,left:1,right:1,playback});
+      for (const [i,m] of native.entries()) {
+        const box = rest[i].mesh.box;
+        const centre = [0,1,2].map(k => (box[k]+box[k+3])/2);
+        const actual = apply3(parts[i].axes,centre).map(x => x/DOT_RADIUS);
+        const neutral = apply3(rest[i].axes,centre).map(x => x/DOT_RADIUS);
+        errors.push(displacement(actual,apply3(m,neutral)));
+      }
+    }
+  }
+  return errors;
+}
+const catalogRefs = {}, wearerRefs = {};
+for (const [wearer, motions] of Object.entries(insertRefs)) {
+  (['sunny','clover','matisse'].includes(wearer) ? catalogRefs : wearerRefs)[wearer] = motions;
+}
+const fittedErrors = measureInserts(wearerRefs, wearer => {
+  const [shape,eyes] = wearer.split('__');
+  return presets[wearer] ?? {shape:'dot-'+shape.replaceAll('_','-'),eyes:styles[eyes]};
+});
+function checkPositions(label, errors, limit95, limitMax) {
+  const p95 = quantile(errors,.95), max = Math.max(...errors);
+  console.log(label,errors.length,'positions, p95',p95.toFixed(3),'maximum',max.toFixed(3),'px');
+  if (!errors.length || p95 > limit95 || max > limitMax) process.exitCode = 1;
+}
+checkPositions('open eyes on portraits and builder bodies:',fittedErrors,.18,.65);
+const catalogErrors = measureInserts(catalogRefs, id => DOT_CATALOG.find(row => row.id === id).appearance);
+checkPositions('catalog eye inserts:',catalogErrors,.30,.40);
+
+const ovalRefs = JSON.parse(readFileSync(new URL('../golden/dots/oval-motion-checkpoints.json',import.meta.url)));
+const ovalErrors = measureInserts(ovalRefs, shape => ({shape,eyes:'Oval'}));
+checkPositions('moving oval eyes on ten shells:',ovalErrors,1.05,2.25);

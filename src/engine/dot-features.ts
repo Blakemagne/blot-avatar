@@ -1,3 +1,7 @@
+import { frontDepth } from '../coat/face-surface';
+import { fitFrameNormals } from './dot-frame-normals';
+import { bowNormals } from './dot-bow-normals';
+import { socketMotion } from './dot-motion';
 import { portraitMount } from './dot-portrait-fit';
 import { coversEyes, FRAME_CURVE, frameMount, type DotStyle } from './dot-parts';
 import { eyeSurfaces } from './dot-eye-surfaces';
@@ -6,7 +10,7 @@ import { eyeSurfaceMesh } from './dot-eye-mesh';
 import { builderFittings } from './dot-builder-fittings';
 import { catalogFittings } from './dot-catalog-fittings';
 import { fittedMesh } from './dot-fitted-mesh';
-import { gazeTransform, transformAxes } from './dot-gaze';
+import { gazeTransform, hasGazeRig, seatMovingOval, transformAxes } from './dot-gaze';
 import { catalogParts } from './dot-catalog-parts';
 import { eyewearFits, eyeMaterials, frameFits } from './dot-eyewear-fits';
 import { faceFits } from './dot-face-fits';
@@ -28,11 +32,14 @@ export interface DotSolid {
   axes: readonly number[];
   tint: Rgb;
   metal?: boolean;
+  contact?: 'bow' | 'frame';
   material?: number;
   insetSurface?: number;
   portraitSection?: number;
   /** Layer above the host shell in an eye insert (base, pupil, catchlight). */
   faceLayer?: number;
+  /** Printed facial ink is only visible over the wearer's projected shell. */
+  skinInk?: boolean;
   catalogCrownLayer?: number;
   /** Dark or white curved eye and eyewear materials. */
   finish?: 'ink' | 'white' | 'portrait-ink' | 'portrait-glass';
@@ -133,6 +140,27 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
     (x,y) => dome[6]+dome[7]*x+dome[8]*y)
     : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
+  if (parts === featureSections.Thelma || parts === featureSections.Iggy) {
+    fitFrameNormals(mesh,parts === featureSections.Thelma ? 'Thelma' : 'Iggy',parts.indexOf(section));
+  }
+  if (section.role === 'extra') {
+    const wearer = parts === featureSections.Todd ? 'Todd' : parts === featureSections.Alfred ? 'Alfred' : undefined;
+    if (wearer) {
+      const coeff = bowNormals[wearer][section.side < 0 ? 0 : 1], v = mesh.vertices;
+      for (let i = 0; i < v.length; i += 6) {
+        if (v[i+5] <= 0) continue;
+        const x = (v[i]/DOT_RADIUS-cx)/radius, y = (v[i+1]/DOT_RADIUS-cy)/radius;
+        const n = [0,0,0];
+        let k = 0;
+        for (let degree = 0; degree <= 5; degree++) for (let j = 0; j <= degree; j++) {
+          const term = x**(degree-j) * y**j;
+          for (let d = 0; d < 3; d++) n[d] += coeff[k++] * term;
+        }
+        const length = Math.hypot(...n) || 1;
+        for (let d = 0; d < 3; d++) v[i+3+d] = n[d]/length;
+      }
+    }
+  }
   const surface = {
     mesh,
     front(x: number, y: number) {
@@ -147,6 +175,27 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
 const INK: Rgb = [32,32,32], WHITE: Rgb = [254,254,254];
 const IDENTITY = [1,1,0,0,1,0,0,0] as const;
 const STILL: DotFaceMotion = { x:0, y:0, left:1, right:1 };
+/** Project the same moving ink and highlight centres onto the SVG contours. */
+export function vectorEyeGaze(body: Body, side: number, look: readonly number[]): number[][] | undefined {
+  const style = body.dotStyle!;
+  const fixed = !style.replaceEyes && (style.catalogId ? catalogParts(style.catalogId) : style.character && featureSections[style.character]);
+  if (style.eyes === 'Oval' && (!fixed || style.character === 'Felipe flower' || style.character === 'Blossie')) return;
+  const frog = !body.wardrobeHost && body.id === 'dot-rounded-head-with-two-ears';
+  const key = fixed ? style.catalogId ? 'catalog/'+style.catalogId : 'portrait/'+style.character
+    : (body.wardrobeHost ? 'dot-rounded-triangle' : body.id)+'/'+(frog ? 'Raised sockets' : style.eyes);
+  if (!hasGazeRig(key)) return;
+  const pieces = fixed || featureSections[frog ? 'Raised sockets' : style.eyes];
+  const offsets: number[][] = [];
+  for (const [i,s] of pieces.entries()) {
+    if (s.side !== side || (s.role !== 'socket' && s.role !== 'eye' && s.role !== 'catch')) continue;
+    const m = gazeTransform(key,i,[1,0,0,0,1,0,0,0,1,0,0,0],look[0],look[1]);
+    const [x,y,z] = s.origin;
+    const scale = body.wardrobeHost ? body.eyes.x/(DOT_RADIUS*Math.abs(x)) : 1;
+    offsets.push(m ? [0,1,2].map(k => scale*(DOT_RADIUS*(m[k]*x+m[k+3]*y+m[k+6]*z-[x,y,z][k])+m[k+9])) : [0,0,0]);
+  }
+  return offsets;
+}
+
 /** Assemble the measured eye inserts and frames on the active wearer, including the independent eyelid pivots. */
 export function dotFeatures(body: Body, motion: DotFaceMotion = STILL, extraTint: Rgb = INK): DotSolid[] {
   const style = body.dotStyle;
@@ -189,7 +238,10 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
   const eyeX = motion.x * body.eyes.slideX, eyeY = motion.y * body.eyes.slideY;
   // Motion tracks were sampled on the oval donor. Conjugate each bone around
   // the wearer's resting eye so a wink on a high brow closes at that brow.
-  const bones = motion.playback?.eyes.map((bone, index) => {
+  const ovalShell = motion.playback && !fixed && !body.wardrobeHost && !frog && style.eyes === 'Oval'
+    && body.id !== 'dot-rounded-triangle' ? dotMesh(body.id) : undefined;
+  const playbackEyes = ovalShell && motion.playback?.naturalEyes || motion.playback?.eyes;
+  const bones = playbackEyes?.map((bone, index) => {
     const side = index === 0 ? -1 : 1;
     const donor = featureSections.Oval[index].origin;
     const socket = pieces.find(section => section.side === side && section.role === 'socket');
@@ -207,8 +259,27 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     fitted[9] += dx - bone[0]*dx - bone[3]*dy;
     fitted[10] += dy - bone[1]*dx - bone[4]*dy;
     fitted[11] -= bone[2]*dx + bone[5]*dy;
+    if (ovalShell && fit[0] !== 1) {
+      // Smaller eyes travel proportionally less across the rabbit and hexagon.
+      const travel = fit[0]-1;
+      fitted[9] += travel*((bone[0]-1)*donor[0]+bone[3]*donor[1]+bone[9]);
+      fitted[10] += travel*(bone[1]*donor[0]+(bone[4]-1)*donor[1]+bone[10]);
+    }
+    if (ovalShell) seatMovingOval(fitted,x,y,(u,v) => {
+      const depth = frontDepth(ovalShell,u*DOT_RADIUS,v*DOT_RADIUS);
+      return depth === undefined ? undefined : depth/DOT_RADIUS;
+    });
     return fitted;
   });
+  const activity = motion.playback?.activity;
+  const sockets = frog && (!fixed || style.character === 'Todd') && activity
+    ? socketMotion(fixed ? 'todd' : 'frog', activity) : undefined;
+  // Oval eye solids also perform expressive deformations independent of gaze.
+  // The other measured rigs move the individual ink, socket and highlight layers.
+  const focusKey = body.wardrobeHost ? 'dot-rounded-triangle/' + style.eyes : gazeKey;
+  const useFocus = activity && !sockets && hasGazeRig(focusKey)
+    && (style.eyes !== 'Oval' || fixed && style.character !== 'Felipe flower' && style.character !== 'Blossie');
+  const restingLids = style.character === 'Alfred' && !style.replaceEyes;
   const result: DotSolid[] = [];
   for (const [index, s] of pieces.entries()) {
     if (include && !include(s)) continue;
@@ -216,9 +287,13 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     const fit = s.role === 'glass' ? fits?.[style.glasses]?.[0]
       : isEye && !frog ? fits?.[style.eyes]?.[s.side < 0 ? 0 : 1] : undefined;
     const [sx,sy,zx,zy,sz,dx,dy,dz] = fit ?? IDENTITY;
-    const bone = (isEye || s.role === 'socket') && bones?.[s.side < 0 ? 0 : 1];
+    const donorBone = (isEye || s.role === 'socket') && bones?.[s.side < 0 ? 0 : 1];
+    const socketBone = (isEye || s.role === 'socket') && sockets?.[index];
+    const bone = socketBone || (!useFocus && donorBone);
     const blinking = isEye || frog && s.role === 'socket';
-    const lid = blinking ? Math.max(.055, s.side < 0 ? motion.left : motion.right) : 1;
+    const blink = s.side < 0 ? motion.left : motion.right;
+    const playbackLid = (socketBone || useFocus) && donorBone ? Math.min(1, donorBone[4]) : 1;
+    const lid = blinking && !restingLids ? Math.max(.055, blink * playbackLid) : 1;
     // A closed lid hides the socket and its reflections. Compressing white
     // inserts to the minimum thickness leaves a bright stripe through the blink.
     const closed = lid * (bone ? bone[4] : 1) < .12;
@@ -259,8 +334,22 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
         (host.eyes.cx ?? 0) + s.side*host.eyes.x - scale*base[0]*DOT_RADIUS,
         host.eyes.y - scale*lid*base[1]*DOT_RADIUS, 0];
     }
-    const gaze = !host && (isEye || s.role === 'socket') ? gazeTransform(gazeKey, index, axes, eyeX/.0391, eyeY/.0512) : undefined;
-    if (!gaze && isEye) {
+    const lookX = useFocus ? activity.gaze[0] : 0, lookY = useFocus ? activity.gaze[1] : 0;
+    const usePointer = !activity || activity.slug === 'ready';
+    let gaze: number[] | undefined;
+    if (isEye || s.role === 'socket') {
+      if (socketBone && activity?.slug !== 'ready') gaze = axes;
+      else if (host && useFocus) {
+        // Express the motion in the donor insert's coordinates first. Its
+        // calibrated highlight can move independently of the ink on a Blot face.
+        const local = gazeTransform(focusKey,index,[1,0,0, 0,1,0, 0,0,1, 0,0,0],
+          lookX + (usePointer ? eyeX/.0391 : 0), lookY + (usePointer ? eyeY/.0512 : 0));
+        if (local) gaze = transformAxes([...axes.slice(0,9), ...axes.slice(9).map(v => v/DOT_RADIUS)], local);
+      } else if (!host) {
+        gaze = gazeTransform(gazeKey,index,axes,lookX + (usePointer ? eyeX/.0391 : 0),lookY + (usePointer ? eyeY/.0512 : 0));
+      }
+    }
+    if (!gaze && isEye && usePointer) {
       axes[9] += eyeX;
       axes[10] += eyeY;
     }
@@ -294,7 +383,10 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     }
     const dyedExtra = style.tintExtra && s.role === 'extra';
     result.push({
-      mesh, faceLayer, tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
+      mesh, faceLayer, skinInk: !frog && !host && isEye && style.eyes !== 'Oval' && style.character !== 'Josh' && !!activity && activity.slug !== 'ready',
+      contact: s.role === 'extra' && style.extra === 'Bow tie' ? 'bow' :
+        s.role === 'glass' && (style.glasses === 'Tall oval frames' || style.glasses === 'Separate trapezoid lenses') ? 'frame' : undefined,
+      tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: bone ? transformAxes(bone, gaze ?? axes) : gaze ?? axes,
       metal: dyedExtra && style.extra === 'Crown',
       material: dyedExtra ? undefined : (index < eyes.length && materials ? materials[index] : undefined) ?? s.material,

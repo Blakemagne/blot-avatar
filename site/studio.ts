@@ -4,7 +4,7 @@
 // Scholz and its contributors (MIT; see THIRD_PARTY_NOTICES.md).
 
 import {
-  avatarParts, BOT_COLOURS, bodyOf, bounds, coatMesh, colours, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
+  avatarParts, BOT_COLOURS, bodyOf, bounds, coatMesh, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
 
 const front = rotation({ yaw: 0, pitch: 0, roll: 0 });
@@ -295,11 +295,11 @@ function croppedSvg(paths: SvgPath[], size: number, fallback: string): string {
 
 /** The avatar as a standalone SVG still, including its selected wardrobe. */
 export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf(shape), eyeFill?: string): string {
-  const d = drawAvatar(body, colour, stillState(shape, size), size), c = colours(colour);
+  const d = drawAvatar(body, colour, stillState(shape, size), size);
   const layers = d.layers ?? [];
   return croppedSvg([
-    ...layers.filter(l => !l.front), { d: d.body, fill: c.fill }, ...layers.filter(l => l.front && !l.overEyes),
-    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? c.eyeFill })), ...layers.filter(l => l.overEyes),
+    ...layers.filter(l => !l.front), { d: d.body, fill: d.fill }, ...layers.filter(l => l.front && !l.overEyes),
+    ...d.eyes.map(path => ({ d: path, fill: eyeFill ?? d.eyeFill })), ...layers.filter(l => l.overEyes),
   ], size, d.viewBox);
 }
 

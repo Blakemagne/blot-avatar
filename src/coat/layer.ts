@@ -289,7 +289,15 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const style = c.dotFace && !base.warp && !crossing ? base.body.dotStyle : undefined;
     const tint = style ? hexOf(style.extraColour) ?? painted(style.extraColour) ?? [31,31,31] as Rgb : undefined;
     const radius = style?.extra !== 'None' && style ? 2.1 : c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
-    const dpr = ratio(), box = coatBox(now.size, dpr, radius), pxPerUnit = (now.size * dpr) / 2;
+    // Dot playback moves the geometry inside WebGL, before the canvas is
+    // composited. Its resting sphere no longer encloses a roll or a dash.
+    const playback = c.dotFace?.playback;
+    const scale = playback?.scale;
+    const stretch = Math.max(scale?.[0] ?? 1, scale?.[1] ?? 1, (scale?.[2] ?? 1) * (style?.depthScale ?? 1));
+    const movingRadius = radius * stretch + (playback ? Math.hypot(...playback.offset) : 0);
+    // Grow in quarter-unit increments to avoid reallocating on every frame.
+    const reach = movingRadius > radius ? Math.ceil(movingRadius * 4) / 4 : radius;
+    const dpr = ratio(), box = coatBox(now.size, dpr, reach), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = style ? colourOf(now.fill) : dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0);
     const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');

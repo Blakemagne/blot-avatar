@@ -3,6 +3,11 @@ import { DOT_RADIUS } from './dot-depth';
 
 const decoded = new Map<number, Int32Array>();
 
+/** An explicit stationary response is also a measured rig. */
+export function hasGazeRig(key: string): boolean {
+  return gazeParts[key] !== undefined;
+}
+
 /** Move an insert on the wearer's surface, after applying its neutral fit and eyelid pivot. */
 export function gazeTransform(key: string, section: number, axes: number[], x: number, y: number): number[] | undefined {
   const fit = gazeParts[key]?.[section];
@@ -45,4 +50,20 @@ export function transformAxes(relative: readonly number[], axes: readonly number
     }
   }
   return result;
+}
+
+/** Retarget an oval's in-plane expression to the front sheet of this head.
+ * Its depth change and its two tangent vectors must agree at the eye centre. */
+export function seatMovingOval(bone: number[], x: number, y: number, depth: (x: number,y: number) => number | undefined): void {
+  const u = bone[0]*x + bone[3]*y + bone[9], v = bone[1]*x + bone[4]*y + bone[10];
+  const h = depth(x,y), moved = depth(u,v);
+  if (h === undefined || moved === undefined) return;
+  const step = .027;
+  const slope = (x: number,y: number,z: number,dx: number,dy: number) =>
+    ((depth(x+dx,y+dy) ?? z) - (depth(x-dx,y-dy) ?? z))/(2*step);
+  const ax = slope(x,y,h,step,0), ay = slope(x,y,h,0,step);
+  const bx = slope(u,v,moved,step,0), by = slope(u,v,moved,0,step);
+  bone[2] = bx*bone[0] + by*bone[1] - ax;
+  bone[5] = bx*bone[3] + by*bone[4] - ay;
+  bone[11] = moved-h-bone[2]*x-bone[5]*y;
 }

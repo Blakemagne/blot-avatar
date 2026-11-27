@@ -204,3 +204,63 @@ export async function checkWinks() {
   }
   return { views, errors };
 }
+
+const motionWearers = [
+  dotAvatar({shape:'dot-rounded-head-with-two-ears'}),
+  dotAvatar({shape:'dot-rounded-diamond', depth:1}),
+  dotAvatar({shape:'dot-heart', extra:'Hat', extraMount:'left'}),
+  dotAvatar(DOT_CHARACTERS.Iris),
+  dotAvatar(DOT_CATALOG.find(row => row.id === 'sunny')!.appearance),
+  avatarParts('teardrop',{eyes:'Crescent inset'}),
+  avatarParts(GALLERY.find(row => row.definition.id === 'egg')!.definition,{extra:'Headphones'}),
+  { shape: 'blob' },
+];
+export const motionWearerCount = motionWearers.length;
+
+/** Sample each track's largest horizontal excursion, vertical excursion and stretch.
+ * The material must have transparent space on every side, including during a turn. */
+export async function checkMotionBounds(index: number) {
+  const options = motionWearers[index], host = document.querySelector<HTMLElement>('main')!;
+  const bot = mount(host,{...options,clips:DOT_CLIPS,material:index%2?'fluffy':'glossy',size:104,follow:false});
+  const failures: string[] = [];
+  let views = 0;
+  try {
+    const rig = bot.live.rig;
+    rig.step = () => true;
+    for (const [name,clip] of Object.entries(DOT_CLIPS)) {
+      for (const dir of [-1,1]) {
+        const track = new Rig({clips:DOT_CLIPS,idle:false,blinks:false});
+        track.play(name,{dir,amount:dir===1?1:2});
+        const peaks = [-Infinity,-Infinity,-Infinity];
+        const samples = [0,0,0];
+        const frames = [];
+        for (let i=0;i<64;i++) {
+          track.step(clip.ms/65);
+          const {pose,dotPlayback} = track.state;
+          if (!dotPlayback) throw new Error('missing track '+name);
+          frames.push({pose:{...pose}, playback:dotPlayback});
+          const [x,y] = dotPlayback.offset;
+          [Math.abs(x),Math.abs(y),Math.max(...dotPlayback.scale)].forEach((value,k) => {
+            if (value > peaks[k]) { peaks[k] = value; samples[k] = i; }
+          });
+        }
+        for (const i of new Set(samples)) {
+          Object.assign(rig.state.pose,frames[i].pose);
+          rig.state.dotPlayback = frames[i].playback;
+          rig.state.ultra = dir<0 ? {amount:1,phase:.3} : undefined;
+          bot.live.motion();
+          const {width,height,data} = await materialPixels(host);
+          let edge = 0, occupied = 0;
+          for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+            if (data[4*(y*width+x)+3] < 64) continue;
+            occupied++;
+            if (!x || !y || x===width-1 || y===height-1) edge++;
+          }
+          if (edge || !occupied) failures.push(name+' direction '+dir+' sample '+i+' border '+edge+' painted '+occupied);
+          views++;
+        }
+      }
+    }
+  } finally { bot.destroy(); }
+  return {views,failures};
+}

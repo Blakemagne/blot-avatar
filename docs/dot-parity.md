@@ -6,7 +6,7 @@ The linked cyan triangle with fur, sleepy lids and a yellow crown scores **99.84
 |---|---:|---:|---:|---:|---:|
 | Builder and editor starters, 512 px | 96 | 99.9465% | 87.7223% | 1.40 | 0 |
 | Held-out turns, depth settings and their neutral control, 384 px | 83 | 99.9419% | 89.0693% | 0.27 | 0 |
-| Named catalog and its builder control, 512 px | 109 | 99.9257% | 45.4458% | 1.29 | 0 |
+| Named catalog and its builder control, 512 px | 109 | 99.9257% | 45.4458% | 1.28 | 0 |
 
 Each set contains a control image. Six editor starter portraits also appear in the catalog set. Each CSV contains one row per comparison. [Builder and starter scores](../golden/dots/metrics-neutral.csv) · [Rotation scores](../golden/dots/metrics-rotation.csv) · [Catalog scores](../golden/dots/metrics-catalog.csv)
 
@@ -70,6 +70,20 @@ A nine-second recording shows the linked character and the port responding to th
 Two 100-second runs of the live renderer provide a repeatability control. Both used the linked recipe, Ready activity, a centred pointer and 60 clock steps per second. At 192 px, 54 of the 100 once-per-second image pairs matched exactly. In the other 46, exact foreground agreement fell below 99.99%, reaching 21.26% in the least similar pair. Independent live runs can therefore fail the frame-by-frame gate even when the renderer and inputs match. Deterministic pose captures and separately scored spontaneous behaviour distinguish this timing difference from material and geometry errors. [Native-to-native image scores](../golden/dots/ready-repeatability.csv)
 
 The cursor tests include cases where the support stays fixed and its highlights travel independently. They cover a raised-socket face, Iris’s portrait and the largest catalog gaze error measured, Clover. [Held-out gaze observations](../golden/dots/gaze-checkpoints.json)
+
+### eye placement during activities
+
+the orbit and radar activities replace a dressed wearer with a smaller disc. both eyes now move onto that disc as it forms, including when the previous pose had only one visible eye. the studio review exercised five activity controls on todd, alfred, sunny, a circle and a teardrop. the three-dot loader, ring and progress bar each have their own faceless design. [studio activity captures](dot-review/activity-figure-review.webp)
+
+in the editable frog, the pupils move independently of their white sockets. todd moves both layers. the 538 sampled poses of these two rigs matched the observed landmarks within 0.049 px at 512 px framing. across nine other faces, 95% of the 396 sampled eye components landed within 0.133 px. the 120 measurements on sunny, clover and tavi had a 95th-percentile error of 0.228 px. the oval eyes on ten different shells ranged up to 2.084 px from the reference across six activities. the comparison measures three-dimensional displacement in pixel units before rasterization. the SVG renderer also moves iris’s glints independently of her dark eye supports. [socket observations](../golden/dots/socket-motion-checkpoints.json) · [eye observations](../golden/dots/insert-motion-checkpoints.json) · [oval observations](../golden/dots/oval-motion-checkpoints.json)
+
+in the profile review, alfred’s outer rim also projects past the cheek in the live reference. the comparison shows the frame, bow and eyelid as the face turns. each close-up is centred and scaled independently so the fittings can be inspected. differences in the surface of the fur remain visible, particularly on the yellow and lime heads. [live and blot close-ups](dot-review/activity-motion-review.webp)
+
+a rerender of all 288 registered cases exposed a misplaced crown on cleo. its fitting had inherited another preset’s cap coefficients. restoring cleo’s measured crown reduced her whole-image mean channel error from 52.06 to 0.89. a regression now measures the centres and sizes of all 77 fitted catalog extras against their own reference sections. the held-out side views also confirmed that the raised edges of oval eyes should remain visible beyond the cheek. [cleo before and after](dot-review/cleo-crown-review.webp)
+
+thelma’s left sunglass lens was missing its broad reflection and iggy’s ear cups showed ridges. the updated surface normals follow the lens and cup geometry as the head turns. thelma’s lenses also use the measured position of the studio light. across the 12,185 labelled sunglass pixels, average premultiplied channel error decreased from 6.10 to 3.03. iggy’s whole-image error in the held-out turn went from 6.43 to 6.34. [sunglass close-up](dot-review/lens-review.webp)
+
+the framing test samples each of the 54 motions at 64 times, then renders the extreme poses for eight wearers at normal strength and mirrored double strength. across 1,984 rendered frames, the earlier build clipped 274 frames in 36 motions. the revised bounds cleared every frame, including barrel roll. in 501 finish combinations, full ultracode preserved all 290,585 sampled interior fitting pixels. [browser regression](../scripts/wardrobe-power-page.ts)
 
 ## Reproduce a comparison
 

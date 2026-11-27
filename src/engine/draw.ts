@@ -171,7 +171,8 @@ export function detail(size: number): { rim: number; eye: number; boost: number 
  * Body and eye colours. For a hex colour ('#rrggbb') the eyes are white, except on a body too pale for white
  * to show, where they are dark. Any other CSS colour is the fill as it is, with white eyes.
  */
-export function colours(colour: string): { fill: string; eyeFill: string } {
+export function colours(colour: string, wearer?: Body): { fill: string; eyeFill: string } {
+  if (wearer?.dotStyle && !wearer.dotStyle.originalEyes) return { fill: colour, eyeFill: '#202024' };
   if (!/^#[0-9a-f]{6}$/i.test(colour)) return { fill: colour, eyeFill: '#FFFFFF' };
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16) / 255);
   const light = 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -260,6 +261,32 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
   return [shapes[0], shapes[1]];
 }
 
+/** Orbit and radar keep their eyes on the figure's disc. A tall brow, a
+ * pitched portrait or a disappearing far eye is a starting pose only. */
+function figureEyes(eyes: [Float64Array[], Float64Array[]], state: RigState, size: number) {
+  const fig = state.figure!;
+  const blend = discAt(fig.k), radius = figureRadius(fig.form);
+  for (const [i, side] of [-1, 1].entries()) {
+    const source = eyes[i];
+    const goalX = radius*(side*.29 + .15*Math.max(-1, Math.min(1, state.eye.x)));
+    const goalY = -radius*(.11 + .15*Math.max(-1, Math.min(1, state.eye.y)));
+    const eyeRadius = Math.max(1.25/size, radius*.083);
+    if (blend === 1 || !source.length) {
+      eyes[i] = [disc(goalX,goalY,eyeRadius*blend,32)];
+      continue;
+    }
+    const [x0,y0,x1,y1] = bounds(source), cx = (x0+x1)/2, cy = (y0+y1)/2;
+    const rx = Math.max(.0001,(x1-x0)/2), ry = Math.max(.0001,(y1-y0)/2);
+    // Preserve each visible contour as the dot leaves the old face. A far
+    // eye clipped by the old rim can appear gradually on the new disc.
+    for (const poly of source) for (let k = 0; k < poly.length; k += 2) {
+      const angle = Math.atan2((poly[k+1]-cy)/ry,(poly[k]-cx)/rx);
+      poly[k] += blend*(goalX+eyeRadius*Math.cos(angle)-poly[k]);
+      poly[k+1] += blend*(goalY+eyeRadius*Math.sin(angle)-poly[k+1]);
+    }
+  }
+}
+
 /**
  * Where the two eyes' centres are drawn on a body (or part way between bodies) for this state: x, y of the
  * left, then of the right, into out[at...]. False when an eye's place is off its body.
@@ -312,7 +339,9 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
         y: state.eye.y + (centres[0][1]+centres[1][1])*.475 / body.eyes.slideY },
       lids: [eyelids[0]*(state.lids?.[0] ?? 1), eyelids[1]*(state.lids?.[1] ?? 1)] };
   }
-  const portrait = body.dotStyle?.character;
+  // Named activities start in the motion's own coordinate system. Composing
+  // the picker tilt again advances the near lens past the profile too early.
+  const portrait = playback?.activity && playback.activity.slug !== 'ready' ? undefined : body.dotStyle?.character;
   rotation(portrait && portrait !== 'Blossie' && portrait !== 'Felipe flower'
     ? { ...state.pose, yaw: state.pose.yaw + 8 * Math.PI / 180 } : state.pose, R);
   if (portrait === 'Felipe flower') {
@@ -353,7 +382,10 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
         shift(eyes[1], spot[2] + (spot[6] - spot[2]) * k - spot[10], spot[3] + (spot[7] - spot[3]) * k - spot[11]);
       }
     } else eyes = eyesOn(body, state, size, own);
-    if (fig) round(r, figureRadius(fig.form), discAt(fig.k));
+    if (fig) {
+      round(r, figureRadius(fig.form), discAt(fig.k));
+      if (body.dotStyle && (fig.form === 'orbit' || fig.form === 'radar')) figureEyes(eyes, state, size);
+    }
     reach = r;
     // (The figure's parts first: the spinner shapes the disc's own edge.)
     const parts = fig ? figureParts(fig, n, 2 / size, r) : null;
@@ -594,7 +626,7 @@ export function bodyShapes(body: Body, state: RigState, size: number): Float64Ar
  */
 export function drawAvatar(body: Body, colour: string, state: RigState, size: number, opts?: { coat?: boolean }): Drawing {
   const { coatRotation, body: outline, eyes, layers, shadow, opacity, frame, affine, bare, reach, shape } = compose(body, state, size, opts?.coat === true);
-  const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour) };
+  const out: Drawing = { viewBox: VIEW_BOX, body: toPath(outline, UNIT, MID), eyes: [toPath(eyes[0], UNIT, MID), toPath(eyes[1], UNIT, MID)], ...colours(colour, state.body ?? body) };
   if (layers.length) {
     // The ones behind first, then the ones in front: the order to paint them in.
     out.layers = [...layers.filter((l) => !l.front), ...layers.filter((l) => l.front)]
