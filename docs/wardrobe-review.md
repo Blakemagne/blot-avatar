@@ -63,6 +63,8 @@ the heart and capsule offer original, left and right positions for the beanie, h
 
 on moxie, classic sunglasses touched the canvas edge during low sweep, considering two options and disagreeing. the old bounds included hats but used only the body radius on wearers with glasses alone. replaying the same 1,102 motion frames at 144 px reduced clipped frames from 11 to zero. the motion regression includes moxie, both directions, normal and double strength, and the midpoint of every clip.
 
+a second pass separated the curvature of the monocle cord from the ring and fitted the bevel of each tall oval rim. the fits use 48 landmarks per rim across 89 body and eye combinations. on the capsule's 2,580 labelled monocle pixels, mean channel error fell from 8.14 to 1.17 and exact agreement rose from 36.55% to 63.91%. all seven affected frontal outfits and their seven independent turned views improved. [registered reference and rerender commands](dot-parity.md#reproduce-a-comparison)
+
 ## reference results
 
 the revised build was captured at native resolution in chromium using hardware OpenGL on the same AMD radeon 890m used for the archived reference. the catalog and neutral comparisons isolated 769 visible component regions. exact pixels are sensitive to the graphics backend. these are the measurements from this run. [builder and starters](../golden/dots/metrics-neutral.csv) · [turns](../golden/dots/metrics-rotation.csv) · [catalog](../golden/dots/metrics-catalog.csv)

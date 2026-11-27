@@ -20,7 +20,7 @@ import type { Material } from '../live';
 
 import type { Body } from '../engine/body';
 import { PILE_REACH, coatMesh, type CoatMesh } from '../engine/coat';
-import { LINE_PX, VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
+import { VIEW, type CoatWarp, type Drawing, type DrawnCoat } from '../engine/draw';
 import type { Rgb } from '../engine/dye';
 import { FIGURE_REACH, type FigureShape } from '../engine/figures';
 import { D } from '../engine/math';
@@ -314,7 +314,10 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       // The eye field at about the picture's own detail (device px a drawing unit), from 2 to 6 texels a unit.
       const perUnit = box.pixels / (2 * box.half), detail = Math.min(6, Math.max(2, Math.round(perUnit)));
       const field = glossy || style && !style.originalEyes ? null : fieldFor(c.eyes, points, detail, perUnit);
-      const solids = style ? wardrobeSolids(base.body, mesh, { ...c.dotFace!, minStroke: 2*LINE_PX/now.size }, tint) : [];
+      // A rounded 3d slit covers less of each edge pixel than a filled SVG line.
+      // Keep its dark core visible even when it straddles two pixel rows.
+      const minStroke = (2 * 1.9) / now.size;
+      const solids = style ? wardrobeSolids(base.body, mesh, { ...c.dotFace!, minStroke }, tint) : [];
       const frame = { glossy, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }

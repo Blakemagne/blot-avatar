@@ -333,6 +333,38 @@ export async function checkSleepyBrows() {
   return {views, errors};
 }
 
+// On small avatars a slit can straddle two pixel rows. Count the dark cores
+// separately so a strong left eye cannot conceal a washed-out right eye.
+export async function checkSleepingInk() {
+  const host = document.querySelector<HTMLElement>('main')!;
+  const errors: string[] = [];
+  let views = 0;
+  const bodies = ['blob','dot-capsule','dot-six-lobed-flower',GALLERY.find(s => s.definition.id === 'watering-can')!.definition];
+  for (const shape of bodies) for (const eyes of ['Dots','Crescent inset','Swept lids'] as const) {
+    const bot = mount(host,{...avatarParts(shape,{eyes}),size:80,material:'flat',color:'#ff7565',follow:false});
+    try {
+      const rig = bot.live.rig;
+      rig.setActivity('sleeping');
+      for (let j = 0; j < 63; j++) rig.step(33);
+      rig.step = () => true;
+      for (const yaw of [-.4,0,.4]) {
+        Object.assign(rig.state.pose,{yaw,pitch:.10,roll:0});
+        bot.live.motion();
+        const { data, width } = await materialPixels(host);
+        const columns = new Uint8Array(width);
+        for (let k = 0; k < data.length; k += 4) {
+          if (data[k+3] > 150 && Math.max(data[k],data[k+1],data[k+2]) < 66) columns[(k/4)%width] = 1;
+        }
+        let runs = 0;
+        for (let x = 0; x < width; x++) if (columns[x] && !columns[x-1]) runs++;
+        if (runs < 2) errors.push(`${typeof shape === 'string' ? shape : shape.id} ${eyes} at ${yaw}: ${runs} closed eyes`);
+        views++;
+      }
+    } finally { bot.destroy(); }
+  }
+  return { views, errors };
+}
+
 const motionWearers = [
   dotAvatar({shape:'dot-rounded-head-with-two-ears'}),
   dotAvatar({shape:'dot-rounded-diamond', depth:1}),

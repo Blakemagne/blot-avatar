@@ -77,6 +77,9 @@ try {
     const result = await page.evaluate(() => review.checkSleepyBrows());
     errors.push(...result.errors);
     console.log(result.views+' sleepy brow frames');
+    const ink = await page.evaluate(() => review.checkSleepingInk());
+    errors.push(...ink.errors);
+    console.log(ink.views+' small sleeping eye pairs');
   }
   if (run('winks')) {
     const result = await page.evaluate(() => review.checkWinks());

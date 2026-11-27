@@ -1,4 +1,5 @@
 import { frontDepth } from '../coat/face-surface';
+import { fittedRim } from './dot-rim-fit';
 import { fitFrameNormals } from './dot-frame-normals';
 import { bowNormals } from './dot-bow-normals';
 import { socketMotion } from './dot-motion';
@@ -17,7 +18,7 @@ import { catalogParts } from './dot-catalog-parts';
 import { eyewearFits, eyeMaterials, frameFits } from './dot-eyewear-fits';
 import { faceFits } from './dot-face-fits';
 import type { Body } from './body';
-import { finishMesh, type CoatMesh } from './coat-surface';
+import type { CoatMesh } from './coat-surface';
 import type { Rgb } from './dye';
 import { dotMesh, DOT_RADIUS, sectionMesh } from './dot-mesh';
 import { featureSections, type FeatureSection } from './dot-feature-sections';
@@ -97,30 +98,6 @@ function frameMesh(section: FeatureSection): CoatMesh {
   }, x => -FRAME_CURVE * DOT_RADIUS * (cx + radius * x) ** 2 / radius);
   rigidFrames.set(section, mesh);
   return mesh;
-}
-
-// Adjusting the lens opening changes the extent of the frame. The moulded
-// rim retains the same gauge as it wraps a narrower face.
-const rimMeshes = new WeakMap<CoatMesh, WeakMap<readonly number[], CoatMesh>>();
-function fittedRim(source: CoatMesh, frame: readonly number[], radius: number): CoatMesh {
-  if (frame[0] === 1 && frame[4] === 1 && frame[6] === 0) return source;
-  let byMount = rimMeshes.get(source);
-  if (!byMount) rimMeshes.set(source, byMount = new WeakMap());
-  const saved = byMount.get(frame);
-  if (saved) return saved;
-  const v = source.vertices.slice();
-  let left = Infinity, right = -Infinity;
-  for (let i=0; i<v.length; i+=6) {
-    const x = frame[0]*v[i] + frame[3]*v[i+1] + frame[6]*v[i+2];
-    left = Math.min(left,x); right = Math.max(right,x);
-  }
-  const offset = radius * DOT_RADIUS * ((source.box[3]-source.box[0])/(right-left) - 1);
-  for (let i=0; i<v.length; i+=6) {
-    for (let k=0; k<3; k++) v[i+k] += offset*v[i+k+3];
-  }
-  const result = finishMesh(v,source.indices,undefined,undefined,false);
-  byMount.set(frame,result);
-  return result;
 }
 
 // Fitted ellipsoids for the beret domes and headphone cushions. Each quadratic
@@ -446,7 +423,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     else if (style.character === 'Thelma' && s.role === 'extra') mesh = dotMesh('Thelma bulb')!;
     else if (rigidFrame) mesh = frameMesh(s);
     else mesh = surfaceOf(s, pieces).mesh;
-    if (frame && (style.glasses === 'Tall oval frames' || style.glasses === 'Monocle')) mesh = fittedRim(mesh,frame,style.glasses === 'Monocle' ? .043 : .027);
+    if (frame && (style.glasses === 'Tall oval frames' || style.glasses === 'Monocle')) mesh = fittedRim(mesh,frame,style.glasses,s.side);
     let insetSurface: number | undefined;
     if (!fixed && index < eyes.length) {
       if (frog && s.role === 'socket') insetSurface = 0;
