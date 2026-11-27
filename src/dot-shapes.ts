@@ -1,7 +1,14 @@
 import type { AvatarDefinition } from './engine/outline/definition';
 
 function shape(name: string, path: string, eyeY: number, spacing: number, id = 'dot-' + name.toLowerCase().replaceAll(' ', '-')): AvatarDefinition {
+  let wardrobe: AvatarDefinition['wardrobe'];
+  if (id === 'dot-circle-with-two-ears' || id === 'dot-rounded-head-with-two-ears') wardrobe = { extras: ['Headphones','Bow tie'] };
+  if (id === 'dot-heart' || id === 'dot-capsule') wardrobe = { mounts: [
+    { id: 'left', x: 27, extras: ['Beanie','Beret','Hat'] },
+    { id: 'right', x: 73, extras: ['Beanie','Beret','Hat'] },
+  ] };
   return {
+    ...(wardrobe ? { wardrobe } : {}),
     version: 1, id, name,
     body: { path }, eyes: { x: 50, y: eyeY, spacing, scale: 1 },
   };

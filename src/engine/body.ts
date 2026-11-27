@@ -114,6 +114,7 @@ export interface Body {
   /** Independent permanent eye, eyewear and accessory design. */
   /** Original Blot geometry when builder parts are fitted to an existing body. */
   wardrobeHost?: Body;
+  wardrobe?: import('./wardrobe').WardrobeDefinition;
   dotStyle?: Readonly<DotStyle>;
   id: string;
   pieces: readonly Piece[];

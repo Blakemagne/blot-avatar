@@ -3,6 +3,7 @@ import { coversEyes, FRAME_CURVE, frameMount, type DotStyle } from './dot-parts'
 import { eyeSurfaces } from './dot-eye-surfaces';
 import { spectacleMesh } from './dot-portrait-eye';
 import { eyeSurfaceMesh } from './dot-eye-mesh';
+import { builderFittings } from './dot-builder-fittings';
 import { catalogFittings } from './dot-catalog-fittings';
 import { fittedMesh } from './dot-fitted-mesh';
 import { gazeTransform, transformAxes } from './dot-gaze';
@@ -85,6 +86,14 @@ function frameMesh(section: FeatureSection): CoatMesh {
   return mesh;
 }
 
+// The black beret dome is an oblique ellipsoid in both portraits. Its
+// measured silhouette fixes the quadratic section and its depth fixes the
+// centre plane. A smooth surface carries the highlight across the whole hat.
+const beretDomes = new Map<FeatureSection, readonly number[]>([
+  [featureSections.Felipe[3], [.76231,-.00617,.00534,-.96115,1.60110,-3.29987,-.00003,.00261,.04794]],
+  [featureSections['Felipe flower'][3], [.76846,-.00339,.00509,-.96672,1.59477,-3.32483,.00002,.02584,.08534]],
+]);
+
 function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): Surface {
   const saved = surfaces.get(section);
   if (saved) return saved;
@@ -118,7 +127,11 @@ function surfaceOf(section: FeatureSection, parts: readonly FeatureSection[]): S
     return z === undefined ? own : Math.max(own, (z + .0018 - cz) / radius);
   };
   const measured = opticalSurfaces.get(section);
-  const mesh = measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
+  const dome = beretDomes.get(section);
+  const mesh = dome ? sectionMesh(section.origin, radius, 128,
+    (x,y) => dome[0]+dome[1]*x+dome[2]*y+dome[3]*x*x+dome[4]*x*y+dome[5]*y*y,
+    (x,y) => dome[6]+dome[7]*x+dome[8]*y)
+    : measured ? eyeSurfaceMesh(measured) : sectionMesh(section.origin, radius, section.role === 'glass' || section.role === 'extra' ? 72 : 44,
     thickness, centre);
   const surface = {
     mesh,
@@ -231,7 +244,10 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     if (fitting?.piece !== undefined) {
       const phones = featureSections['Headphones/rounded-triangle'];
       template = surfaceOf(phones[fitting.piece],phones).mesh;
-    } else if (fitting) template = dotMesh(fitting.mesh);
+    } else if (fitting) {
+      template = dotMesh(fitting.mesh);
+      if (template && fitting.builderFit) template = fittedMesh(template, builderFittings[fitting.builderFit]);
+    }
     const spectacle = style.character === 'Josh' && spectacleMesh(s);
     let mesh: CoatMesh;
     if (spectacle) mesh = spectacle;

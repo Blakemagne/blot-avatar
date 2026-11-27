@@ -35,7 +35,7 @@
   "catalog-frida": ["body", "eye", "eye", "extra"],
   "catalog-gigi": ["body", "glasses", "extra"],
   "catalog-gumdrop": ["body", "eye", "highlight", "eye", "highlight"],
-  "catalog-gus": ["body", "glasses", "extra"],
+  "catalog-gus": ["body", "extra", "glasses"],
   "catalog-halo": ["body", "eye", "eye"],
   "catalog-hugo": ["body", "eye", "eye", "highlight", "highlight", "glasses", "glasses", "extra"],
   "catalog-jett": ["body", "glasses", "extra"],

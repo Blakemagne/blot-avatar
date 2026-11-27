@@ -38,6 +38,14 @@ run the combination and pose checks with `node --import tsx scripts/wardrobe-aud
 
 the [reference comparison](dot-parity.md) defines the 99.99% silhouette, exact foreground and exact component gates. all three must pass for each reference case. the wardrobe checks above measure transfer behavior. their counts do not measure pixel agreement.
 
+## studio and headwear review
+
+the size slider measures the longest visible axis of the resting body. on the default desktop stage, all 50 picker shapes and 116 preset buttons produced bare bodies spanning 180–181 pixels. on the 390-pixel mobile viewport they spanned 150–151 pixels. accessories retain their proportions. at the maximum slider setting, all 438 permitted shape and extra selections and all 116 dressed preset buttons fit inside both the 320-pixel and desktop stages. the paint brush’s headphone arch previously extended 45 pixels past the mobile stage. reproduce the size and clearance sweep with `node scripts/studio-framing.mjs` after building the site.
+
+sunny and onyx now use a fitted cap with a continuous dome and a brim. across the 12,244 labelled pixels of sunny’s cap, mean absolute premultiplied channel error fell from 2.35 to 1.12 on a 0–255 scale. exact agreement rose from 8.36% to 31.00%. onyx’s cap improved from 1.82 to 1.08. the black beret’s main surface on the blue catalog flower improved from 5.12 to 4.42. its reference highlight is still sharper. [registered cap and beret close-ups](dot-review/caps-and-beret.webp) · [both turns and front view](dot-review/caps-and-beret-turns.webp)
+
+the heart and capsule offer original, left and right positions for the beanie, hat and beret. imported shapes can define their own accessory and glasses lists and named horizontal positions. [shape definition and example](../site/prompt.md)
+
 ## reference results
 
 the revised build was captured at native resolution in chromium using hardware OpenGL on the same AMD radeon 890m used for the archived reference. the catalog and neutral comparisons isolated 769 visible component regions. exact pixels are sensitive to the graphics backend. these are the measurements from this run. [builder and starters](../golden/dots/metrics-neutral.csv) · [turns](../golden/dots/metrics-rotation.csv) · [catalog](../golden/dots/metrics-catalog.csv)

@@ -46,6 +46,16 @@
           <div class="stage" data-stage>
             <div class="stage-ground" data-ground aria-hidden="true" hidden></div>
             <div class="stage-avatar" data-avatar="play"></div>
+            <div class="menu settings stage-palette" data-menu="stage-palette">
+              <button type="button" class="button" aria-label="stage palette" title="stage palette" aria-expanded="false" aria-controls="stage-palette-options">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3a9 9 0 1 0 0 18c2.3 0 3.1-1.8 1.8-3.4-.9-1.1-.1-2.6 1.4-2.6h2.3c2.3 0 3.5-1.7 3.5-4 0-4.1-4.1-8-9-8Z"/><g fill="currentColor" stroke="none"><circle cx="7" cy="11" r="1.2"/><circle cx="10" cy="7.8" r="1.2"/><circle cx="14.6" cy="7.8" r="1.2"/><circle cx="17.5" cy="11" r="1.2"/></g></svg>
+              </button>
+              <div id="stage-palette-options" class="menu-list" role="dialog" aria-label="stage palette" hidden>
+                <label>background <input type="color" data-backdrop="background"></label>
+                <label>dots <input type="color" data-backdrop="dots"></label>
+                <button type="button" data-reset-backdrop>restore default</button>
+              </div>
+            </div>
             <p class="hint" aria-hidden="true">click it. keys 1 to 6 pick what it does.</p>
           </div>
           <div class="actions">
@@ -55,7 +65,7 @@
               <div class="menu-list" hidden>
                 <button type="button" data-do="png" hidden><strong>image, with texture</strong><span>PNG, as on the stage now</span></button>
                 <button type="button" data-do="svg"><strong>image</strong><span data-svg-says>SVG still, this colour</span></button>
-                <button type="button" data-do="json-file"><strong>definition</strong><span>JSON, geometry only</span></button>
+                <button type="button" data-do="json-file"><strong>definition</strong><span>JSON for this shape</span></button>
               </div>
             </div>
             <div class="menu" data-menu="copy">
@@ -138,6 +148,7 @@
               </section>
               <section id="wardrobe-Extras" role="tabpanel" aria-labelledby="choose-Extras">
                 <div data-parts="extra"></div>
+                <div class="chips" role="group" aria-label="extra position" data-extra-mounts hidden></div>
                 <div data-extra-palette role="group" aria-label="extra colour"></div>
               </section>
               <section id="wardrobe-Textures" role="tabpanel" aria-labelledby="choose-Textures">
@@ -179,7 +190,6 @@
               </div>
             </div>
             <div role="tabpanel" id="play-moves" aria-labelledby="seg-moves">
-              <div class="preset-choice"><label>motion <select data-dot-motion></select></label><button type="button" data-play-dot>play motion</button></div>
               <div class="chips" data-moves></div>
               <div class="row">
                 <label class="toggle"><input type="checkbox" data-dir autocomplete="off"> the other way</label>

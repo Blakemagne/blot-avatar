@@ -70,16 +70,49 @@ export const DOT_MOTIONS = Object.entries(dotTracks).map(([slug, track]) => ({
   id: 'dot-' + slug, name: track.name, category: track.category, durationMs: track.ms, loops: track.loops,
 }));
 
+/** Interpolate a local affine eye transform from rest. Above full strength,
+ * compose the extra fraction with the full pose to keep the blink pivot fixed. */
+function eyeAtStrength(bone: number[], amount: number, mirror: boolean) {
+  if (mirror) {
+    for (const i of [1,2,3,6,9]) bone[i] = -bone[i];
+  }
+  if (amount === 1) return bone;
+  const fraction = amount > 1 ? amount-1 : amount;
+  const part = bone.map((v,i) => {
+    const rest = i === 0 || i === 4 || i === 8 ? 1 : 0;
+    return rest + fraction*(v-rest);
+  });
+  if (amount <= 1) return part;
+  return part.map((_,i) => {
+    const col = i-i%3, row = i%3;
+    return bone[row]*part[col] + bone[row+3]*part[col+1] + bone[row+6]*part[col+2]
+      + (col === 9 ? bone[i] : 0);
+  });
+}
+
 export const DOT_CLIPS: Readonly<Record<string, Clip>> = Object.fromEntries(
   Object.entries(dotTracks).map(([slug, track]) => {
     const clip: Clip = {
       lane: 'cue', ms: track.ms,
       apply(out, playing) {
         const sample = sampleTrack(track, playing.u * track.ms);
-        out.yaw += sample[1]; out.pitch += sample[2]; out.roll += sample[3];
+        const amount = Math.max(0,Math.min(2,playing.cue.amount));
+        const mirror = playing.cue.dir < 0, dir = mirror ? -1 : 1;
+        // A full somersault must still land upright at partial strength. Vary
+        // its wind-up and speed through the turn without moving its endpoint.
+        const keys = keysFor(track), end = keys[keys.length-1];
+        const angle = (i: number) => {
+          const v = sample[i];
+          if (amount === 0) return 0;
+          return Math.abs(end[i]) > Math.PI ? v + (amount-1)*Math.sin(v) : v*amount;
+        };
+        out.yaw += dir*angle(1); out.pitch += angle(2); out.roll += dir*angle(3);
+        const eyes = [sample.slice(10,22),sample.slice(22,34)];
+        if (mirror) eyes.reverse();
         out.dotPlayback = {
-          scale: sample.slice(4, 7), offset: sample.slice(7, 10).map(v => v * DOT_RADIUS),
-          eyes: [sample.slice(10, 22), sample.slice(22, 34)],
+          scale: sample.slice(4,7).map(v => amount === 1 ? v : v**amount),
+          offset: sample.slice(7,10).map((v,i) => v*DOT_RADIUS*amount*(i === 0 ? dir : 1)),
+          eyes: eyes.map(bone => eyeAtStrength(bone, amount, mirror)),
         };
       },
     };

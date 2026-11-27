@@ -2,6 +2,7 @@
 // adds the volume, the colour, the face and the motion. The format and its rules are open-bot-avatar's
 // (Dominik Scholz, MIT; see THIRD_PARTY_NOTICES.md), so a definition made for it is one for this engine too.
 
+import { readWardrobe, type WardrobeDefinition } from '../wardrobe';
 import { bounds, filledArea, flattenPath, isInside, parsePath, PathError, serializePath, type Point } from './path';
 
 export interface AvatarEyes {
@@ -23,6 +24,7 @@ export interface AvatarDefinition {
   /** One filled path, nonzero fill; a hole winds the other way round from the outline it cuts. */
   body: { path: string };
   eyes: AvatarEyes;
+  wardrobe?: WardrobeDefinition;
 }
 
 export type ValidationResult = { ok: true; value: AvatarDefinition } | { ok: false; errors: string[] };
@@ -32,7 +34,7 @@ export const EYE_W = 4, EYE_H = 11;
 /** Where a body may reach; the rules ask for 8..92 and refuse past these. */
 export const BODY_MIN = 6, BODY_MAX = 94;
 const EYE_MARGIN = 1.2;
-const TOP_KEYS = ['version', 'id', 'name', 'body', 'eyes'];
+const TOP_KEYS = ['version', 'id', 'name', 'body', 'eyes', 'wardrobe'];
 const EYE_KEYS = ['x', 'y', 'spacing', 'scale'];
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -128,6 +130,7 @@ export function validateAvatar(input: unknown): ValidationResult {
     }
   }
 
+  const wardrobe = readWardrobe(input.wardrobe, errors);
   if (errors.length || !eyes) return { ok: false, errors };
-  return { ok: true, value: { version: 1, id: id as string, name, body: { path: normalized }, eyes: { ...eyes } } };
+  return { ok: true, value: { version: 1, id: id as string, name, body: { path: normalized }, eyes: { ...eyes }, ...(wardrobe ? { wardrobe } : {}) } };
 }

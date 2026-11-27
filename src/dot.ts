@@ -21,10 +21,11 @@ export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'or
   parts?: AvatarParts;
 }
 
-/** The two eared bodies share mounting positions for the headphones and bow tie. */
-export function dotExtras(shape: string): readonly DotStyle['extra'][] {
-  return shape === 'dot-circle-with-two-ears' || shape === 'dot-rounded-head-with-two-ears'
-    ? ['None', 'Headphones', 'Bow tie'] : DOT_EXTRAS;
+/** Extras offered by a named body, imported definition or already dressed wearer. */
+export function dotExtras(shape: Shape | Body): readonly DotStyle['extra'][] {
+  const wearer = typeof shape === 'string' ? DOT_SHAPES.find(item => item.id === shape) : shape;
+  const extras = wearer?.wardrobe?.extras;
+  return extras ? DOT_EXTRAS.filter(extra => extra === 'None' || extras.includes(extra)) : DOT_EXTRAS;
 }
 
 const wardrobeSources = new WeakMap<Body, Body>();
@@ -47,7 +48,11 @@ function styledBody(source: Body, style: DotStyle, wardrobeHost?: Body): Body {
   return body;
 }
 
-export type AvatarParts = Partial<Pick<DotStyle, 'eyes' | 'glasses' | 'extra' | 'extraColour'>>;
+function setMount(body: Body, style: DotStyle, mount?: string) {
+  if (mount && body.wardrobe?.mounts?.some(item => item.id === mount && item.extras.includes(style.extra))) style.extraMount = mount;
+}
+
+export type AvatarParts = Partial<Pick<DotStyle, 'eyes' | 'glasses' | 'extra' | 'extraColour' | 'extraMount'>>;
 
 /** Fit the builder wardrobe to a built-in body, gallery outline, or imported shape. */
 export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
@@ -69,7 +74,7 @@ export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
       depth: prior.depthScale === undefined ? undefined : (prior.depthScale - .6) / .8,
       parts: {
         eyes: parts.eyes ?? prior.eyes, glasses: parts.glasses ?? prior.glasses,
-        extra: parts.extra ?? prior.extra, extraColour: parts.extraColour ?? prior.extraColour,
+        extra: parts.extra ?? prior.extra, extraColour: parts.extraColour ?? prior.extraColour, extraMount: parts.extraMount ?? prior.extraMount,
       },
     }).body!;
     return { shape, body };
@@ -80,9 +85,11 @@ export function avatarParts(wearer: Shape | Body, parts: AvatarParts = {}) {
     ...(!native && !eyes ? { originalEyes: true } : {}),
     eyes: native && source.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : eyes ?? 'Oval',
     glasses: parts.glasses ?? prior?.glasses ?? 'None',
-    extra: extra && (!native || dotExtras(source.id).includes(extra)) ? extra : 'None',
+    extra: extra && (!source.wardrobe?.extras || source.wardrobe.extras.includes(extra)) ? extra : 'None',
     extraColour: parts.extraColour ?? prior?.extraColour ?? '#1F1F1F',
   };
+  if (source.wardrobe?.glasses && !source.wardrobe.glasses.includes(style.glasses)) style.glasses = 'None';
+  setMount(source, style, parts.extraMount ?? prior?.extraMount);
   return { shape, body: styledBody(source, style, native ? undefined : source) };
 }
 
@@ -134,6 +141,8 @@ export function dotAvatar(
       style.tintExtra = true;
     }
   }
+  if (source.wardrobe?.glasses && !source.wardrobe.glasses.includes(style.glasses)) style.glasses = 'None';
+  setMount(source, style, (matches && options.parts?.extraMount) || options.extraMount);
   const body = styledBody(source, style);
   return {
     shape,

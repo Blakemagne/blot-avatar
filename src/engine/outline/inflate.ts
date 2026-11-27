@@ -360,10 +360,10 @@ const made = new Map<string, Body>();
 
 /**
  * The body for an avatar definition. Check a definition you did not write with validateAvatar first: this
- * one throws on a path it cannot read. The same definition (by its id, path and eyes) gives the same body.
+ * one throws on a path it cannot read. The same definition (by its id, path, eyes and wardrobe) gives the same body.
  */
 export function outlineBody(def: AvatarDefinition): Body {
-  const key = JSON.stringify([def.id, def.body.path, def.eyes]);
+  const key = JSON.stringify([def.id, def.body.path, def.eyes, def.wardrobe]);
   let body = made.get(key);
   if (body) return body;
   const polys = flattenPath(parsePath(def.body.path));
@@ -377,7 +377,7 @@ export function outlineBody(def: AvatarDefinition): Body {
   }));
   // The eyes ride the face's piece alone, one smooth hull, so no seam where it meets another piece runs under
   // them; the outline is every piece.
-  const base: Body = { id: def.id, pieces: pieces.slice(0, 1), outline: { pieces }, eyes };
+  const base: Body = { id: def.id, pieces: pieces.slice(0, 1), outline: { pieces }, eyes, ...(def.wardrobe ? { wardrobe: def.wardrobe } : {}) };
   body = { ...base, look: LOOKS.find((look) => bothShow({ ...base, look })) ?? LOOKS[LOOKS.length - 1] };
   if (made.size >= 64) made.delete(made.keys().next().value as string);
   made.set(key, body);

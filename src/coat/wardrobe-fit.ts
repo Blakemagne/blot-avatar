@@ -120,15 +120,74 @@ export function rigidAttachment(body: Body, fit: readonly number[], source: Coat
   return axes;
 }
 
+const phoneMounts = new WeakMap<Body, readonly number[]>();
+
+/** A handle rising beside one ear can pass behind the arch. Find a plane just
+ * ahead of that handle so the band follows the head and both pads stay attached. */
+export function headphoneMount(body: Body, mesh: CoatMesh, band: CoatMesh, pads: readonly CoatMesh[], fit: readonly number[]) {
+  const saved = phoneMounts.get(body);
+  if (saved) return saved;
+  const cx = body.eyes.cx ?? 0;
+  const half = Math.min(cx-mesh.box[0],mesh.box[3]-cx);
+  const skin = topOf(body), hit = { z: 0, nx: 0, ny: 0, nz: 1 };
+  const height = (x: number) => surfaceTop(skin,x,fit[11],hit) ? hit.z : NaN;
+  const centre = height(cx), left = height(cx-.85*half), right = height(cx+.85*half);
+  let axes = fit;
+  if (Math.max(left,right) > centre+.5*half && Math.min(left,right) < centre-.2*half) {
+    const side = right > left ? 1 : -1;
+    let depth = fit[11];
+    const v = mesh.vertices;
+    for (let i=0; i<v.length; i+=6) {
+      if (side*(v[i]-cx) > .35*half && v[i+1] > centre+.14*half) depth = Math.max(depth,v[i+2]);
+    }
+    const forward = [...fit];
+    forward[11] = depth;
+    // Keep the ear pads at their fitted height and seat the arch on the scalp
+    // at its new depth. The narrow handle can emerge above the arch.
+    let scalp = -Infinity;
+    for (const x of [cx-.24*half,cx,cx+.24*half]) {
+      if (surfaceTop(skin,x,depth,hit)) scalp = Math.max(scalp,hit.z);
+    }
+    // The two pads stay beside the face at their original depth. A handle
+    // can make the outline wider than the head at the actual ear height.
+    const pair = [...pads].sort((a,b) => a.box[0]-b.box[0]);
+    if (pair.length === 2) {
+      const pad = pair[0].box;
+      const y = fit[10] + fit[4]*(pad[1]+pad[4])/2;
+      const z = fit[11] + fit[8]*(pad[2]+pad[5])/2;
+      const edge = (side: number) => {
+        const skin = prepare({ pieces: (body.outline ?? body).pieces.map(p => p.map(([x,y,z,r]) => [y,z,side*x,r])) });
+        return surfaceTop(skin,y,z,hit) ? side*hit.z : NaN;
+      };
+      const left = edge(-1), right = edge(1);
+      if (right > left) {
+        forward[0] = (right-left-.035*half)/(pair[1].box[0]-pad[3]);
+        forward[9] = left+.0175*half-forward[0]*pad[3];
+      }
+    }
+    const root = fit[10]+fit[4]*band.box[1];
+    if (scalp > root) {
+      forward[4] = (scalp+.085*fit[0]-root)/(band.box[4]-band.box[1]);
+      forward[10] = root-forward[4]*band.box[1];
+    }
+    axes = forward;
+  }
+  phoneMounts.set(body,axes);
+  return axes;
+}
+
 const bands = new WeakMap<Body, CoatMesh>();
 
 /** Widen the shoulders of the circular band until it clears the head between the ear pads. */
-export function fitHeadband(body: Body, mesh: CoatMesh, axes: readonly number[]) {
+export function fitHeadband(body: Body, mesh: CoatMesh, axes: readonly number[], padDepth = axes[11]) {
   const saved = bands.get(body);
   if (saved) return saved;
   const [x0, y0, , x1, y1] = mesh.box;
   const cx = (x0 + x1) / 2, rx = (x1 - x0) / 2, ry = y1 - y0;
   const top = topOf(body), hit = { z: 0, nx: 0, ny: 0, nz: 1 };
+  const bend = (padDepth-axes[11])/axes[8];
+  const along = (y: number) => Math.min(1,Math.max(0,(y-y0)/ry));
+  const dz = (t: number) => bend*(1-t*t*(3-2*t));
   const vertices = mesh.vertices;
   // A family of rounded rectangles. The ends and the apex remain fixed for every exponent.
   function map(x: number, y: number, exponent: number) {
@@ -139,12 +198,12 @@ export function fitHeadband(body: Body, mesh: CoatMesh, axes: readonly number[])
   }
   const stride = 6 * Math.max(1, Math.floor(vertices.length / (6 * 240)));
   let exponent = 2;
-  for (; exponent < 10; exponent++) {
+  for (; !bend && exponent < 10; exponent++) {
     let clear = true;
     for (let i = 0; i < vertices.length; i += stride) {
       if (vertices[i+1] < y0 + .1*ry) continue;
       const [x,y] = map(vertices[i], vertices[i+1], exponent);
-      if (surfaceTop(top, axes[9] + axes[0]*x, axes[11] + axes[8]*vertices[i+2], hit)
+      if (surfaceTop(top, axes[9] + axes[0]*x, axes[11] + axes[8]*(vertices[i+2]+dz(along(vertices[i+1]))), hit)
         && hit.z + .02 * axes[0] > axes[10] + axes[4]*y) { clear = false; break; }
     }
     if (clear) break;
@@ -156,26 +215,32 @@ export function fitHeadband(body: Body, mesh: CoatMesh, axes: readonly number[])
     const [x,y] = map(vertices[i], vertices[i+1], exponent);
     const t = (y-y0)/ry;
     if (t < .3) continue;
-    if (surfaceTop(top, axes[9]+axes[0]*x, axes[11]+axes[8]*vertices[i+2], hit)) {
+    if (surfaceTop(top, axes[9]+axes[0]*x, axes[11]+axes[8]*(vertices[i+2]+dz(along(vertices[i+1]))), hit)) {
       rise = Math.max(rise, (hit.z + .024*axes[0] - axes[10] - axes[4]*y) / (axes[4]*t));
     }
   }
+  // A handle beside a low shoulder should raise that shoulder without
+  // extrapolating the entire arch above the highest point on the wearer.
+  const ceiling = Math.max(...(body.outline ?? body).pieces.flat().map(([,y,,r]) => y+r)) + .06*axes[0];
+  const apexRise = bend ? .15*ry : Math.max(0, (ceiling - axes[10])/axes[4] - y1);
   function lift(x: number, y: number) {
     const [px,py] = map(x,y,exponent);
-    return [px,py + rise*(py-y0)/ry];
+    return [px,py + Math.min(rise, apexRise)*(py-y0)/ry];
   }
   let band = mesh;
-  if (exponent > 2 || rise > 0) {
+  if (exponent > 2 || rise > 0 || bend) {
     const fitted = vertices.slice(), h = .0001;
     for (let i = 0; i < vertices.length; i += 6) {
       const [x,y] = lift(vertices[i], vertices[i+1]);
       const [xx,yx] = lift(vertices[i]+h, vertices[i+1]);
       const [xy,yy] = lift(vertices[i], vertices[i+1]+h);
       const det = (xx-x)*(yy-y) - (xy-x)*(yx-y);
-      const nx = h*((yy-y)*vertices[i+3] - (yx-y)*vertices[i+4])/det;
-      const ny = h*((xx-x)*vertices[i+4] - (xy-x)*vertices[i+3])/det;
-      const nz = vertices[i+5], length = Math.hypot(nx,ny,nz);
-      fitted.set([x,y,vertices[i+2],nx/length,ny/length,nz/length], i);
+      const t = along(vertices[i+1]), nz = vertices[i+5];
+      const normalY = vertices[i+4] + nz*bend*6*t*(1-t)/ry;
+      const nx = h*((yy-y)*vertices[i+3] - (yx-y)*normalY)/det;
+      const ny = h*((xx-x)*normalY - (xy-x)*vertices[i+3])/det;
+      const length = Math.hypot(nx,ny,nz);
+      fitted.set([x,y,vertices[i+2]+dz(t),nx/length,ny/length,nz/length], i);
     }
     band = finishMesh(fitted, mesh.indices, undefined, undefined, false);
   }

@@ -24,7 +24,7 @@
   "preset-alfred": ["body", "eye", "eye", "glasses", "glasses", "glasses", "extra", "extra"],
   "preset-blossie": ["body", "eye", "eye"],
   "preset-coral_monocle": ["body", "eye", "eye", "highlight", "highlight", "glasses", "glasses"],
-  "preset-gus": ["body", "glasses", "extra"],
+  "preset-gus": ["body", "extra", "glasses"],
   "preset-lime_frog": ["body", "socket", "eye", "socket", "eye", "extra", "extra"],
   "preset-lime_headphones": ["body", "eye", "eye", "extra", "extra", "extra", "extra", "extra"],
   "preset-purple_heart": ["body", "glasses", "glasses", "glasses", "glasses", "glasses"],

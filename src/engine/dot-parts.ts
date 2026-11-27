@@ -16,25 +16,8 @@ export const DOT_EYES = [
   'Crescent inset',
   'Sleepy lids',
 ] as const;
-export const DOT_GLASSES = [
-  'None',
-  'Monocle',
-  'Tall oval frames',
-  'Separate trapezoid lenses',
-  'Classic sunglasses',
-  'Round sunglasses',
-] as const;
-export const DOT_EXTRAS = [
-  'None',
-  'Headphones',
-  'Bow tie',
-  'Beanie',
-  'Hat',
-  'Beret',
-  'Bulb',
-  'Tuft',
-  'Crown',
-] as const;
+import { DOT_GLASSES, DOT_EXTRAS, mountShift } from './wardrobe';
+export { DOT_GLASSES, DOT_EXTRAS } from './wardrobe';
 export interface DotStyle {
   /** Local Z multiplier for an editable body and its mounted parts. */
   depthScale?: number;
@@ -44,6 +27,7 @@ export interface DotStyle {
   glasses: (typeof DOT_GLASSES)[number];
   extra: (typeof DOT_EXTRAS)[number];
   extraColour: string;
+  extraMount?: string;
   /** A named matte catalog rig, retained while its appearance matches the recipe. */
   catalogId?: string;
   /** Light the catalog shell as an editable glossy surface while retaining its fittings. */
@@ -349,6 +333,13 @@ function makeOrnament(body: Body, style: DotStyle): Ornament[] {
       );
       break;
     }
+  }
+  const mount = body.wardrobe?.mounts?.find(m => m.id === style.extraMount && m.extras.includes(style.extra));
+  if (mount) {
+    const balls = groups.flatMap(group => group.solid.pieces.flat());
+    const low = Math.min(...balls.map(([x,,,r]) => x-r)), high = Math.max(...balls.map(([x,,,r]) => x+r));
+    const dx = mountShift(mount.x, b[0], b[2], low, high);
+    for (const group of groups) group.solid.pieces = group.solid.pieces.map(piece => piece.map(([x,y,z,r]) => [x+dx,y,z,r]));
   }
   return groups;
 }

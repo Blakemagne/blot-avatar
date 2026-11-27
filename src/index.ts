@@ -26,4 +26,5 @@ export { ULTRA_INK, ULTRA_LAVENDER, ULTRA_PALETTE, eyeInk, furShown, paintSkin, 
 export { DOT_CLIPS, DOT_MOTIONS } from './engine/dot-motion';
 export { dotStageLayout } from './dot-stage';
 export { avatarParts, type AvatarParts, dotExtras, dotAvatar, curatedDot, DOT_CURATED_VERSION, DOT_CHARACTERS, DOT_CATALOG, type DotAppearance } from './dot';
+export type { WardrobeDefinition, WardrobeMount } from './engine/wardrobe';
 export { DOT_EYES, DOT_GLASSES, DOT_EXTRAS, type DotStyle } from './engine/dot-parts';

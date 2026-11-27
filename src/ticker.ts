@@ -12,27 +12,32 @@ let listening = false;
 const hidden = (): boolean => typeof document !== 'undefined' && document.hidden;
 
 let motion: MediaQueryList | null | undefined;
+let reduced = false;
 const told = new Set<() => void>();
 
 /** The person's reduced-motion setting, asked for once; null where there is none to ask (a server render). */
-function setting(): MediaQueryList | null {
+function watchMotion(): void {
   if (motion === undefined) {
     motion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+    reduced = !!motion?.matches;
     // Turned on while the app is open, the loop stops there and then, for every avatar; turned off, it carries on.
     motion?.addEventListener('change', () => {
-      if (reducedMotion()) halt(); else start();
+      reduced = !!motion?.matches;
+      if (reduced) halt(); else start();
       for (const changed of [...told]) changed();
     });
   }
-  return motion;
 }
 
 /** Does the person prefer reduced motion, right now? While they do, nothing ticks. */
-export const reducedMotion = (): boolean => !!setting()?.matches;
+export function reducedMotion(): boolean {
+  watchMotion();
+  return reduced;
+}
 
 /** Call `changed` whenever that preference is turned on or off, until the returned function is called. */
 export function onMotion(changed: () => void): () => void {
-  setting();
+  watchMotion();
   told.add(changed);
   return () => { told.delete(changed); };
 }

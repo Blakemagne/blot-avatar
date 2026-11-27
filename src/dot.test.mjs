@@ -14,6 +14,7 @@ import {
   DOT_SHAPES,
   bodyOf,
   dotAvatar,
+  dotExtras,
   drawAvatar,
   stillState,
   validateAvatar,
@@ -574,5 +575,55 @@ test('josh has a continuous pale lens underneath each moving crescent', async ()
       const support = DOT_RADIUS * (.576+.05*Math.sqrt(Math.max(0,1-radius**2)));
       assert.ok(p[i+2] >= support && p[i+2] < support+.004);
     }
+  }
+});
+
+test('wardrobe definitions filter both wearable categories and place the complete extra on either side', async () => {
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const input = { ...DOT_SHAPES.find(d => d.id === 'dot-heart'), id: 'two-lobes',
+    wardrobe: { glasses: ['Monocle'], extras: ['Hat'], mounts: [
+      { id: 'left', x: 25, extras: ['Hat'] }, { id: 'right', x: 75, extras: ['Hat'] },
+    ] } };
+  const result = validateAvatar(input);
+  assert.ok(result.ok);
+  assert.deepEqual(result.value.wardrobe, input.wardrobe);
+  assert.deepEqual(dotExtras(result.value), ['None','Hat']);
+  assert.equal(validateAvatar({ ...input, wardrobe: { ...input.wardrobe, mounts: [{ id:'right', x:120, extras:['Crown'] }] } }).ok, false);
+  assert.equal(validateAvatar({ ...input, wardrobe: { glasses:['anything'] } }).ok, false);
+  const denied = avatarParts(result.value, { glasses:'Round sunglasses', extra:'Crown' }).body;
+  assert.equal(denied.dotStyle.extra, 'None');
+  assert.equal(denied.dotStyle.glasses, 'None');
+  const left = avatarParts(result.value, { glasses:'Monocle', extra:'Hat', extraMount:'left' }).body;
+  const right = avatarParts(left, { extraMount:'right' }).body;
+  const free = avatarParts({ ...input, wardrobe:undefined }, { extra:'Crown' }).body;
+  assert.equal(free.dotStyle.extra, 'Crown');
+  const mesh = coatMesh(left);
+  const parts = b => wardrobeSolids(b, mesh);
+  const a = parts(left), b = parts(right);
+  for (let i=0; i<a.length; i++) {
+    const shift = b[i].axes[9] - a[i].axes[9];
+    assert.ok(Math.abs(shift - (a[i].finish ? 0 : (mesh.box[3]-mesh.box[0])/2)) < 1e-6);
+  }
+  assert.equal(avatarParts(right,{extra:'None'}).body.dotStyle.extraMount, undefined);
+  assert.equal(avatarParts(right,{extraMount:'original'}).body.dotStyle.extraMount, undefined);
+});
+
+test('dot cue strength zero rests both eyes and body, and direction mirrors a full-strength clip', async () => {
+  const { DOT_CLIPS } = await import('./index.ts');
+  const { start } = await import('./engine/clips.ts');
+  for (const clip of Object.values(DOT_CLIPS)) {
+    function sample(amount, dir) {
+      const playing = start(clip,{amount,dir});
+      playing.u = .37;
+      const out = {yaw:0,pitch:0,roll:0};
+      clip.apply(out,playing);
+      return out;
+    }
+    const off = sample(0,1), normal = sample(1,1), mirrored = sample(1,-1), strong = sample(2,1);
+    assert.deepEqual(off.dotPlayback.scale,[1,1,1]);
+    assert.ok(off.dotPlayback.offset.every(x => x === 0));
+    assert.deepEqual(off.dotPlayback.eyes[0],[1,0,0,0,1,0,0,0,1,0,0,0]);
+    assert.ok(mirrored.yaw === -normal.yaw && mirrored.roll === -normal.roll && mirrored.pitch === normal.pitch);
+    assert.ok(strong.dotPlayback.scale.every(v => Number.isFinite(v) && v > 0));
   }
 });

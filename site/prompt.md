@@ -17,7 +17,13 @@ This format is open-bot-avatar's (by Dominik Scholz, MIT), so a definition made 
 {"version":1,"id":"slug","name":"Name","body":{"path":"M… Z"},"eyes":{"x":50,"y":46,"spacing":15,"scale":1}}
 ```
 
-Exactly these fields. No colours, styles, transforms, markup, motion or extra keys anywhere.
+use these fields for a plain shape. when the description specifies wearable parts, add an optional top-level `wardrobe` object. omit an allowlist to use the whole collection, or set it to `[]` to allow only the bare shape. use the identifiers with the spelling and case shown below.
+
+```json
+{"wardrobe":{"glasses":["Monocle","Tall oval frames"],"extras":["Hat","Beanie","Bow tie"],"mounts":[{"id":"left","extras":["Hat","Beanie"],"x":27},{"id":"right","extras":["Hat","Beanie"],"x":73}]}}
+```
+
+`glasses` accepts Monocle, Tall oval frames, Separate trapezoid lenses, Classic sunglasses and Round sunglasses. `extras` accepts Headphones, Bow tie, Beanie, Hat, Beret, Bulb, Tuft and Crown. either category can always be removed. each mount names the compatible extras and places the centre of the accessory at `x` percent of the bare body's width, counting from the left. it retains the fitted height, depth and tilt. the original fit is always available. a saved look selects a mount by its id in `extraMount`.
 
 ## Rules the engine checks
 

@@ -4,8 +4,40 @@
 // Scholz and its contributors (MIT; see THIRD_PARTY_NOTICES.md).
 
 import {
-  BOT_COLOURS, bodyOf, colours, drawAvatar, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
+  BOT_COLOURS, bodyOf, bounds, coatMesh, colours, drawAvatar, rotation, silhouette, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
+
+const front = rotation({ yaw: 0, pitch: 0, roll: 0 });
+interface BodyFrame { x: number; y: number; span: number }
+const bodyFrames = new WeakMap<Body, BodyFrame>();
+
+/** Centre and longest axis of the bare, front-facing shell at a one-pixel mount size. */
+export function studioBodyFrame(wearer: Body): BodyFrame {
+  const body = wearer.wardrobeHost ?? wearer;
+  const cached = bodyFrames.get(body);
+  if (cached) return cached;
+  let x0: number, y0: number, x1: number, y1: number;
+  if (body.dotStyle) {
+    const mesh = coatMesh(body);
+    // Portraits have their own resting head rotation, also used by the material pass.
+    const state = stillState(body.id, 100);
+    const r = drawAvatar(body, '#fff', state, 100, { coat: true }).coat!.rotation;
+    const v = mesh.vertices;
+    x0 = y0 = Infinity;
+    x1 = y1 = -Infinity;
+    for (let i = 0; i < v.length; i += 6) {
+      const x = r[0]*v[i] + r[1]*v[i+1] + r[2]*v[i+2];
+      const y = -(r[3]*v[i] + r[4]*v[i+1] + r[5]*v[i+2]);
+      x0 = Math.min(x0,x); x1 = Math.max(x1,x);
+      y0 = Math.min(y0,y); y1 = Math.max(y1,y);
+    }
+  } else {
+    [x0,y0,x1,y1] = bounds(silhouette(body, front, 64));
+  }
+  const frame = { x: (x0+x1)/4, y: (y0+y1)/4, span: Math.max(x1-x0,y1-y0)/2 };
+  bodyFrames.set(body,frame);
+  return frame;
+}
 
 // ---- Prompts
 
@@ -131,7 +163,7 @@ export function parseImport(text: string): Imported {
   if (errors.length) {
     return {
       ok: false, errors, notes, source: json,
-      hints: ['copy the repair prompt and send it to the same chat: it carries these errors.', 'geometry only: one body path and the eyes. colour and motion are added here.'],
+      hints: ['copy the repair prompt and send it to the same chat: it carries these errors.', 'include one body path, the eyes and any wardrobe rules. choose colour and motion in the studio.'],
     };
   }
   const kept = once(values);
