@@ -18,7 +18,7 @@ import { colorPicker, contrast } from './picker';
 import PROMPT from './prompt.md';
 import portraitSheet from './portraits.json';
 import {
-  AGENTS, designBrief, studioBodyFrame, freeId, isAgent, parseImport, partSvg, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
+  AGENTS, designBrief, studioBodyFrame, freeId, isAgent, parseImport, eyePreview, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
 } from './studio';
 
 /** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
@@ -782,7 +782,7 @@ for (const key of Object.keys(choices) as PartKey[]) {
     const preview = make('span', { className: 'part-sample' });
     preview.setAttribute('aria-hidden', 'true');
     if (value === 'None') preview.textContent = '∅';
-    else if (original) preview.innerHTML = partSvg('blob', bodyOf('blob'), true);
+    else if (key === 'eyes') preview.innerHTML = eyePreview(DOT_EYES.find(style => style === value));
     else thumbnail(preview, key + '/' + value);
     button.append(preview, make('span', { textContent: value.toLowerCase() }));
     box.append(button);

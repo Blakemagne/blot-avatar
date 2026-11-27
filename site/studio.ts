@@ -4,7 +4,7 @@
 // Scholz and its contributors (MIT; see THIRD_PARTY_NOTICES.md).
 
 import {
-  BOT_COLOURS, bodyOf, bounds, coatMesh, colours, drawAvatar, rotation, silhouette, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
+  avatarParts, BOT_COLOURS, bodyOf, bounds, coatMesh, colours, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
 
 const front = rotation({ yaw: 0, pitch: 0, roll: 0 });
@@ -303,11 +303,11 @@ export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf
   ], size, d.viewBox);
 }
 
-/** Preview the selected eye pair, frame or accessory at the scale of the whole tile. */
-export function partSvg(shape: Shape, body: ReturnType<typeof bodyOf>, eyes: boolean, size = 54): string {
-  const d = drawAvatar(body, '#FFFFFF', stillState(shape, 16), size);
-  const layers = (d.layers ?? []).filter(l => /^(left|right)(-|$)/.test(l.id) === eyes);
-  const paths: SvgPath[] = [...layers];
-  if (eyes) paths.push(...d.eyes.map(path => ({ d: path, fill: '#202024' })));
-  return croppedSvg(paths, size, d.viewBox);
+/** Front-facing eye geometry on a common swatch, including the inserts and catchlights. */
+export function eyePreview(eyes?: AvatarParts['eyes']): string {
+  const shape = eyes ? 'dot-circle' : 'blob';
+  const body = eyes ? avatarParts(shape, { eyes }).body : bodyOf(shape);
+  const d = drawAvatar(body, '#ffffff', stillState(shape, 16), 128);
+  const layers = (d.layers ?? []).filter(layer => /^(left|right)(-|$)/.test(layer.id));
+  return croppedSvg([...layers, ...d.eyes.map(path => ({ d: path, fill: '#202024' }))], 54, d.viewBox);
 }

@@ -390,6 +390,9 @@ pre code { font-size: inherit; }
   display: grid; place-items: center; width: 54px; height: 54px; border-radius: 10px;
   background: #e3e5ed; color: #454651; font-size: 1.5rem;
 }
+[data-parts="eyes"] { grid-auto-rows: 1fr; }
+[data-parts="eyes"] .part-tile { align-content: start; }
+[data-parts="eyes"] .part-sample { background: #94dbd4; }
 .part-sample svg { width: 46px; height: 46px; display: block; }
 [data-extra-palette]:not([hidden]) { display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem; }
 [data-extra-palette] button { width:1.65rem;height:1.65rem;border-radius:50%;border:1px solid #8886;cursor:pointer; }

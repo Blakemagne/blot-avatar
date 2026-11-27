@@ -1,6 +1,6 @@
 {
   "columns": 12,
-  "rows": 12,
+  "rows": 11,
   "keys": [
     "Blossie",
     "Alfred",
@@ -118,14 +118,6 @@
     "catalog/chai",
     "catalog/ollie",
     "catalog/dahlia",
-    "eyes/Swept lids",
-    "eyes/Oval",
-    "eyes/Sparkle capsules",
-    "eyes/Highlight capsules",
-    "eyes/Dots",
-    "eyes/Round highlights",
-    "eyes/Crescent inset",
-    "eyes/Sleepy lids",
     "glasses/Monocle",
     "glasses/Tall oval frames",
     "glasses/Separate trapezoid lenses",

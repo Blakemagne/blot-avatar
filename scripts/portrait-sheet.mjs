@@ -13,9 +13,9 @@ try {
   await page.setContent('<main></main>');
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const { webp, keys, columns, rows } = await page.evaluate(async () => {
-    const { DOT_CATALOG, DOT_CHARACTERS, DOT_EYES, DOT_GLASSES, DOT_EXTRAS, dotAvatar, mount } = avatar;
+    const { DOT_CATALOG, DOT_CHARACTERS, DOT_GLASSES, DOT_EXTRAS, dotAvatar, mount } = avatar;
     const recipes = [...Object.entries(DOT_CHARACTERS), ...DOT_CATALOG.map(item => ['catalog/' + item.id, item.appearance])];
-    const wardrobe = { eyes: DOT_EYES, glasses: DOT_GLASSES, extra: DOT_EXTRAS };
+    const wardrobe = { glasses: DOT_GLASSES, extra: DOT_EXTRAS };
     for (const [part, values] of Object.entries(wardrobe)) {
       for (const value of values.filter(value => value !== 'None')) {
         recipes.push([part + '/' + value, {
@@ -49,11 +49,10 @@ try {
           x0 = Math.min(x0,x); x1 = Math.max(x1,x); y0 = Math.min(y0,y); y1 = Math.max(y1,y);
         }
         if (x1 <= x0 || y1 <= y0) throw new Error('empty portrait: ' + key);
-        // A close crop on the same coloured face makes small catchlights and
-        // rim shapes readable at picker size. Extras keep the entire wearer.
-        if (key.startsWith('eyes/') || key.startsWith('glasses/')) {
+        // Keep the rims readable at picker size. Extras keep the entire wearer.
+        if (key.startsWith('glasses/')) {
           const w = x1 - x0, h = y1 - y0;
-          const crop = w * (key.startsWith('eyes/') ? .62 : .85);
+          const crop = w * .85;
           const cx = (x0+x1)/2, cy = y0 + h*.46;
           x0 = Math.round(cx-crop/2); x1 = Math.round(cx+crop/2);
           y0 = Math.round(cy-crop/2); y1 = Math.round(cy+crop/2);

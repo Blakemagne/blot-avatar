@@ -9,7 +9,7 @@ import { watch } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
-import { BODIES, DOT_CATALOG, DOT_CHARACTERS, DOT_EYES, DOT_GLASSES, DOT_EXTRAS, colours, drawAvatar, stillState, VIEW_BOX } from '../src/index.ts';
+import { BODIES, DOT_CATALOG, DOT_CHARACTERS, DOT_GLASSES, DOT_EXTRAS, colours, drawAvatar, stillState, VIEW_BOX } from '../src/index.ts';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const site = path.join(root, 'site');
@@ -56,7 +56,7 @@ async function statics() {
   await copyFile(path.join(site, 'dots.html'), path.join(out, 'dots.html'));
   const thumbnails = JSON.parse(await readFile(path.join(site, 'portraits.json'), 'utf8'));
   const keys = [...Object.keys(DOT_CHARACTERS), ...DOT_CATALOG.map(row => 'catalog/' + row.id)];
-  for (const [part, values] of Object.entries({ eyes: DOT_EYES, glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {
+  for (const [part, values] of Object.entries({ glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {
     keys.push(...values.filter(value => value !== 'None').map(value => part + '/' + value));
   }
   if (JSON.stringify(keys) !== JSON.stringify(thumbnails.keys)) {
