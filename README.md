@@ -532,3 +532,5 @@ const avatar = mount(host, {
 To reproduce the live preview inside a square, call `dotStageLayout(appearance, sideInPixels)`. Centre the mount using the returned slot `size`, then translate it by `x` and `y` pixels. A separate full-size element behind the mount takes the returned `background` and `groundOrigin` as its CSS background image and transform origin. Update the ground transform through `onDraw` using `layout.groundTransform(drawing.coat?.dotFace?.playback)`.
 
 The same options supply `shape`, `body` and `material` to the React hook. Attach its layer groups to display the styled face and accessories and pass the chosen body colour in `fxPaint.fill` for glossy or furry finishes. Low-level drawing consumers should paint `Drawing.layers` in order.
+
+percy is a glossy lavender blot with a low ponytail, narrow glasses and a dry expression. mount him with `mount(host, { shape: 'percy', color: '#BEB8EC', material: 'glossy' })`. his eyes follow the cursor and blink inside the frames. [open percy in the studio](https://blakemagne.github.io/blot-avatar/?avatar=percy#studio)

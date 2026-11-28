@@ -89,6 +89,9 @@ export interface Decal {
   w: number;
   h: number;
   shape: DecalShape;
+  /** Optional traced loops in local face units, including reversed inner edges. */
+  contours?: readonly (readonly number[])[];
+  eyewear?: boolean;
   /** Radians, counter-clockwise. */
   turn?: number;
   /** The colour key (in Body.paint) it is drawn in. */
@@ -137,6 +140,8 @@ export interface Body {
   antennas?: Antennas;
   /** Marks on the surface: a lens's rim, the bar between lenses (see Decal). */
   decals?: readonly Decal[];
+  /** Painted solids mounted behind the head, ordered from back to front. */
+  backDetails?: readonly (Solid & { paint: string })[];
   /** The body's own colours for its antennas and decals, by key. A renderer may paint any key over. */
   paint?: Readonly<Record<string, string>>;
 }

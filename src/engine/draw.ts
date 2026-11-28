@@ -430,7 +430,15 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
     if (!style.originalEyes || coversEyes(style)) eyes = [[], []];
     if (coat) dotMask = [...eyes[0], ...eyes[1], ...(style.originalEyes ? [] : face.flatMap(p => p.polys.map(poly => poly.slice())))];
   }
-  if (wearer.decals) marks(wearer, state, size, fence, layers);
+  if (wearer.backDetails) {
+    const k = grow * (wearer === body ? kIn : kOut) * (1 - (state.dot ?? 0));
+    if (k > .02) for (const detail of wearer.backDetails) {
+      const polys = silhouette(detail,R,d.rim);
+      if (k < 1) for (const poly of polys) for (let i=0; i<poly.length; i++) poly[i] *= k;
+      layers.push({id:detail.paint,part:detail.paint,fill:wearer.paint?.[detail.paint] ?? UNPAINTED,front:false,polys});
+    }
+  }
+  if (wearer.decals) marks(wearer, state, size, fence, layers, grow * (wearer === body ? kIn : kOut));
 
   // Squash and stretch (standing on the base, as wide as it is short), the pop, the hop, a move to the side, the mirror flip.
   // (A move to the side is mirrored with everything else: a lean that slides right slides left when mirrored.)
@@ -595,14 +603,21 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
 }
 
 /** The decals of `of` that can be seen, each a layer over the body, into `out`. */
-function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>[], out: Piece[]): void {
+function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>[], out: Piece[], grow: number): void {
   const d = detail(size), thin = (THIN_PX * 2) / size;
   for (const dc of of.decals!) {
     let cu = dc.at[0], cv = dc.at[1], sx = 1 - (state.dot ?? 0), sy = sx, w = dc.w * sx;
     if (dc.eye) ({ cu, cv, sx, sy, w } = behindEye(of, dc, state, size));
     if (sx <= 0.02 || w <= 0) continue;
-    const shape = decalOutline(dc.shape, w, dc.h * sy, dc.turn ?? 0, d.eye);
-    const polys = eyePolys(of, R, cu, cv, shape, { outline: fence, rim: EYE_RIM, thin });
+    if (dc.contours && grow < 1) {
+      cu *= grow; cv *= grow; sx *= grow;
+      if (sx <= .02) continue;
+    }
+    if (dc.eyewear && of.dotStyle && of.dotStyle.glasses !== 'None') continue;
+    const trim = { outline: fence, rim: EYE_RIM, thin };
+    const polys = dc.contours
+      ? dc.contours.flatMap(loop => eyePolys(of,R,cu,cv,sx===1 ? loop : loop.map(v=>v*sx),trim,true))
+      : eyePolys(of,R,cu,cv,decalOutline(dc.shape,w,dc.h*sy,dc.turn ?? 0,d.eye),trim);
     if (polys.length) out.push({ id: dc.id, part: dc.paint, fill: of.paint?.[dc.paint] ?? UNPAINTED, front: true, polys });
   }
 }

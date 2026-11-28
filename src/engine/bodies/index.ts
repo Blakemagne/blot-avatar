@@ -15,6 +15,7 @@ import { sparkle } from './sparkle';
 import { square } from './square';
 import { star } from './star';
 import { teardrop } from './teardrop';
+import { percy } from './percy';
 import { wedge } from './wedge';
 
 export const BODIES: Record<string, Body> = {
@@ -40,6 +41,7 @@ export const bodyId = (shape: string): string => (Object.hasOwn(SAME_BODY, shape
 
 /** The body for a shape id. Every id in BODIES and SAME_BODY (27 in all) has one; an unknown id has none. */
 export function bodyFor(shape: string): Body | undefined {
+  if (shape === percy.id) return percy;
   const id = bodyId(shape);
   return Object.hasOwn(BODIES, id) ? BODIES[id] : undefined;
 }

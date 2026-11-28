@@ -1033,3 +1033,20 @@ test('the opaque frames clear the sides of the tapered paint brush and rocket', 
     }
   }
 });
+
+test('percy keeps his ponytail and brows when he blinks or changes frames', () => {
+  const original = bodyOf('percy');
+  assert.equal(original.id,'percy');
+  const render = (body,lid) => drawAvatar(body,'#BEB8EC',{...front,lid},180);
+  const open = render(original,1);
+  const shut = render(original,0);
+  for (const id of ['hair','hair tie','left rim','right rim','raised brow','frown']) {
+    const path = open.layers.find(layer=>layer.id===id)?.d;
+    assert.ok(path,id);
+    assert.equal(shut.layers.find(layer=>layer.id===id)?.d,path);
+  }
+  assert.notDeepEqual(open.eyes,shut.eyes);
+  const dressed = render(avatarParts('percy',{glasses:'Monocle'}).body,1);
+  assert.ok(dressed.layers.some(layer=>layer.id==='hair'));
+  assert.ok(!dressed.layers.some(layer=>layer.id==='left rim'));
+});

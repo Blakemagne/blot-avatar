@@ -177,6 +177,7 @@ interface Entry {
 }
 
 const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
+BODY_ENTRIES.push({ key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#BEB8EC', finish: 'glossy' });
 // Picker looks use the same palette and materials as the stage.
 const dotLooks: Record<string, readonly [string, Material]> = {
   'dot-blossie': ['#FA70AB', 'fluffy'],
@@ -307,7 +308,7 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
   const portrait = recipes[preset];
   if (portrait) Object.assign(wardrobe, { ...recipeParts(portrait), ...wardrobe });
   // Older saved dot looks omitted white because every dot used to start white.
-  const oldWhite = shared.avatar && entry(pg.key).finish && shared.material ? '#FFFFFF' : undefined;
+  const oldWhite = shared.avatar?.startsWith('dot-') && entry(pg.key).finish && shared.material ? '#FFFFFF' : undefined;
   pg.color = shared.colour ?? portrait?.colour ?? oldWhite ?? entry(pg.key).own;
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
@@ -588,7 +589,7 @@ const visibleTiles = new IntersectionObserver(rows => {
     const tile = tiles.get(row.target);
     if (!tile || !row.isIntersecting) continue;
     const e = tile.entry;
-    const config = e.finish ? avatarParts(e.shape) : { shape: e.shape };
+    const config = e.id.startsWith('dot-') ? avatarParts(e.shape) : { shape: e.shape };
     tile.avatar = mount(row.target as HTMLElement, {
       ...config, size: 56, rests: true, ...inked(pg.key === e.key ? pg.color : e.own),
       material: pg.key === e.key ? pg.material : e.finish ?? 'glossy',
