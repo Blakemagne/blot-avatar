@@ -4,6 +4,7 @@
 // has started round the edge is one pale pixel on the rim.
 
 import { deg, type Pose } from '../math';
+import { percyPortrait } from './percy';
 import { bodyId } from './index';
 
 const pose = (yaw: number, pitch: number, roll: number): Pose => ({ yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll) });
@@ -12,7 +13,7 @@ const DEFAULT: Pose = pose(24, 8, -6);
 
 /** By the id of the body: degrees of yaw (positive turns the face to the viewer's right), pitch (up) and roll. */
 const PORTRAITS: Record<string, Pose> = {
-  percy: pose(3, 0, 0),
+  percy: percyPortrait,
   blob: pose(16, 10, -5),
   cloud: pose(-15, 6, 4),
   square: pose(20, 10, -8),

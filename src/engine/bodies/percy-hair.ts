@@ -69,7 +69,7 @@ function hairline(a: number) {
   const part = exp(-((angle - .08) ** 2) / .067);
   const temple = exp(-((Math.abs(angle) - 1.38) ** 2) / .029);
   const forelock = exp(-((angle+.47)**2)/.0025);
-  return .19*Math.max(0,sin(a))**2 - .20 + .94*cos(a) + .16*Math.max(0,cos(a))**2 + .20*part - .15*temple + .10*sin(a) + .042*sin(4*a) - .10*forelock;
+  return .19*Math.max(0,sin(a))**2 - .20 + .94*cos(a) + .16*Math.max(0,cos(a))**2 + .20*part - .15*temple + .10*sin(a) + .042*sin(4*a) - .065*forelock + .068*exp(-((angle+.53)**2)/.030);
 }
 
 function scalp(a: number, height: number): Point {
@@ -95,10 +95,13 @@ function centreline(t: number): Point {
     nape=scalp(a,(Math.asin(gather[1])-edge)/(PI/2-edge));
   }
   const reach=.245*(1-exp(-t/.090))-.144;
-  const bend=.082*sin(2*PI*t)*sin(PI*Math.max(0,Math.min(1,t)));
-  return [nape[0]+gather[0]*reach-bend-.19*t**3,
-    nape[1]+gather[1]*reach-1.40*t*t/(t+.16),
-    nape[2]+gather[2]*reach+.13*t];
+  // Below the elastic the weight falls almost vertically. The lower
+  // bundle bends back towards the jaw before the free tip hooks out.
+  const wave=sin(2*PI*t);
+  const bend=(.061+.027*wave)*wave*sin(PI*Math.max(0,Math.min(1,t)));
+  return [nape[0]+gather[0]*reach-bend+.05*t*t-.16*t**3-.088*t**6,
+    nape[1]+gather[1]*reach-1.34*t*t/(t+.16),
+    nape[2]+gather[2]*reach+.13*t+.045*t*t];
 }
 const tailComb = (t: number) => unit(minus(centreline(t+.0001),centreline(t-.0001)));
 
@@ -107,17 +110,17 @@ function tail(a: number, t: number, offset=0): Point {
   const u=unit(cross([0,0,1],tangent)), v=cross(tangent,u);
   // A shallow waist seats the elastic. Loose hair blooms below it.
   const waist=.029*exp(-((t-tieAt)**2)/.002);
-  const radius=(.089+.099*sin(PI*t)+.041*exp(-((t/.077)**2))-waist)*(1-t**5)+offset;
+  const radius=(.089+.099*sin(PI*t)+.041*exp(-((t/.077)**2))-waist)*(1-t**3.7)+offset;
   const side=radius*cos(a), depth=.94*radius*sin(a);
   return [centre[0]+side*u[0]+depth*v[0],centre[1]+side*u[1]+depth*v[1],centre[2]+side*u[2]+depth*v[2]];
 }
 
 // One small lock curls away from the gathered point below the jaw.
 function looseEnd(a: number, t: number): Point {
-  const u = .61+.36*t;
+  const u = .70+.235*t;
   const [x,y,z] = tail(Math.PI,u);
-  const width = .034*(1-t*t);
-  return [x+.019-.037*sin(PI*t)+width*cos(a), y, z+.036+width*sin(a)];
+  const width = .025*(1-t*t);
+  return [x+.015-.028*sin(PI*t)-.035*t*t+width*cos(a), y, z+.036+width*sin(a)];
 }
 
 function tie(a: number, v: number): Point {

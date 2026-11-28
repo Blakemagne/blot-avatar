@@ -143,6 +143,8 @@ export interface Body {
    * slit at the rim. (A spin still goes all the way round.)
    */
   look?: number;
+  /** Head orientation when awake, idle and looking ahead. */
+  neutralAim?: Readonly<Pick<import('./math').Pose, 'yaw' | 'pitch'>>;
   /**
    * What is drawn as the body's outline, when that is not all of `pieces`: the eyes always ride on `pieces`.
    * For a face that swells a little out of the body it is drawn on (the blob's). Whatever is left out must

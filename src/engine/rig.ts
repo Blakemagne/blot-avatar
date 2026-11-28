@@ -414,7 +414,7 @@ export class Rig {
     // frame, as after a look: the first picture is the one it was built with.)
     this.wanderAt = Math.floor(this.rnd() * 60000);
     this.awake.x = this.awake.to = 1;
-    const at = opts.pose;
+    const at = opts.pose ?? (opts.body?.neutralAim && {...opts.body.neutralAim,roll:0});
     if (at) {
       this.yaw.x = this.yaw.to = at.yaw; this.pitch.x = this.pitch.to = at.pitch; this.roll.x = at.roll;
       this.state.pose = { yaw: at.yaw, pitch: at.pitch, roll: at.roll };
@@ -864,8 +864,9 @@ export class Rig {
     // off it has nothing to follow, so it starts a beat (about 60 ms) after them.
     // (Reading, the eyes do the travelling and the body only part of it.)
     // (At rest, toward the rest pose: with the eyes back in the middle, exactly to it.)
-    this.yaw.to = this.eyeX.x * LOOK_YAW * (act === 'working' ? WORK_FOLLOW : 1) + (home ? home.yaw : 0);
-    this.pitch.to = this.eyeY.x * LOOK_PITCH + (home ? home.pitch : 0);
+    const basePose = home ?? (act === 'idle' && !this.target ? s.body?.neutralAim : undefined);
+    this.yaw.to = this.eyeX.x * LOOK_YAW * (act === 'working' ? WORK_FOLLOW : 1) + (basePose?.yaw ?? 0);
+    this.pitch.to = this.eyeY.x * LOOK_PITCH + (basePose?.pitch ?? 0);
     if (dotGaze && (this.target || (act === 'idle' && !home))) {
       this.yaw.to = .055 * (this.target?.x ?? 0) * this.flipTo;
       this.pitch.to = .035 * (this.target?.y ?? 0);

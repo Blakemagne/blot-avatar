@@ -214,11 +214,15 @@ function calmOf(base: RigState, q: LiveProps): RigState {
 export function createLive(p: LiveProps): Live {
   let props = p;
   const idleOf = (q: LiveProps): boolean => !q.activity || q.activity === 'idle';
-  const wantOf = (q: LiveProps) => ({ body: q.body ?? bodyOf(q.shape), size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(q.rests ? stillState(q.shape, q.size) : FRONT, q), coat: paintedMaterial(q) ? COAT : undefined });
+  const wantOf = (q: LiveProps) => {
+    const body = q.body ?? bodyOf(q.shape);
+    const calm = q.rests ? stillState(q.shape,q.size) : idleOf(q) && body.neutralAim ? {...FRONT,pose:{...body.neutralAim,roll:0}} : FRONT;
+    return { body, size: q.size, follow: q.follow, within: q.followIn ?? null, feel: { reach: q.followReach, most: q.followMost } as Feel, level: q.level, calm: calmOf(calm,q), coat: paintedMaterial(q) ? COAT : undefined };
+  };
   // What the frame loop reads. Replaced on every want(), so that a new prop never restarts the loop.
   let want = wantOf(p);
 
-  // A resting avatar starts where the still stands; any other starts facing front.
+  // A resting avatar starts where the still stands; an awake avatar starts with its own neutral gaze.
   const build = (): Rig => new Rig({ seed: props.seed ?? 1, body: want.body, pose: props.rests ? stillState(props.shape, props.size).pose : undefined, rest: props.rests && idleOf(props), clips: props.clips, personality: props.personality });
   let rig = build();
   const first = drawAvatar(want.body, 'gray', rig.state, want.size);

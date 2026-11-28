@@ -1034,6 +1034,19 @@ test('the opaque frames clear the sides of the tapered paint brush and rocket', 
   }
 });
 
+test('percy returns to his portrait gaze after following the pointer', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const rig = new Rig({body:bodyOf('percy'),idle:false,blinks:false});
+  const portrait = stillState('percy',220).pose;
+  assert.deepEqual(rig.state.pose,portrait);
+  rig.look(-.7,-.4);
+  for (let i=0;i<180;i++) rig.step(16);
+  assert.ok(rig.state.pose.yaw<0 && rig.state.pose.pitch<0);
+  rig.stop();
+  for (let i=0;i<180;i++) rig.step(16);
+  assert.deepEqual(rig.state.pose,portrait);
+});
+
 test('percy keeps his ponytail and brows when he blinks or changes frames', () => {
   const original = bodyOf('percy');
   assert.equal(original.id,'percy');

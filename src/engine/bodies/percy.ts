@@ -1,7 +1,7 @@
 import type { Body, Decal, Hit } from '../body';
 import { percyPieces } from './percy-head';
 import { surfaceAt } from '../field';
-import { D } from '../math';
+import { D, deg } from '../math';
 import { finishMesh } from '../coat-surface';
 import type { DotSolid } from '../dot-features';
 import { percyHair, percyHairSolids } from './percy-hair';
@@ -65,9 +65,9 @@ function percyTemples(): readonly DotSolid[] {
   return wires;
 }
 const marks: Decal[] = [
-  ink('raised brow',-.12,.35,[soft([-.13,0,-.065,.048,.045,.05,.13,.015,.12,-.012,.025,.008,-.065,.008,-.126,-.022])]),
-  {...ink('brow crease',.063,.31,[soft([-.016,-.012,-.002,-.009,.016,.027,.021,.016,.012,-.009,-.002,-.023])]),paint:'stubble'},
-  ink('level brow',.385,.285,[soft([-.105,-.012,-.055,.019,.057,.024,.115,.002,.106,-.019,.02,-.006,-.095,-.029])]),
+  ink('raised brow',-.115,.35,[soft([-.153,.010,-.103,.035,-.028,.037,.055,.020,.145,-.008,.147,-.036,.118,-.038,.047,-.013,-.026,.008,-.099,.011,-.149,-.012])]),
+  {...ink('brow crease',.077,.307,[soft([-.016,-.012,-.002,-.009,.016,.027,.021,.016,.012,-.009,-.002,-.023])]),paint:'stubble'},
+  ink('level brow',.389,.282,[soft([-.123,-.009,-.079,.010,.016,.025,.095,.022,.126,.006,.123,-.013,.079,.000,-.013,.004,-.099,-.010,-.124,-.022])]),
   {...ink('left temple',0,0,[arm(temples[0])],true),solid:true},
   {...ink('right temple',0,0,[arm(temples[1])],true),solid:true},
   ink('bridge',.139,.107,[soft([-.074,-.012,-.041,.017,-.008,.031,.028,.026,.059,.004,.054,-.018,.026,.005,-.005,.011,-.037,-.003,-.066,-.029])],true),
@@ -85,9 +85,12 @@ for (const [i,[x,y]] of [
 ].entries()) {
   marks.push({...ink('stubble-'+i,x,y,[oval(.005+i%3*.0017,.009+i%4*.0015,i*.81)]),paint:'stubble'});
 }
+export const percyPortrait = {yaw:deg(6),pitch:deg(2.5),roll:0};
+
 export const percy: Body = {
   id:'percy',
   pieces:percyPieces,
+  neutralAim:percyPortrait,
   surfaceDetails:{
     patches:percyHair,
     solids:body=>body.dotStyle && body.dotStyle.glasses!=='None' ? percyHairSolids() : [...percyHairSolids(),...percyTemples()],
@@ -95,5 +98,5 @@ export const percy: Body = {
   paint:{ink:'#332f3c',stubble:'#625b70',hair:'#322d3c','hair tie':'#714d61','crown hair':'#393342',
     'hair fibre':'#504959','hair sheen':'#635a6b','hair shadow':'#27232f',
     'tail fibre':'#474050','tail sheen':'#615868','chin shade':'#88809e'}, decals:marks,
-  eyes:{frontOnly:true,open:.12,cx:.127,x:.221,y:.085,offsetY:[.03,-.03],w:.074,h:.087,slideX:.023,slideY:.012},look:.57,
+  eyes:{frontOnly:true,open:.12,cx:.12,x:.221,y:.09,offsetY:[.03,-.03],w:.078,h:.052,slideX:.023,slideY:.012},look:.57,
 };
