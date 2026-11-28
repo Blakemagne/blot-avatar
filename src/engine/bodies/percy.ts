@@ -42,7 +42,7 @@ for (const [i,[x,y]] of [
 ].entries()) {
   marks.push({...ink('stubble-'+i,x,y,[oval(.005+i%3*.0017,.009+i%4*.0015,i*.81)]),paint:'stubble'});
 }
-export const percyPortrait = {yaw:deg(15),pitch:deg(2.5),roll:0};
+export const percyPortrait = {yaw:deg(13),pitch:deg(2),roll:0};
 
 export const percy: Body = {
   id:'percy',fullSpin:true,
@@ -55,5 +55,5 @@ export const percy: Body = {
   paint:{ink:'#332f3c',stubble:'#625b70',hair:'#322d3c','hair tie':'#714d61','crown hair':'#393342',
     'hair fibre':'#504959','hair sheen':'#635a6b','hair shadow':'#27232f',
     'tail fibre':'#474050','tail sheen':'#615868','chin shade':'#88809e'}, decals:marks,
-  eyes:{frontOnly:true,open:.12,cx:.012,x:.221,y:.09,offsetY:[.03,-.03],w:.078,h:.052,slideX:.023,slideY:.012},look:.57,
+  eyes:{frontOnly:true,open:.12,cx:.008,x:.221,y:.09,offsetY:[.03,-.03],w:.078,h:.052,slideX:.023,slideY:.012},look:.57,
 };

@@ -17,7 +17,7 @@ const unit = (p: Point): Point => {
 };
 const minus = (a: Point,b: Point): Point => [a[0]-b[0],a[1]-b[1],a[2]-b[2]];
 const part = unit([.06,.94,.34]);
-const gather = unit([-.77,-.095,-.64]);
+const gather = unit([-.72,.025,-.69]);
 const axis = unit(minus(part,gather));
 const basisX = unit(cross(axis,[0,1,0])), basisY = cross(axis,basisX);
 
@@ -67,8 +67,8 @@ function centreline(t: number): Point {
   // bundle bends back towards the jaw before the free tip hooks out.
   const wave=sin(2*PI*t);
   const bend=(.061+.027*wave)*wave*sin(PI*Math.max(0,Math.min(1,t)));
-  return [nape[0]+gather[0]*reach-bend+.05*t*t-.16*t**3-.088*t**6,
-    nape[1]+gather[1]*reach-1.34*t*t/(t+.16),
+  return [nape[0]+gather[0]*reach-bend+.07*t*t-.15*t**3+.11*t**4-.253*t**8,
+    nape[1]+gather[1]*reach-1.425*t*t/(t+.16),
     nape[2]+gather[2]*reach+.13*t+.045*t*t];
 }
 const tailComb = (t: number) => unit(minus(centreline(t+.0001),centreline(t-.0001)));
