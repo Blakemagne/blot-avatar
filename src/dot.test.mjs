@@ -1094,6 +1094,23 @@ test('percy keeps his ponytail and brows when he blinks or changes frames', () =
   assert.ok(!dressed.layers.some(layer=>layer.id==='left rim'));
 });
 
+test('percy keeps his visible stubble and brows through turns at every drawing size', () => {
+  const body = bodyOf('percy');
+  const marks = layers => layers.filter(layer => layer.id.startsWith('stubble-') || layer.id.endsWith(' brow'))
+    .map(layer => layer.id);
+  const authored = marks(body.decals);
+  assert.equal(authored.length,29);
+  for (const size of [48,96,220,320]) {
+    for (const yaw of [-.55,0,.55,Math.PI]) {
+      for (const pitch of [-.12,.12]) {
+        const pose = {yaw,pitch,roll:.18};
+        const frame = drawAvatar(body,'#DBD8EB',{...front,pose},size);
+        assert.deepEqual(marks(frame.layers),yaw === Math.PI ? [] : authored);
+      }
+    }
+  }
+});
+
 test('percy keeps both eyes inside the rims as his head turns, clear of the hairline', async () => {
   const { inside, bounds } = await import('./engine/math.ts');
   const { layerShapes, eyeShapes } = await import('./engine/draw.ts');

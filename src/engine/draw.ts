@@ -679,7 +679,11 @@ function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>
     }
     if (dc.eyewear && of.dotStyle && of.dotStyle.glasses !== 'None') continue;
     const rim = of.eyes.frontOnly && dc.eyewear ? Math.min(EYE_RIM,.14*of.eyes.w) : EYE_RIM;
-    const trim = { outline: fence, rim, thin, straightEdge: !!dc.contours };
+    // Fixed surface ink foreshortens continuously into the silhouette. The
+    // eye slit cutoff would erase whole brows and individual beard flecks.
+    const trim = dc.contours
+      ? { outline: fence, rim: 0, thin: 0, straightEdge: true }
+      : { outline: fence, rim, thin };
     const polys = dc.contours
       ? dc.contours.flatMap(loop => eyePolys(of,R,cu,cv,sx===1 ? loop : loop.map(v=>v*sx),trim,true))
       : eyePolys(of,R,cu,cv,decalOutline(dc.shape,w,dc.h*sy,dc.turn ?? 0,d.eye),trim);
