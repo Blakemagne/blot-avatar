@@ -88,14 +88,35 @@ export function wardrobeDepth(body: Body, x: number, y: number) {
   return surfaceTop(prepare(body),x,y,hit) ? hit.z : undefined;
 }
 
-const frameMounts = new WeakMap<Body, { scale: number; depth: number }>();
+const frameMounts = new WeakMap<Body, Map<string,{ scale: number; depth: number }>>();
 
 /** A rigid frame curves around the bridge. Fit it once to the wearer's width and brow. */
-export function frameMount(host: Body) {
-  const saved = frameMounts.get(host);
+export function frameMount(host: Body, glasses: DotStyle['glasses']) {
+  let mounts = frameMounts.get(host);
+  if (!mounts) { mounts = new Map(); frameMounts.set(host,mounts); }
+  const saved = mounts.get(glasses);
   if (saved) return saved;
   const cx = host.eyes.cx ?? 0, { x, y } = host.eyes;
-  const scale = x / (.28 * DOT_RADIUS);
+  let scale = x / (.28 * DOT_RADIUS);
+  // Wide dark lenses can extend past both cheeks on a tapered or tilted
+  // face. Size them against the skin under their actual silhouette.
+  if (glasses.endsWith('sunglasses') || glasses === 'Separate trapezoid lenses') {
+    const skin = prepare(host.outline ?? host), hit = {z:0,nx:0,ny:0,nz:1};
+    const fits = (s: number) => frameProfiles[glasses].every(part => part.loops.every(loop => {
+      for (let i=0; i<loop.length; i+=2) {
+        if (!surfaceTop(skin,cx+s*loop[i]/DESIGN_RADIUS,y-s*loop[i+1]/DESIGN_RADIUS,hit)) return false;
+      }
+      return true;
+    }));
+    if (!fits(scale)) {
+      let low=.65*scale, high=scale;
+      for (let i=0; i<8; i++) {
+        const mid=(low+high)/2;
+        if (fits(mid)) low=mid; else high=mid;
+      }
+      scale=low;
+    }
+  }
   // Sample the lens footprint. A deep cheek or raised brow can sit ahead of
   // the bridge, especially on gallery bodies made from several overlapping pieces.
   let bridge = wardrobeDepth(host, cx, y) ?? 0;
@@ -105,7 +126,7 @@ export function frameMount(host: Body) {
     if (z !== undefined) bridge = Math.max(bridge, z + FRAME_CURVE * offset ** 2 / scale);
   }
   const mount = { scale, depth: bridge + .075 };
-  frameMounts.set(host, mount);
+  mounts.set(glasses,mount);
   return mount;
 }
 
@@ -224,7 +245,7 @@ export function dotFace(
     }
   }
   if (glasses && rotation[8] > 0) {
-    const mount = body.wardrobeHost && frameMount(body.wardrobeHost);
+    const mount = body.wardrobeHost && frameMount(body.wardrobeHost,style.glasses);
     const frameScale = mount?.scale ?? scale;
     const bridge = mount ? mount.depth + (dotRenderer?.eyewearDepth(body) ?? 0) : (depth(cx,eyeY) ?? .76) + .12;
     for (const frame of glasses) {

@@ -2,6 +2,7 @@ import { frontDepth } from '../coat/face-surface';
 import { fittedRim } from './dot-rim-fit';
 import { fitFrameNormals } from './dot-frame-normals';
 import { bowNormals } from './dot-bow-normals';
+import { sweptBlink } from './dot-swept-blink';
 import { socketMotion } from './dot-motion';
 import { portraitMount } from './dot-portrait-fit';
 import { coversEyes, FRAME_CURVE, frameMount, type DotStyle } from './dot-parts';
@@ -351,7 +352,8 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     const blinking = isEye && !s.brow || frog && s.role === 'socket';
     const blink = s.side < 0 ? motion.left : motion.right;
     const playbackLid = (socketBone || useFocus) && donorBone ? Math.min(1, donorBone[4]) : 1;
-    const lid = blinking && !restingLids ? Math.max(.055, blink * playbackLid) : 1;
+    const swept = style.character === 'Iggy' && fixed && isEye && activity;
+    const lid = blinking && !restingLids && !swept ? Math.max(.055, blink * playbackLid) : 1;
     // A closed lid hides the socket and its reflections. Compressing white
     // inserts to the minimum thickness leaves a bright stripe through the blink.
     const closed = lid * (bone ? bone[4] : 1) < .12;
@@ -379,7 +381,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     // At profile angles leaving it at pupil depth exposes a detached sliver.
     let faceLayer: number | undefined = closed && isEye ? 0 : undefined;
     if (rigidFrame) {
-      const frame = frameMount(host!);
+      const frame = frameMount(host!,style.glasses);
       axes = axes.map(v => v*frame.scale);
       axes[9] += host!.eyes.cx ?? 0;
       axes[10] += host!.eyes.y - frame.scale*.178125*DOT_RADIUS;
@@ -436,6 +438,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
     else if (style.character === 'Thelma' && s.role === 'extra') mesh = dotMesh('Thelma bulb')!;
     else if (rigidFrame) mesh = frameMesh(s);
     else mesh = surfaceOf(s, pieces).mesh;
+    if (swept) mesh = sweptBlink(mesh,dotMesh('Iggy')!,s.side,blink*playbackLid);
     if (frame && (style.glasses === 'Tall oval frames' || style.glasses === 'Monocle')) mesh = fittedRim(mesh,frame,style.glasses,s.side);
     let insetSurface: number | undefined;
     if (!fixed && index < eyes.length) {
@@ -460,6 +463,7 @@ function assemble(body: Body, style: Readonly<DotStyle>, motion: DotFaceMotion, 
       eyewear: s.role === 'glass',
       contact: s.role === 'extra' && style.extra === 'Bow tie' ? 'bow' :
         rigidFrame && style.glasses === 'Monocle' ? 'monocle' :
+        rigidFrame ? 'frame' :
         s.role === 'glass' && (style.glasses === 'Tall oval frames' || style.glasses === 'Separate trapezoid lenses') ? 'frame' : undefined,
       tint: s.role === 'extra' ? extraTint : s.light ? WHITE : INK,
       axes: placed,

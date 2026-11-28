@@ -519,3 +519,49 @@ export async function checkMotionBounds(index: number) {
   } finally { bot.destroy(); }
   return {views,failures};
 }
+
+export const nonDotWearers = [...Object.keys(BODIES), ...GALLERY.map(row => row.definition)];
+
+/** Compare each dressed wearer with the same pose after taking off one item. */
+export async function checkOutfits(index: number) {
+  const shape = nonDotWearers[index], host = document.querySelector<HTMLElement>('main')!;
+  const glasses = typeof shape === 'string' ? DOT_GLASSES : DOT_GLASSES.filter(g => g==='None' || !shape.wardrobe?.glasses || shape.wardrobe.glasses.includes(g));
+  const errors: string[] = [];
+  let views = 0;
+  const photo = document.createElement('canvas');
+  photo.width = photo.height = 144;
+  const ctx = photo.getContext('2d',{willReadFrequently:true})!;
+  host.style.width = host.style.height = '96px';
+  for (const [yaw,material] of [[0,'flat'],[.85,'glossy'],[-.85,'fluffy']] as const) {
+    const controls = new Map<string,Uint8ClampedArray>();
+    for (const extra of dotExtras(shape)) for (const frame of glasses) {
+      const bot = mount(host,{...avatarParts(shape,{eyes:'Oval',extra,glasses:frame,extraColour:'#FFC040'}), size:96, material, color:'#296C98',follow:false});
+      try {
+        bot.live.rig.step = () => true;
+        Object.assign(bot.live.rig.state.pose,{yaw,pitch:.08,roll:0});
+        bot.live.motion();
+        // A bare flat wearer can use SVG. Force a fitted eye for a common
+        // material canvas across the clothed and undressed controls.
+        await materialPixels(host);
+        bot.live.motion();
+        const canvas = host.querySelector('canvas')!, c=canvas.getBoundingClientRect(), h=host.getBoundingClientRect();
+        ctx.clearRect(0,0,144,144);
+        ctx.drawImage(canvas,24+c.left-h.left,24+c.top-h.top,c.width,c.height);
+        const image=ctx.getImageData(0,0,144,144).data;
+        if (frame==='None' || extra==='None') controls.set(extra+'/'+frame,image);
+        for (const key of [extra!=='None' && 'None/'+frame, frame!=='None' && extra+'/None']) {
+          if (!key) continue;
+          const control=controls.get(key)!;
+          let visible=0;
+          for (let i=0;i<image.length;i+=4) {
+            if (Math.max(image[i+3],control[i+3])<128) continue;
+            if ([0,1,2,3].some(k=>Math.abs(image[i+k]-control[i+k])>32)) visible++;
+          }
+          if (visible<4) errors.push([index,yaw,extra,frame,key,visible].join('/'));
+        }
+        views++;
+      } finally { bot.destroy(); }
+    }
+  }
+  return {views,errors};
+}

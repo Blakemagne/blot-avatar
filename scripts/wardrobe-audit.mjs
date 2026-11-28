@@ -14,7 +14,7 @@ let combinations = 0, poses = 0;
 for (const [index, shape] of wearers.entries()) {
   const native = typeof shape === 'string' && DOT_SHAPES.some(dot => dot.id === shape);
   const eyes = shape === 'dot-rounded-head-with-two-ears' ? ['Oval'] : native ? DOT_EYES : [undefined, ...DOT_EYES];
-  const extras = native ? dotExtras(shape) : DOT_EXTRAS;
+  const extras = dotExtras(shape);
   for (const eye of eyes) for (const glasses of DOT_GLASSES) for (const extra of extras) {
     const { body } = avatarParts(shape, { eyes: eye, glasses, extra });
     assert.equal(body.dotStyle.extra, extra);

@@ -515,13 +515,14 @@ test('editing a dressed body preserves its host, inherited parts and explicit re
   const shapes = [...Object.keys(BODIES), ...DOT_SHAPES.map(s => s.id),
     ...GALLERY.map(g => g.definition), { ...GALLERY[0].definition, id: 'imported-controller' }];
   for (const shape of shapes) {
-    const first = avatarParts(shape, { glasses: 'Tall oval frames', extra: 'Headphones', extraColour: '#FFCC38' });
+    const extra = dotExtras(shape).includes('Headphones') ? 'Headphones' : 'Bow tie';
+    const first = avatarParts(shape, { glasses: 'Tall oval frames', extra, extraColour: '#FFCC38' });
     assert.equal(avatarParts(first.body).body, first.body);
     for (const eyes of DOT_EYES) {
       const next = avatarParts(first.body, { eyes }).body;
       assert.equal(next.wardrobeHost, first.body.wardrobeHost);
       assert.equal(next.dotStyle.glasses, 'Tall oval frames');
-      assert.equal(next.dotStyle.extra, 'Headphones');
+      assert.equal(next.dotStyle.extra, extra);
       assert.equal(next.dotStyle.extraColour, '#FFCC38');
       assert.equal(next.dotStyle.eyes, next.id === 'dot-rounded-head-with-two-ears' ? 'Oval' : eyes);
       assert.equal(avatarParts(next, { extra: 'None' }).body.dotStyle.extra, 'None');
@@ -929,6 +930,10 @@ test('both headphone cushions touch the surface across built-in and gallery bodi
   for (const shape of [...Object.keys(BODIES),...GALLERY.map(row => row.definition)]) {
     const id = typeof shape === 'string' ? shape : shape.id;
     const { body } = avatarParts(shape, { extra: 'Headphones' });
+    if (typeof shape !== 'string' && shape.wardrobe?.extras && !shape.wardrobe.extras.includes('Headphones')) {
+      assert.equal(body.dotStyle.extra,'None');
+      continue;
+    }
     const shell = body.wardrobeHost.outline ?? body.wardrobeHost;
     const skin = prepare(shell), hit = { z:0, nx:0, ny:0, nz:1 };
     const [, ...pads] = wardrobeSolids(body,coatMesh(body)).filter(part => !part.finish);
@@ -985,6 +990,46 @@ test('small closed eyes retain ink thickness at their own centre while the other
       assert.ok(Math.abs(centre(left)-centre(shut))<1e-9);
       assert.ok(height(shut)>=Math.min(minStroke,.48*Math.abs(shut.axes[0])*(shut.mesh.box[4]-shut.mesh.box[1]))-1e-9);
       assert.ok(height(shut)<height(open));
+    }
+  }
+});
+
+test('iggy opens the swept eye independently on each side of the measured crease', async () => {
+  const { DOT_CHARACTERS, DOT_CLIPS } = await import('./index.ts');
+  const body = dotAvatar(DOT_CHARACTERS.Iggy).body;
+  const crease = dotFeatures(body);
+  const height = ({mesh}) => mesh.box[4]-mesh.box[1];
+  for (const dir of [-1,1]) {
+    const channels = { yaw:0, pitch:0, roll:0 };
+    DOT_CLIPS['dot-wink'].apply(channels,{u:.35,cue:{amount:1,dir}});
+    const pose = dotFeatures(body,{x:0,y:0,left:1,right:1,playback:channels.dotPlayback});
+    const closed = dir===1 ? 0 : 1;
+    assert.ok(height(pose[1-closed])>2*height(crease[1-closed]));
+    assert.ok(height(pose[closed])<1.2*height(crease[closed]));
+    assert.equal(pose[closed].axes[4],1);
+    assert.deepEqual(pose.slice(2),crease.slice(2));
+  }
+});
+
+test('the opaque frames clear the sides of the tapered paint brush and rocket', async () => {
+  const { wardrobeSolids } = await import('./coat/wardrobe-solids.ts');
+  const { frontDepth } = await import('./coat/face-surface.ts');
+  for (const id of ['paint-brush','rocket']) {
+    const shape = GALLERY.find(item => item.definition.id === id).definition;
+    for (const glasses of ['Round sunglasses','Classic sunglasses','Separate trapezoid lenses']) {
+      const {body} = avatarParts(shape,{glasses});
+      const shell = coatMesh(body);
+      let outside=0, total=0;
+      for (const part of wardrobeSolids(body,shell).filter(s => s.eyewear)) {
+        const v=part.mesh.vertices, a=part.axes;
+        for (let i=0; i<v.length; i+=24) {
+          const x=a[0]*v[i]+a[3]*v[i+1]+a[6]*v[i+2]+a[9];
+          const y=a[1]*v[i]+a[4]*v[i+1]+a[7]*v[i+2]+a[10];
+          if (frontDepth(shell,x,y)===undefined) outside++;
+          total++;
+        }
+      }
+      assert.ok(total>0 && outside/total<.005,id+' '+glasses);
     }
   }
 });

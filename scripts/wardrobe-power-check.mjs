@@ -109,5 +109,15 @@ try {
     }
     console.log(`${views} eye views, at most ${largestSpill} detached pixels per view`);
   }
+  if (run('outfits')) {
+    const wearers = await page.evaluate(() => review.nonDotWearers.length);
+    let frames = 0;
+    for (let i=0; i<wearers; i++) {
+      const result = await page.evaluate(index => review.checkOutfits(index),i);
+      errors.push(...result.errors);
+      frames += result.views;
+    }
+    console.log(frames+' non-dot outfit frames');
+  }
   assert.deepEqual(errors,[]);
 } finally { await browser.close(); }
