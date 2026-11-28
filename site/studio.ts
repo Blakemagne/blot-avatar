@@ -7,6 +7,8 @@ import {
   avatarParts, BOT_COLOURS, CALM_ULTRA, eyeInk, roleColour, skinMarkup, skinPaint, bodyOf, bounds, coatMesh, drawAvatar, rotation, silhouette, type AvatarParts, type Body, stillState, validateAvatar, type AvatarDefinition, type Material, type Shape,
 } from '@blot/avatar';
 
+import { contrast } from './picker';
+
 const front = rotation({ yaw: 0, pitch: 0, roll: 0 });
 interface BodyFrame { x: number; y: number; span: number }
 const bodyFrames = new WeakMap<Body, BodyFrame>();
@@ -293,6 +295,23 @@ function croppedSvg(paths: SvgPath[], size: number, fallback: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${box}">${content}</svg>\n`;
 }
 
+// Lift or deepen the facial inks only where their authored shades blend into the skin.
+export function percyPaint(skin: string): Record<string,string> | undefined {
+  const native = bodyOf('percy').paint!;
+  const paint: Record<string,string> = {};
+  for (const [part, light, dark, minimum] of [
+    ['ink','#FAF8FF','#13111A',4], ['stubble','#C4BECE','#382F42',2.6],
+    ['chin shade','#AFA6BC','#564C61',1.8],
+  ] as const) {
+    if (contrast(skin,native[part]) < minimum) paint[part] = contrast(skin,light) > contrast(skin,dark) ? light : dark;
+  }
+  if (contrast(skin,native.hair) < 1.6) Object.assign(paint, {
+    hair:'#878090','crown hair':'#878090','hair fibre':'#97909F','hair sheen':'#AAA2B2',
+    'hair shadow':'#6E6777','tail fibre':'#928A9C','tail sheen':'#A49CAD','hair tie':'#61485D',
+  });
+  return Object.keys(paint).length ? paint : undefined;
+}
+
 /** The avatar as a standalone SVG still, including its selected wardrobe. */
 export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf(shape), eyeFill?: string, powered = false): string {
   const state = stillState(shape,size);
@@ -301,7 +320,8 @@ export function stillSvg(shape: Shape, colour: string, size = 512, body = bodyOf
     state.fx = [{ kind:'ultra',u:0,t:CALM_ULTRA.t,dir:1,amount:1 }];
   }
   const d = drawAvatar(body,colour,state,size);
-  const layers = d.layers ?? [], ink=eyeInk(eyeFill ?? d.eyeFill,powered ? 1 : 0);
+  const paint = (body.wardrobeHost ?? body) === bodyOf('percy') ? percyPaint(colour) : undefined;
+  const layers = (d.layers ?? []).map(l => ({...l, fill: paint?.[l.part] ?? l.fill})), ink=eyeInk(eyeFill ?? d.eyeFill,powered ? 1 : 0);
   const id='blot-power', colours={fill:d.fill,eyeFill:ink,...skinPaint(id)};
   const effects = (side: 'front'|'back') => (d.effects ?? []).filter(p=>p.layer===side)
     .map(p=>({d:p.d,fill:roleColour(p.role,colours),opacity:p.opacity}));

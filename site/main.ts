@@ -18,7 +18,7 @@ import { colorPicker, contrast } from './picker';
 import PROMPT from './prompt.md';
 import portraitSheet from './portraits.json';
 import {
-  AGENTS, designBrief, studioBodyFrame, freeId, isAgent, parseImport, eyePreview, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
+  AGENTS, designBrief, percyPaint, studioBodyFrame, freeId, isAgent, parseImport, eyePreview, readColour, readMaterial, readShare, repairBrief, reviveYours, shareLink, stillSvg, type Agent,
 } from './studio';
 
 /** The move this page adds through the `clips` option: a waggle. The same text is on the page. */
@@ -177,7 +177,8 @@ interface Entry {
 }
 
 const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
-BODY_ENTRIES.push({ key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#DBD8EB', finish: 'glossy' });
+const PERCY_PRESET = 'blot/percy';
+const percyEntry: Entry = { key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#DBD8EB', finish: 'glossy' };
 // Picker looks use the same palette and materials as the stage.
 const dotLooks: Record<string, readonly [string, Material]> = {
   'dot-blossie': ['#FA70AB', 'fluffy'],
@@ -223,7 +224,7 @@ addEventListener('storage', (e) => {
   else if (pg.key.startsWith('yours:')) select(pg.key);
 });
 const pickerShapes = [...BODY_ENTRIES, ...GALLERY_ENTRIES];
-const entries = (): Entry[] => [...pickerShapes, ...yours.map(yoursEntry)];
+const entries = (): Entry[] => [...pickerShapes, percyEntry, ...yours.map(yoursEntry)];
 const entry = (key: string): Entry => entries().find((e) => e.key === key) ?? BODY_ENTRIES[0];
 
 // ---- The studio's avatar.
@@ -254,7 +255,8 @@ const recipes: Record<string, DotAppearance> = {
   ...Object.fromEntries(DOT_CATALOG.map(item => ['catalog/' + item.id, item.appearance])),
 };
 let preset = appearanceQuery.get('preset') ?? '';
-if (!Object.hasOwn(recipes, preset)) preset = '';
+const presetShape = (key: string) => key === PERCY_PRESET ? percyEntry.shape : recipes[key]?.shape;
+if (preset !== PERCY_PRESET && !Object.hasOwn(recipes, preset)) preset = '';
 let catalogGloss = appearanceQuery.get('catalogFinish') === 'glossy';
 let tintExtra = appearanceQuery.get('tintExtra') === '1';
 function recipeParts(recipe: DotAppearance): AvatarParts {
@@ -280,10 +282,20 @@ function outfit() {
 }
 function studioEyeFill(): string | undefined {
   const style = outfit().body?.dotStyle;
-  return style && !style.originalEyes ? '#202024' : pg.eyes ?? undefined;
+  if (style && !style.originalEyes) return '#202024';
+  if (pg.key === percyEntry.key && !pg.eyes && pg.color !== percyEntry.own) {
+    return percyPaint(pg.color)?.ink ?? bodyOf('percy').paint!.ink;
+  }
+  return pg.eyes ?? undefined;
+}
+function studioInk() {
+  const eyes = studioEyeFill();
+  return pg.key === percyEntry.key
+    ? { color: pg.color, fill: undefined, eyeFill: eyes, paint: percyPaint(pg.color) }
+    : { ...inked(pg.color, eyes), paint: undefined };
 }
 const avatarOptions = (): MountOptions => ({
-  ...outfit(), clips, size: pg.size, ...inked(pg.color, studioEyeFill()), face: pg.face, activity: pg.activity,
+  ...outfit(), clips, size: pg.size, ...studioInk(), face: pg.face, activity: pg.activity,
   form: BUSY.has(pg.activity) ? pg.form : null, progress: pg.progress, follow: pg.follow, mark: pg.mark, ultra: pg.ultra, personality: pg.feel, accent: ACCENT, material: pg.material,
 });
 
@@ -301,10 +313,12 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
     if (GALLERY_ENTRIES.some((e) => e.id === shared.gallery)) pg.key = `gallery:${shared.gallery}`;
   } else if (shared.avatar) {
     // A body first, then one of yours, then (for a link written by hand) the gallery.
-    const found = [...BODY_ENTRIES, ...yours.map(yoursEntry), ...GALLERY_ENTRIES].find((e) => e.id === shared.avatar);
+    const found = [...BODY_ENTRIES, percyEntry, ...yours.map(yoursEntry), ...GALLERY_ENTRIES].find((e) => e.id === shared.avatar);
     if (found) pg.key = found.key;
-  } else if (preset) pg.key = 'body:' + recipes[preset].shape;
-  if (recipes[preset]?.shape !== entry(pg.key).shape) preset = '';
+  } else if (preset) pg.key = 'body:' + presetShape(preset);
+  if (!preset && pg.key === percyEntry.key && (!shared.colour || shared.colour === percyEntry.own)
+      && (!shared.material || shared.material === percyEntry.finish) && !pg.eyes && !Object.keys(wardrobe).length) preset = PERCY_PRESET;
+  if (presetShape(preset) !== entry(pg.key).shape) preset = '';
   const portrait = recipes[preset];
   if (portrait) Object.assign(wardrobe, { ...recipeParts(portrait), ...wardrobe });
   // Older saved dot looks omitted white because every dot used to start white.
@@ -313,7 +327,7 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
   else if (portrait) pg.material = portrait.texture === 'Fur' ? 'fluffy' : 'glossy';
-  else if (!chosenTexture) pg.material = entry(pg.key).finish ?? 'glossy';
+  else if (preset === PERCY_PRESET || !chosenTexture) pg.material = entry(pg.key).finish ?? 'glossy';
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
 }
 
@@ -533,8 +547,8 @@ const showMode = tabs('appearance-mode', () => {
   if ($('#tab-bot').getAttribute('aria-selected') !== 'true') showCard('tab-bot');
 });
 const showSource = tabs('preset-source');
-showMode(preset ? 'mode-preset' : 'mode-custom');
-showSource(preset && !preset.startsWith('catalog/') ? 'source-starters' : 'source-catalog');
+showMode(preset && appearanceQuery.get('mode') !== 'custom' ? 'mode-preset' : 'mode-custom');
+showSource(preset && preset !== PERCY_PRESET && !preset.startsWith('catalog/') ? 'source-starters' : 'source-catalog');
 tabs('appearance', (id) => { if (id === 'choose-Shape') marked(); });
 tabs('play');
 const showStep = tabs('new');
@@ -666,6 +680,8 @@ function marked(): void {
 const resetColour = $<HTMLButtonElement>('[data-reset-colour]');
 /** The colour now shown, on its thumbnail and the reset button. */
 function coloured(): void {
+  const black = $<HTMLButtonElement>('[data-picker="body"] button[aria-label="black"]');
+  black.style.setProperty('--swatch', pg.key === percyEntry.key ? BLACK : 'var(--ink)');
   const own = recipes[preset]?.colour ?? entry(pg.key).own;
   resetColour.hidden = pg.color.toUpperCase() === own.toUpperCase();
   const name = COLOURS.find(([h]) => h === own)?.[1] ?? own;
@@ -679,31 +695,29 @@ const faint = $('[data-eye-note]');
 function paint(freshStage = false): void {
   const tile = cells.get(pg.key);
   if (tile) paintThumb(tile, pg.color);
-  for (const p of previews) p.update({ ...outfit(), ...inked(pg.color, studioEyeFill()), material: pg.material });
+  for (const p of previews) p.update({ ...outfit(), ...studioInk(), material: pg.material });
   // The eyes as drawn: the picked colour, or the automatic one.
   // (Black is drawn in the page's ink, light on the dark theme: the eyes picked are judged against both.)
   const eyeOn = (body: string) => contrast(body, studioEyeFill() ?? colours(body).eyeFill);
-  faint.hidden = (pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
+  faint.hidden = (pg.key !== percyEntry.key && pg.color === BLACK && pg.eyes ? Math.min(eyeOn('#1B1B1F'), eyeOn('#EEEDEA')) : eyeOn(pg.color)) >= FAINT;
   changed(freshStage);
 }
 const bodyPicker = colorPicker($('[data-picker="body"]'), {
   label: 'body colour', value: pg.color, presets: COLOURS,
   onInput: (v) => { pg.color = v ?? recipes[preset]?.colour ?? entry(pg.key).own; coloured(); paint(); },
 });
-{
-  const eyePicker = colorPicker($('[data-picker="eyes"]'), {
-    label: 'eye colour', value: pg.eyes, presets: EYES, auto: 'auto', start: '#FFFFFF',
-    onInput: (v) => { pg.eyes = v; paint(); },
-  });
-  for (const [i, p] of [bodyPicker, eyePicker].entries()) {
-    previews.push(mount(p.preview, { ...outfit(), size: 40, ...inked(pg.color, studioEyeFill()), material: pg.material, seed: 300 + i }));
-  }
-  resetColour.addEventListener('click', () => {
-    select(pg.key);
-    // The button is hidden now: focus goes to the colour it went back to.
-    $('[data-picker="body"]').querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
-  });
+const eyePicker = colorPicker($('[data-picker="eyes"]'), {
+  label: 'eye colour', value: pg.eyes, presets: EYES, auto: 'auto', start: '#FFFFFF',
+  onInput: (v) => { pg.eyes = v; paint(); },
+});
+for (const [i, p] of [bodyPicker, eyePicker].entries()) {
+  previews.push(mount(p.preview, { ...outfit(), size: 40, ...studioInk(), material: pg.material, seed: 300 + i }));
 }
+resetColour.addEventListener('click', () => {
+  select(pg.key);
+  // The button is hidden now: focus goes to the colour it went back to.
+  $('[data-picker="body"]').querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+});
 
 // The chosen finish follows the avatar across the stage, picker, exports and share link.
 const materialNote = $('[data-material-note]');
@@ -760,7 +774,7 @@ function select(key: string, freshWearer = false): void {
     paintThumb(previous, outgoing.own, outgoing.finish ?? 'glossy');
   }
   pg.key = key;
-  if (recipes[preset]?.shape !== entry(key).shape) preset = '';
+  if (presetShape(preset) !== entry(key).shape) preset = '';
   syncWardrobe();
   pg.color = recipes[preset]?.colour ?? entry(key).own;
   bodyPicker.set(pg.color);
@@ -773,7 +787,7 @@ function select(key: string, freshWearer = false): void {
   if (view === 'moves') moversTurn();
 }
 
-const portraitButtons = new Map<string, HTMLButtonElement>();
+const portraitButtons = new Map<HTMLButtonElement, string>();
 const portraitIndices = new Map(portraitSheet.keys.map((key, index) => [key, index]));
 function thumbnail(slot: HTMLElement, key: string): void {
   slot.classList.add('rendered-thumb');
@@ -788,18 +802,29 @@ function portraitCell(key: string, name: string): HTMLLIElement {
   slot.setAttribute('aria-hidden', 'true');
   const button = make('button', { type: 'button', className: 'bot-cell portrait-cell' },
     slot, make('span', { textContent: name.toLowerCase() }));
-  portraitButtons.set(key, button);
-  thumbnail(slot, key);
+  portraitButtons.set(button, key);
+  if (key === PERCY_PRESET) {
+    slot.style.background = "url('percy.png') center / contain no-repeat";
+  } else thumbnail(slot, key);
   button.addEventListener('click', () => applyPreset(key));
   return make('li', {}, button);
 }
-$('[data-starters]').append(...Object.keys(DOT_CHARACTERS).map(name => portraitCell(name, name)));
-$('[data-catalog]').append(...DOT_CATALOG.map(item => portraitCell('catalog/' + item.id, item.name)));
+$('[data-starters]').append(portraitCell(PERCY_PRESET,'percy'), ...Object.keys(DOT_CHARACTERS).map(name => portraitCell(name, name)));
+$('[data-catalog]').append(portraitCell(PERCY_PRESET,'percy'), ...DOT_CATALOG.map(item => portraitCell('catalog/' + item.id, item.id === 'percy' ? 'percy (dot)' : item.name)));
 
 function applyPreset(key: string): void {
   preset = key;
   tintExtra = false;
   catalogGloss = false;
+  if (key === PERCY_PRESET) {
+    for (const part of Object.keys(wardrobe) as (keyof AvatarParts)[]) delete wardrobe[part];
+    pg.eyes = null;
+    eyePicker.set(null);
+    chosenTexture = true;
+    pg.material = 'glossy';
+    select(percyEntry.key, true);
+    return;
+  }
   const recipe = recipes[key];
   delete wardrobe.extraMount;
   Object.assign(wardrobe, recipeParts(recipe));
@@ -872,7 +897,7 @@ function syncWardrobe() {
     if (pg.material !== finish) { pg.material = finish; finished(); }
   }
   $('[data-eye-colours]').hidden = !!style && !style.originalEyes;
-  for (const [key, button] of portraitButtons) button.setAttribute('aria-pressed', String(key === preset));
+  for (const [button, key] of portraitButtons) button.setAttribute('aria-pressed', String(key === preset));
   syncTexture();
   const fixedEye = native && id === 'dot-rounded-head-with-two-ears';
   $('[data-fixed-eye]').hidden = !fixedEye;
@@ -1053,6 +1078,7 @@ function appearanceLink() {
   if (pg.eyes && studioEyeFill() === pg.eyes) url.searchParams.set('eyeFill', pg.eyes);
   if (pg.ultra) url.searchParams.set('ultra','1');
   if (preset) url.searchParams.set('preset',preset);
+  if (pg.key === percyEntry.key && $('#mode-custom').getAttribute('aria-selected') === 'true') url.searchParams.set('mode','custom');
   if (preset && tintExtra) url.searchParams.set('tintExtra', '1');
   if (currentRecipe()?.catalogGloss) url.searchParams.set('catalogFinish', 'glossy');
   url.searchParams.set('material',pg.material);
@@ -1236,8 +1262,11 @@ function writeCode(): void {
   const recipe = currentRecipe();
   const initial = recipe ? `...dotAvatar(${JSON.stringify(recipe)})` : styled ? `...avatarParts(${shapeOption.replace(/^shape: /,'')}, ${JSON.stringify(wardrobe)})` : shapeOption;
   const o: string[] = [initial, `size: ${Number((stageSize).toFixed(3))}`];
+  const paint = pg.key === percyEntry.key && percyPaint(pg.color);
+  if (paint) o.push(`paint: ${JSON.stringify(paint)}`);
   if (pg.color !== (recipe?.colour ?? DEFAULT_COLOUR)) o.push(`color: '${pg.color}'`);
-  if (pg.eyes && studioEyeFill() === pg.eyes) o.push(`eyeFill: '${pg.eyes}'`);
+  const eyeFill = studioEyeFill();
+  if (eyeFill && (pg.eyes === eyeFill || pg.key === percyEntry.key)) o.push(`eyeFill: '${eyeFill}'`);
   if (pg.face !== 'neutral') o.push(`face: '${pg.face}'`);
   if (pg.activity !== 'idle') o.push(`activity: '${pg.activity}'`);
   if (BUSY.has(pg.activity) && pg.form) o.push(`form: '${pg.form}'`);
@@ -1276,11 +1305,11 @@ function writeCode(): void {
 
 const moveStage = $('[data-move-stage]'), moveSaid = $('[data-move-said]');
 const mover = mount($('[data-avatar="moves"]'), {
-  ...outfit(), size: narrow.matches ? 120 : 150, ...inked(pg.color, studioEyeFill()), follow: true, followIn: moveStage,
+  ...outfit(), size: narrow.matches ? 120 : 150, ...studioInk(), follow: true, followIn: moveStage,
   pokeable: true, label: 'the avatar that shows each move', seed: 9, clips, accent: ACCENT, material: pg.material,
 });
 /** The moves are shown on the avatar in the studio, as it is now. */
-const moversTurn = (): void => mover.update({ ...outfit(), clips, ...inked(pg.color, studioEyeFill()), personality: pg.feel, material: pg.material });
+const moversTurn = (): void => mover.update({ ...outfit(), clips, ...studioInk(), personality: pg.feel, material: pg.material });
 function moveRow(m: Move): HTMLLIElement {
   const b = make('button', { type: 'button', className: 'move-row' }, make('code', { textContent: m.label ?? m.name }), make('span', { textContent: SAYS[m.name] ?? `a ${m.lane}.` }));
   b.addEventListener('click', () => {

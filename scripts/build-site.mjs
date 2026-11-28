@@ -54,6 +54,7 @@ async function statics() {
   await mkdir(out, { recursive: true });
   await copyFile(path.join(site, 'index.html'), path.join(out, 'index.html'));
   await copyFile(path.join(site, 'dots.html'), path.join(out, 'dots.html'));
+  await copyFile(path.join(root, 'docs/characters/percy.png'), path.join(out, 'percy.png'));
   const thumbnails = JSON.parse(await readFile(path.join(site, 'portraits.json'), 'utf8'));
   const keys = [...Object.keys(DOT_CHARACTERS), ...DOT_CATALOG.map(row => 'catalog/' + row.id)];
   for (const [part, values] of Object.entries({ glasses: DOT_GLASSES, extra: DOT_EXTRAS })) {

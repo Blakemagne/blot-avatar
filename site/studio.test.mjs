@@ -157,3 +157,19 @@ test('a share link carries a fluffy finish and leaves a flat one out, and the fi
   assert.equal(S.readShare('?avatar=heart&material=furry', ACTIVITIES).material, undefined);
   assert.equal(S.readMaterial(null), undefined);
 });
+
+test('percy keeps his preset colours and his facial details remain legible on custom bodies', async () => {
+  const {bodyOf, DOT_COLOURS, BOT_COLOURS} = await import('../src/index.ts');
+  const {contrast} = await import('./picker.ts');
+  const original = bodyOf('percy').paint;
+  assert.equal(S.percyPaint('#DBD8EB'), undefined);
+  for (const [skin] of [...DOT_COLOURS,...BOT_COLOURS,['#332F3C'],['#625B70']]) {
+    const paint = {...original,...S.percyPaint(skin)};
+    for (const [key,minimum] of [['ink',4],['stubble',2.6],['chin shade',1.8]]) {
+      assert.ok(contrast(skin,paint[key])>=minimum,skin+' '+key);
+    }
+  }
+  const dark = {...original,...S.percyPaint('#000000')};
+  const svg = S.stillSvg('percy','#000000');
+  for (const key of ['ink','stubble','chin shade','crown hair']) assert.ok(svg.includes(dark[key]));
+});
