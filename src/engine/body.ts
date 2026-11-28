@@ -10,6 +10,14 @@ import type { DotStyle } from './dot-parts';
 export type Sphere = readonly [x: number, y: number, z: number, r: number];
 export type Piece = readonly Sphere[];
 
+/** A painted ribbon on a model, stored as successive pairs of XYZ vertices. */
+export interface SurfacePatch {
+  paint: string;
+  points: Float64Array;
+  /** Attachment normal for a rear detail that comes in front when its seat faces the camera. */
+  seatNormal?: readonly [number,number,number];
+}
+
 /** Where the eyes rest, in face coordinates (the same x and y as the front view), and how far they may slide. */
 export interface EyeSpec {
   /** Keep the eyes on the front of a character with a distinct back. */
@@ -23,6 +31,8 @@ export interface EyeSpec {
   cx?: number;
   /** Height of the eye line. */
   y: number;
+  /** Vertical offsets for a face whose eye line tilts. */
+  offsetY?: readonly [left: number, right: number];
   /** Width and height of one eye at the neutral face. */
   w: number;
   h: number;
@@ -94,6 +104,8 @@ export interface Decal {
   /** Optional traced loops in local face units, including reversed inner edges. */
   contours?: readonly (readonly number[])[];
   eyewear?: boolean;
+  /** Supplied by the body's material mesh while its coat is visible. */
+  solid?: boolean;
   /** Radians, counter-clockwise. */
   turn?: number;
   /** The colour key (in Body.paint) it is drawn in. */
@@ -142,6 +154,11 @@ export interface Body {
   antennas?: Antennas;
   /** Marks on the surface: a lens's rim, the bar between lenses (see Decal). */
   decals?: readonly Decal[];
+  /** Matching surface details for vector output and the depth-tested material renderer. */
+  surfaceDetails?: {
+    patches(): readonly SurfacePatch[];
+    solids(body: Body): readonly import('./dot-features').DotSolid[];
+  };
   /** Painted solids mounted behind the head, ordered from back to front. */
   backDetails?: readonly (Solid & { paint: string })[];
   /** The body's own colours for its antennas and decals, by key. A renderer may paint any key over. */

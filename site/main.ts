@@ -177,7 +177,7 @@ interface Entry {
 }
 
 const BODY_ENTRIES: Entry[] = SHAPES.map((id, i) => ({ key: `body:${id}`, id, name: id, kind: 'body', shape: id, own: CYCLE[i % CYCLE.length] }));
-BODY_ENTRIES.push({ key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#BEB8EC', finish: 'glossy' });
+BODY_ENTRIES.push({ key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#DBD8EB', finish: 'glossy' });
 // Picker looks use the same palette and materials as the stage.
 const dotLooks: Record<string, readonly [string, Material]> = {
   'dot-blossie': ['#FA70AB', 'fluffy'],

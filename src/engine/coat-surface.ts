@@ -13,6 +13,10 @@ export interface CoatMesh {
    * the viewer. The normal is the hull's own, eased toward another piece's within SEAM of it.
    */
   vertices: Float32Array;
+  /** Optional unit-circle strand coordinate per vertex on groomed hair. */
+  grain?: Float32Array;
+  /** Local comb direction for each root on a groomed surface. */
+  tangents?: Float32Array;
   /** Triangles, three vertex indices each, wound counter-clockwise seen from outside their piece. */
   indices: Uint32Array;
   /**

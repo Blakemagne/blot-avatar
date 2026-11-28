@@ -9,7 +9,7 @@ import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
 import { REST, discAt, figureBody, figureParts, figureRadius, type FigureShape } from './figures';
 import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
-import { area, bounds, rotation, type Mat3 } from './math';
+import { area, bounds, project, rotation, type Mat3 } from './math';
 import { COAT_FADE, COAT_SWAP, coatsAt, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
 import type { RigState } from './rig';
 import { silhouette, toPath } from './silhouette';
@@ -86,6 +86,7 @@ const PRESS = 0.15;
  */
 export interface DrawnCoat {
   dotFace?: DotFaceMotion;
+  surfaceDetails?: boolean;
   /** The body the coat is of: coatMesh(body). Not always the body drawn: in a morph it is the one it leaves, then the one it becomes. */
   body: Body;
   /**
@@ -255,8 +256,10 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
         eye[k * 2 + 1] = (eye[k * 2 + 1] + (r * Math.sin(a) - eye[k * 2 + 1]) * dot) * grow;
       }
     }
-    const thin = Math.min((THIN_PX * 2) / size, 0.3 * barWidth(eye));
-    return eyePolys(body, R, cu + side * e.x * d.boost + out, cv, eye, { outline, rim: EYE_RIM, thin }, e.frontOnly);
+    const width = barWidth(eye);
+    const thin = Math.min((THIN_PX * 2) / size, (e.frontOnly ? .07 : .3) * width);
+    const rim = e.frontOnly ? Math.min(EYE_RIM, .14*e.w) : EYE_RIM;
+    return eyePolys(body, R, cu + side * e.x * d.boost + out, cv+(e.offsetY?.[i] ?? 0), eye, { outline, rim, thin }, e.frontOnly);
   });
   return [shapes[0], shapes[1]];
 }
@@ -303,7 +306,7 @@ function eyeSpots(src: Source, state: RigState, size: number, out: Float64Array,
   }
   const e = src.eyes, boost = detail(size).boost, look = seen(e, state);
   const cu = (e.cx ?? 0) + look.x * e.slideX, cv = e.y + look.y * e.slideY;
-  return facePoint(src, R, cu - e.x * boost, cv, out, at) && facePoint(src, R, cu + e.x * boost, cv, out, at + 2);
+  return facePoint(src, R, cu - e.x * boost, cv+(e.offsetY?.[0] ?? 0), out, at) && facePoint(src, R, cu + e.x * boost, cv+(e.offsetY?.[1] ?? 0), out, at + 2);
 }
 
 /** The same polygon, wound the other way. */
@@ -422,6 +425,10 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
   if (body.antennas && kIn * grow > 0.02) stalks(body, state, d.rim, kIn * grow, least, layers);
   const from = morph ? leaf(morph.from) : null;
   if (from && from !== body && from.antennas && kOut * grow > 0.02) stalks(from, state, d.rim, kOut * grow, least, layers);
+  if (wearer.surfaceDetails) {
+    const k = grow * (wearer === body ? kIn : kOut) * (1 - (state.dot ?? 0));
+    if (k > .02) paintSurface(wearer, R, k, !morph && !fig && k===1, layers);
+  }
   let dotMask: Float64Array[] | undefined;
   if (wearer.dotStyle && !fig && !morph) {
     const face = dotFace(wearer, wearer.dotStyle, state, R, size);
@@ -555,6 +562,43 @@ export function effectShapes(body: Body, state: RigState, size: number): FxPart[
 /** A layer before it is a path: screen polygons, and what it is. */
 interface Piece { overEyes?: boolean; solid?: boolean; id: string; part: string; fill: string; front: boolean; polys: Float64Array[] }
 
+/** Project visible runs of ribbon quads. Shared edges stay inside a single filled path. */
+function paintSurface(body: Body, rot: Mat3, scale: number, solid: boolean, out: Piece[]) {
+  const colours = new Map<string, Piece>();
+  for (const {paint, points, seatNormal} of body.surfaceDetails!.patches()) {
+    const count = points.length/6;
+    const screen = new Float64Array(count*4);
+    for (let i=0; i<points.length; i+=3) {
+      const j = 2*i/3;
+      project(rot,points[i],points[i+1],points[i+2],screen,j);
+      screen[j] *= scale;
+      screen[j+1] *= scale;
+    }
+    let start = -1;
+    for (let i=0; i<count; i++) {
+      const a = 4*i;
+      // Cross the diagonals, accounting for the screen's downward y axis.
+      const visible = i+1<count &&
+        (screen[a+6]-screen[a])*(screen[a+3]-screen[a+5]) <
+        (screen[a+7]-screen[a+1])*(screen[a+2]-screen[a+4]);
+      if (visible && start<0) start = i;
+      if (visible || start<0) continue;
+      const poly = new Float64Array(4*(i-start+1));
+      let j=0;
+      for (let k=start; k<=i; k++) { poly[j++] = screen[4*k]; poly[j++] = screen[4*k+1]; }
+      for (let k=i; k>=start; k--) { poly[j++] = screen[4*k+2]; poly[j++] = screen[4*k+3]; }
+      let layer = colours.get(paint);
+      if (!layer) {
+        layer = {id:paint,part:paint,fill:body.paint?.[paint] ?? UNPAINTED,front:!seatNormal || rot[6]*seatNormal[0]+rot[7]*seatNormal[1]+rot[8]*seatNormal[2]>.16,solid,polys:[]};
+        colours.set(paint,layer);
+        out.push(layer);
+      }
+      layer.polys.push(poly);
+      start = -1;
+    }
+  }
+}
+
 /** The thinnest an antenna's stalk is drawn, in pixels across. */
 const STALK_PX = 1.4;
 
@@ -599,7 +643,7 @@ function behindEye(of: Body, dc: Decal, state: RigState, size: number): { cu: nu
   const turned = Math.max(-1, Math.min(1, Math.sin(state.pose.yaw) / SIN_LOOK)) * (R[8] < 0 ? -1 : 1) * facing;
   const near = Math.max(0, -side * turned) ** 2 * (e.open ?? 1), wide = 1 + NEAR_WIDE * near, tall = 1 + NEAR_TALL * near;
   const out = (side * (wide - 1) * dc.w * k) / 2;
-  return { cu: (e.cx ?? 0) + look.x * e.slideX + side * e.x * boost + out, cv: e.y + look.y * e.slideY, sx: k * wide, sy: k * tall, w: dc.w * k * wide };
+  return { cu: (e.cx ?? 0) + look.x * e.slideX + side * e.x * boost + out, cv: e.y + look.y * e.slideY + (e.offsetY?.[i] ?? 0), sx: k * wide, sy: k * tall, w: dc.w * k * wide };
 }
 
 /** The decals of `of` that can be seen, each a layer over the body, into `out`. */
@@ -614,11 +658,19 @@ function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>
       if (sx <= .02) continue;
     }
     if (dc.eyewear && of.dotStyle && of.dotStyle.glasses !== 'None') continue;
-    const trim = { outline: fence, rim: EYE_RIM, thin, straightEdge: !!dc.contours };
+    const rim = of.eyes.frontOnly && dc.eyewear ? Math.min(EYE_RIM,.14*of.eyes.w) : EYE_RIM;
+    const trim = { outline: fence, rim, thin, straightEdge: !!dc.contours };
     const polys = dc.contours
       ? dc.contours.flatMap(loop => eyePolys(of,R,cu,cv,sx===1 ? loop : loop.map(v=>v*sx),trim,true))
       : eyePolys(of,R,cu,cv,decalOutline(dc.shape,w,dc.h*sy,dc.turn ?? 0,d.eye),trim);
-    if (polys.length) out.push({ id: dc.id, part: dc.paint, fill: of.paint?.[dc.paint] ?? UNPAINTED, front: true, polys });
+    if (polys.length) {
+      const layer = {id:dc.id,part:dc.paint,fill:of.paint?.[dc.paint] ?? UNPAINTED,front:true,polys,
+        solid:dc.solid && !state.morph && !state.figure?.k && !state.dot};
+      // The material renderer depth-tests these wires. Their vector paths
+      // sit over the face and tuck under the hair when it covers a temple.
+      if (dc.solid) out.unshift(layer);
+      else out.push(layer);
+    }
   }
 }
 
@@ -661,7 +713,7 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
     out.coat = figure
       ? { ...wears, rotation: figureTurn(state), affine: move, eyes: '', ...(shape ? { shape } : {}) }
-      : { ...wears, ...(dotFace ? { dotFace } : {}), rotation: new Float64Array(coatRotation), affine: move, eyes: toPath(bare, UNIT, MID) };
+      : { ...wears, ...(dotFace ? { dotFace } : {}), ...(wears.body.surfaceDetails && !state.morph && !state.figure?.k && !state.dot ? {surfaceDetails:true} : {}), rotation: new Float64Array(coatRotation), affine: move, eyes: toPath(bare, UNIT, MID) };
   }
   return out;
 }

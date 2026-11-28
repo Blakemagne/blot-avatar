@@ -1,4 +1,10 @@
-import type { Body, Decal } from '../body';
+import type { Body, Decal, Hit } from '../body';
+import { percyPieces } from './percy-head';
+import { surfaceAt } from '../field';
+import { D } from '../math';
+import { finishMesh } from '../coat-surface';
+import type { DotSolid } from '../dot-features';
+import { percyHair, percyHairSolids } from './percy-hair';
 
 // The glasses are hollow so the rig can look and blink behind them.
 function oval(rx: number, ry: number, tilt: number, clockwise = false) {
@@ -22,39 +28,72 @@ function soft(points: number[]) {
   }
   return curve;
 }
-// Each strip hugs the scalp independently when the far temple goes out of view.
-const fringe = [
-  [-.69,.15,.18],[-.66,.17,.28],[-.61,.24,.36],[-.54,.33,.45],
-  [-.48,.36,.50],[-.42,.34,.54],[-.34,.45,.59],[-.25,.51,.62],
-  [-.13,.56,.65],[0,.54,.66],[.10,.55,.66],[.21,.57,.64],
-  [.32,.56,.60],[.44,.53,.54],
+const temples = [
+  [[-.77,.165],[-.60,.154],[-.39,.153],[-.256,.14]],
+  [[.513,.037],[.62,.024],[.69,-.002],[.76,-.045]],
 ];
-const strips = fringe.slice(1).map(([x,lo,hi],i) => {
-  const [prev,leftLow,leftHigh] = fringe[i];
-  return [prev,leftLow,x,lo,x,hi,prev,leftHigh];
-});
+function arm(centres: number[][]) {
+  return [...centres.flatMap(([x,y])=>[x,y+.009]), ...centres.slice().reverse().flatMap(([x,y])=>[x,y-.009])];
+}
+// Drape the wire on the same sight lines as its vector drawing. The depth
+// buffer then hides each arm where it runs under the hair at the temple.
+let wires: DotSolid[] | undefined;
+function percyTemples(): readonly DotSolid[] {
+  if (wires) return wires;
+  wires = temples.map(centres => {
+    const verts: number[] = [], indices: number[] = [];
+    const hit: Hit = {z:0,nx:0,ny:0,nz:1};
+    for (let i=0; i<=36; i++) {
+      const segment=Math.min(2,Math.floor(i/12)), t=i/12-segment;
+      const [ax,ay]=centres[segment], [bx,by]=centres[segment+1];
+      const x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+      let z=.1, found=false;
+      for (let n=0; n<5; n++) {
+        found=surfaceAt(percy,x*(1-z/D),y*(1-z/D),hit);
+        if (!found) break;
+        z=hit.z;
+      }
+      if (!found) continue;
+      const index=verts.length/6;
+      const depth=z+.007, k=1-depth/D;
+      for (const offset of [-.009,.009]) verts.push(x*k,(y+offset)*k,depth,hit.nx,hit.ny,hit.nz);
+      if (index) indices.push(index-2,index,index-1,index,index+1,index-1);
+    }
+    return {mesh:finishMesh(verts,indices,undefined,undefined,false),axes:[1,0,0,0,1,0,0,0,1,0,0,0],
+      tint:[51,47,60],paintKey:'ink',finish:'wire'};
+  });
+  return wires;
+}
 const marks: Decal[] = [
-  ink('swept fringe',0,0,strips),
-  ink('raised brow',-.19,.32,[soft([-.13,0,-.065,.048,.045,.05,.13,.015,.12,-.012,.025,.008,-.065,.008,-.126,-.022])]),
-  ink('level brow',.29,.29,[soft([-.105,-.012,-.055,.019,.057,.024,.115,.002,.106,-.019,.02,-.006,-.095,-.029])]),
-  ink('left temple',-.44,.09,[soft([-.25,.064,.05,.017,.05,-.016,-.24,.022])],true),
-  ink('right temple',.49,.09,[soft([-.01,.021,.215,-.014,.228,-.052,0,-.016])],true),
-  ink('bridge',.045,.11,[soft([-.083,.004,-.052,.051,0,.071,.06,.047,.088,.003,.064,-.014,.032,.018,-.008,.027,-.056,.008,-.07,-.013])],true),
-  ...[-1,1].map(side=>ink(side<0?'left rim':'right rim',.045+side*.258,.10,[oval(.210,.153,-.055),oval(.182,.124,-.055,true)],true)),
-  ink('frown',.08,-.205,[soft([-.095,-.018,-.059,.014,.012,.026,.069,.014,.104,-.02,.087,-.037,.049,-.012,-.006,-.007,-.067,-.025])]),
+  ink('raised brow',-.12,.35,[soft([-.13,0,-.065,.048,.045,.05,.13,.015,.12,-.012,.025,.008,-.065,.008,-.126,-.022])]),
+  {...ink('brow crease',.063,.31,[soft([-.016,-.012,-.002,-.009,.016,.027,.021,.016,.012,-.009,-.002,-.023])]),paint:'stubble'},
+  ink('level brow',.385,.285,[soft([-.105,-.012,-.055,.019,.057,.024,.115,.002,.106,-.019,.02,-.006,-.095,-.029])]),
+  {...ink('left temple',0,0,[arm(temples[0])],true),solid:true},
+  {...ink('right temple',0,0,[arm(temples[1])],true),solid:true},
+  ink('bridge',.139,.107,[soft([-.074,-.012,-.041,.017,-.008,.031,.028,.026,.059,.004,.054,-.018,.026,.005,-.005,.011,-.037,-.003,-.066,-.029])],true),
+  ...[[-.095,.115,.181,.102,-.18],[.350,.055,.169,.09,-.10]].map(([x,y,rx,ry,angle],i)=>
+    ink(i?'right rim':'left rim',x,y,[oval(rx,ry,angle),oval(rx-.014,ry-.014,angle,true)],true)),
+  {...ink('chin fold',.125,-.555,[soft([-.187,.017,-.148,-.002,-.077,-.013,.019,-.012,.113,.004,.169,.028,.177,.052,.183,.027,.154,-.005,.093,-.023,.012,-.039,-.082,-.039,-.156,-.027,-.193,-.007])]),paint:'chin shade'},
+  {...ink('nose',.143,-.032,[soft([-.024,.002,-.008,.014,.015,.016,.023,.002,.007,-.006,-.014,-.008])]),paint:'stubble'},
+  ink('frown',.107,-.173,[soft([-.095,-.018,-.059,.014,.012,.026,.069,.014,.104,-.02,.087,-.037,.049,-.012,-.006,-.007,-.067,-.025])]),
 ];
-for (const [i,[x,y]] of [[-.32,-.32],[-.265,-.355],[-.19,-.366],[.24,-.357],[.30,-.324]].entries()) {
-  marks.push(ink('stubble-'+i,x,y,[oval(.012,.018,i*.61)]));
+for (const [i,[x,y]] of [
+  [-.49,-.369],[-.462,-.406],[-.42,-.478],[-.384,-.459],[-.35,-.53],[-.21,-.58],
+  [-.116,-.658],[-.068,-.642],[.087,-.54],[.12,-.528],[.19,-.638],[.246,-.657],[.38,-.613],[.47,-.548],
+  [.287,-.667],[.213,-.68],[-.292,-.61],[-.351,-.587],[.538,-.529],[-.423,-.514],
+  [.538,-.427],[.553,-.39],[-.038,-.205],[.014,-.136],[.067,-.117],[.168,-.108],[.235,-.151],
+].entries()) {
+  marks.push({...ink('stubble-'+i,x,y,[oval(.005+i%3*.0017,.009+i%4*.0015,i*.81)]),paint:'stubble'});
 }
 export const percy: Body = {
   id:'percy',
-  pieces:[[[-.13,.025,0,.63],[.14,.025,0,.63],[-.21,-.13,0,.54],[.18,-.13,0,.55],[.01,-.20,0,.51]]],
-  backDetails:[{paint:'hair',pieces:[
-    [[-.29,.29,-.14,.38],[.02,.31,-.15,.40],[.27,.25,-.15,.32],[-.49,.10,-.15,.28]],
-    [[-.56,-.04,-.23,.16],[-.70,-.16,-.24,.17]],
-    [[-.72,-.19,-.25,.16],[-.78,-.32,-.22,.17],[-.77,-.46,-.20,.155]],
-    [[-.77,-.43,-.20,.15],[-.72,-.59,-.22,.115],[-.76,-.73,-.22,.06],[-.82,-.78,-.22,.034]],
-  ]},{paint:'hair tie',pieces:[[[-.728,-.12,-.19,.073],[-.62,-.18,-.18,.072]]] }],
-  paint:{ink:'#343042',hair:'#474052','hair tie':'#AD7393'}, decals:marks,
-  eyes:{frontOnly:true,cx:.045,x:.258,y:.10,w:.115,h:.17,slideX:.043,slideY:.026},look:.57,
+  pieces:percyPieces,
+  surfaceDetails:{
+    patches:percyHair,
+    solids:body=>body.dotStyle && body.dotStyle.glasses!=='None' ? percyHairSolids() : [...percyHairSolids(),...percyTemples()],
+  },
+  paint:{ink:'#332f3c',stubble:'#625b70',hair:'#322d3c','hair tie':'#714d61','crown hair':'#393342',
+    'hair fibre':'#504959','hair sheen':'#635a6b','hair shadow':'#27232f',
+    'tail fibre':'#474050','tail sheen':'#615868','chin shade':'#88809e'}, decals:marks,
+  eyes:{frontOnly:true,open:.12,cx:.127,x:.221,y:.085,offsetY:[.03,-.03],w:.074,h:.087,slideX:.023,slideY:.012},look:.57,
 };

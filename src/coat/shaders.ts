@@ -27,7 +27,7 @@ import { D } from '../engine/math';
 
 /** The values of the `pass` uniform. */
 export const PASS = { body: 0, shell: 1, strand: 2 } as const;
-export const PILE_FINISH = { bulb: 6, tuft: 7 } as const;
+export const PILE_FINISH = { bulb: 6, tuft: 7, hair: 10 } as const;
 /** The values of the `figure` uniform: a body's coat, a figure's band (the ring's tube), or its balls. */
 export const FIGURE = { none: 0, band: 1, balls: 2 } as const;
 /** Room in the uniforms: rays of a band (morph.ts's rays() is at most 144), and balls. */
@@ -37,7 +37,7 @@ export const MAX_RAYS = 144, MAX_BALLS = 3;
 const float = (n: number): string => (Number.isInteger(n) ? `${n}.` : `${n}`);
 
 const passes = `const int BODY = ${PASS.body}, SHELL = ${PASS.shell}, STRAND = ${PASS.strand};
-const int BULB_PILE = ${PILE_FINISH.bulb}, TUFT_PILE = ${PILE_FINISH.tuft};`;
+const int BULB_PILE = ${PILE_FINISH.bulb}, TUFT_PILE = ${PILE_FINISH.tuft}, HAIR = ${PILE_FINISH.hair};`;
 
 /**
  * A strand whose root faces away from the camera further than this (the cosine) is not drawn: half the roots are
@@ -51,6 +51,7 @@ precision highp int;
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 seed;
+layout(location = 3) in vec3 combTangent;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
@@ -191,6 +192,15 @@ void main() {
   vec3 sweep = transpose(view) * vec3(sin(angle), cos(angle), .18);
   lean = sweep - n * dot(n, sweep);
 
+  if (ornament && finish == HAIR) {
+    if (pass == STRAND) {
+      vec3 groom = FLIP * combTangent;
+      lean = groom - n * dot(n,groom);
+    } else {
+      groomPoint.xy = seed;
+    }
+    pile *= .52;
+  }
   tip = 0.;
   variation = .5;
   across = 0.;
@@ -198,7 +208,7 @@ void main() {
     float facing = max(0.,(view * n).z);
     float level = pass == BODY ? -3.0 : 6.*shell-3.;
     p += n*(feltExtent.x+level*feltExtent.y)*(1.-smoothstep(.14,.48,facing))*UNIT;
-  } else if (builderPile && pass == SHELL) {
+  } else if (builderPile && !ornament && pass == SHELL) {
     p += n * (shell * .0185 * ${(.54945*512/296).toFixed(9)} * UNIT);
   } else if (pass == SHELL) {
     p += n * shell * 1.10 * pile;
@@ -429,6 +439,29 @@ vec3 tintedRadiance(vec2 uv, int layer, int kind) {
 
 void main() {
   if (faceCoverage < .10) discard;
+  if (ornament && finish == 11) {
+    result = vec4(color*(unlit ? 1. : .87+.13*max(normalize(N).z,0.)),1.);
+    return;
+  }
+  if (ornament && finish == HAIR) {
+    // Combed locks and fine fibres sampled in the scalp's own coordinates.
+    // Fade frequencies above the pixel footprint to keep small rotating avatars quiet.
+    float q = atan(groomPoint.y,groomPoint.x+.000001);
+    float lock = .5+.5*cos(q*14.+.55*sin(q*5.));
+    float phase = q*99.+2.4*sin(q*13.);
+    float fibres = cos(phase)*(1.-smoothstep(.5,3.,fwidth(phase)));
+    vec3 n = normalize(N), lamp = normalize(vec3(-.42,-.55,.68));
+    float diffuse = unlit ? .96 : .73+.44*max(0.,dot(n,lamp));
+    float sheen = unlit ? 0. : pow(max(0.,dot(n,normalize(lamp+vec3(0.,0.,1.)))),5.);
+    float height = brushedHeight();
+    if (pass == SHELL && height < .21+.59*shell) discard;
+    if (pass == STRAND) {
+      result = vec4(color*(diffuse+.20*variation)+(.025+.12*sheen)*tip,1.);
+    } else {
+      result = vec4(color*(diffuse+.05*lock+.03*fibres+.12*(height-.5)) + sheen*(.038+.068*lock),1.);
+    }
+    return;
+  }
   if (unlit) {
     vec3 dye = color;
     if (ornament && finish >= 5) dye = studioLight(vec3(0.,0.,1.));

@@ -287,6 +287,11 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.bindVertexArray(surface);
     const vertices = buffer(gl.ARRAY_BUFFER, mesh.vertices);
     attributes(24, [3, 3], false);
+    const grain = mesh.grain && buffer(gl.ARRAY_BUFFER, mesh.grain);
+    if (grain) {
+      gl.enableVertexAttribArray(2);
+      gl.vertexAttribPointer(2,2,gl.FLOAT,false,0,0);
+    }
     const indices = buffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indices);
     // The strands: one instance per root (position, normal, two random numbers); the shader shapes its eight
     // vertices from gl_VertexID.
@@ -294,10 +299,16 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.bindVertexArray(strands);
     const roots = buffer(gl.ARRAY_BUFFER, mesh.roots);
     attributes(32, [3, 3, 2], true);
+    const tangents = mesh.tangents?.length ? buffer(gl.ARRAY_BUFFER,mesh.tangents) : undefined;
+    if (tangents) {
+      gl.enableVertexAttribArray(3);
+      gl.vertexAttribPointer(3,3,gl.FLOAT,false,0,0);
+      gl.vertexAttribDivisor(3,1);
+    }
     gl.bindVertexArray(null);
     const [x0, y0, z0, x1, y1, z1] = mesh.box;
     return {
-      surface, strands, buffers: [vertices, indices, roots], indices: mesh.indices.length, roots: mesh.roots.length / 8,
+      surface, strands, buffers: [vertices,indices,roots,...(grain ? [grain] : []),...(tangents ? [tangents] : [])], indices: mesh.indices.length, roots: mesh.roots.length / 8,
       middle: [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2],
       extent: [Math.max(1e-3, (x1 - x0) / 2), Math.max(1e-3, (y1 - y0) / 2), Math.max(1e-3, (z1 - z0) / 2)],
       deep: mesh.radius + DEEPER, usedAt: 0,
@@ -511,6 +522,18 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | (hasSkinInk ? gl.STENCIL_BUFFER_BIT : 0));
     // (A picture held to MAX_PIXELS is drawn at the detail it has, not the one asked for.)
     const { shells, strandPasses, strandWidth } = coatDetail((f.pxPerUnit * pixels) / Math.max(1, f.pixels));
+    const drawPile = (geometry: Geometry) => {
+      gl.uniform1i(u.pass, PASS.shell);
+      for (let layer = 1; layer <= shells; layer++) {
+        gl.uniform1f(u.shell, layer / shells);
+        gl.drawElements(gl.TRIANGLES, geometry.indices, gl.UNSIGNED_INT, 0);
+      }
+      gl.disable(gl.CULL_FACE);
+      gl.bindVertexArray(geometry.strands);
+      gl.uniform1i(u.pass, PASS.strand);
+      gl.uniform1f(u.strandWidth, strandWidth);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 8, rootsIn(geometry.roots, strandPasses));
+    };
     gl.bindVertexArray(geometry.surface);
     // The mesh is closed and wound outward, so faces turned away are left out; the strands are ribbons
     // turned to the camera, and are not.
@@ -545,16 +568,7 @@ function createRenderer(restored: () => void): Renderer | null {
       }
       gl.depthMask(true); gl.disable(gl.BLEND);
     } else if (!f.glossy) {
-      gl.uniform1i(u.pass, PASS.shell);
-      for (let layer = 1; layer <= shells; layer++) {
-        gl.uniform1f(u.shell, layer / shells);
-        gl.drawElements(gl.TRIANGLES, geometry.indices, gl.UNSIGNED_INT, 0);
-      }
-      gl.disable(gl.CULL_FACE);
-      gl.bindVertexArray(geometry.strands);
-      gl.uniform1i(u.pass, PASS.strand);
-      gl.uniform1f(u.strandWidth, strandWidth);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 8, rootsIn(geometry.roots, strandPasses));
+      drawPile(geometry);
     }
     const hasFacePatches = f.solids?.some(p => p.faceLayer !== undefined);
     const hasEyewear = f.solids?.some(p => p.eyewear);
@@ -642,7 +656,7 @@ function createRenderer(restored: () => void): Renderer | null {
       const measuredTint = assets && (pileTint || portableFelt || layer !== undefined || (!fitting && material === undefined && !finish));
       gl.uniform1i(u.authoredTint, layer !== undefined || pileTint ? 1 : 0);
       gl.uniform1i(u.finish, layer !== undefined ? 0 : portableFelt ? 9 : fitting?.localReflection ? 8 : fitting?.pile ? (f.character === 'Josh' ? PILE_FINISH.tuft : PILE_FINISH.bulb) : fitting || material !== undefined ? 5 :
-        finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
+        finish === 'wire' ? 11 : finish === 'hair' ? PILE_FINISH.hair : finish === 'white' ? 2 : finish === 'portrait-ink' ? 3 : finish === 'portrait-glass' ? 4 : finish === 'ink' ? 1 : 0);
       gl.uniform1i(u.tintLayer, measuredTint ? tintLayer(tint,polished ? 1 : 0,assets,layer) : -1);
       const pileOffset = f.character === 'Thelma' ? .0035 : 0;
       if (soft) {
@@ -658,6 +672,7 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform3f(u.offset, axes[9], axes[10], axes[11]);
       gl.uniform3f(u.color, tint[0] / 255, tint[1] / 255, tint[2] / 255);
       gl.drawElements(gl.TRIANGLES, part.indices, gl.UNSIGNED_INT, 0);
+      if (finish === 'hair' && !f.unlit && part.roots) drawPile(part);
       if (soft) {
         // Draw an opaque core first. Overlapping lobes then occlude one another
         // before the translucent pile softens their silhouette.

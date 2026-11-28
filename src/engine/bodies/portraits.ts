@@ -12,7 +12,7 @@ const DEFAULT: Pose = pose(24, 8, -6);
 
 /** By the id of the body: degrees of yaw (positive turns the face to the viewer's right), pitch (up) and roll. */
 const PORTRAITS: Record<string, Pose> = {
-  percy: pose(10, 3, -3),
+  percy: pose(3, 0, 0),
   blob: pose(16, 10, -5),
   cloud: pose(-15, 6, 4),
   square: pose(20, 10, -8),

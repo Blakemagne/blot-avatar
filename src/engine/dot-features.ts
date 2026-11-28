@@ -37,6 +37,7 @@ export interface DotSolid {
   mesh: CoatMesh;
   axes: readonly number[];
   tint: Rgb;
+  paintKey?: string;
   metal?: boolean;
   beret?: boolean;
   contact?: 'bow' | 'frame' | 'monocle';
@@ -52,7 +53,7 @@ export interface DotSolid {
   skinInk?: boolean;
   catalogCrownLayer?: number;
   /** Dark or white curved eye and eyewear materials. */
-  finish?: 'ink' | 'white' | 'portrait-ink' | 'portrait-glass';
+  finish?: 'ink' | 'white' | 'portrait-ink' | 'portrait-glass' | 'hair' | 'wire';
 }
 
 interface Surface {

@@ -1,5 +1,6 @@
 import { wardrobeSolids } from './wardrobe-solids';
 import type { Material } from '../live';
+import type { Paint } from '../layers';
 // One avatar's coat: a canvas under its body path, painted by the shared renderer and moved with the drawing.
 // mount() and React's useLiveAvatar both use it.
 //
@@ -35,7 +36,7 @@ export interface CoatLayer {
    * Show this drawing's coat (Drawing.coat) on an avatar of `size` px whose body is `fill` (any CSS colour; unset,
    * the body path's own). A drawing without one, or one faded out, shows the body path filled.
    */
-  draw(d: Drawing, size: number, fill?: string): void;
+  draw(d: Drawing, size: number, fill?: string, paint?: Paint): void;
   /** Stop: the canvas hidden, the body path filled again, nothing left waiting. draw() starts it again. */
   stop(): void;
   /** Is a coat showing (and the body path's fill turned down for it)? */
@@ -191,7 +192,7 @@ const NONE = new Float32Array(0);
  */
 export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void, material: Material = 'fluffy'): CoatLayer {
   const glossy = material !== 'fluffy';
-  let latest: { d: Drawing; size: number; fill?: string } | null = null;
+  let latest: { d: Drawing; size: number; fill?: string; paint?: Paint } | null = null;
   let drop: (() => void) | null = null;
   let canvas: HTMLCanvasElement | null = null;
   /** Showing: the canvas on and the body path's fill turned down. */
@@ -291,7 +292,8 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const bodyRadius = c.shape ? FIGURE_REACH + REACH : Math.max(reachOf(mesh, base.warp), also ? reachOf(also.mesh, also.warp) : 0);
     // Sunglasses can project beyond the shell on a sweep even without headwear.
     const dressed = style && (style.glasses !== 'None' || style.extra !== 'None');
-    const radius = dressed ? Math.max(bodyRadius, 2.1) : bodyRadius;
+    const surface = c.surfaceDetails ? base.body.surfaceDetails?.solids(base.body) : undefined;
+    const radius = dressed ? Math.max(bodyRadius, 2.1) : surface ? Math.max(bodyRadius,...surface.map(part=>part.mesh.radius+REACH)) : bodyRadius;
     // Dot playback moves the geometry inside WebGL, before the canvas is
     // composited. Its resting sphere no longer encloses a roll or a dash.
     const playback = c.dotFace?.playback;
@@ -303,7 +305,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
     const dpr = ratio(), box = coatBox(now.size, dpr, reach), pxPerUnit = (now.size * dpr) / 2;
     // Powered, the dye goes toward lavender, so even a dark Bot's fur is light enough to take the rainbow over it.
     const rgb = style ? colourOf(now.fill) : dyeAt(colourOf(now.fill), now.d.ultra?.amount ?? 0);
-    const key = rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.socketRig,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');
+    const key = (surface ? 'surface/'+JSON.stringify(now.paint ?? {}) : '') + rgb.join() + (style ? [now.d.ultra?.amount,now.d.ultra?.phase,base.body.id,style.extraMount,style.socketRig,style.originalEyes,style.depthScale,style.character,style.catalogId,style.catalogGloss,style.tintExtra,style.eyes,style.glasses,style.extra,style.extraColour,c.dotFace?.left,c.dotFace?.right,c.dotFace?.x,c.dotFace?.y].join('/') : '');
     // The picture it holds is kept for the same body, colour and square, with the pose and the eyes within SAME_VIEW.
     const points = held && held.eyes === c.eyes ? held.points : numbersOf(c.eyes);
     const same = !c.dotFace?.playback && !base.warp && held && held.body === base.body && held.mesh === mesh && held.colour === key && held.box.pixels === box.pixels && held.box.half === box.half &&
@@ -318,6 +320,11 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
       // Keep its dark core visible even when it straddles two pixel rows.
       const minStroke = (2 * 1.9) / now.size;
       const solids = style ? wardrobeSolids(base.body, mesh, { ...c.dotFace!, minStroke }, tint) : [];
+      for (const part of surface ?? []) {
+        const colour = part.paintKey && now.paint?.[part.paintKey];
+        const override = colour && (hexOf(colour) ?? painted(colour));
+        solids.push(override ? {...part,tint:override} : part);
+      }
       const frame = { glossy, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
@@ -352,10 +359,10 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
   const lost = () => { held = null; later(); };
 
   return {
-    draw(d, size, fill) {
+    draw(d, size, fill, overrides) {
       const resized = on && latest?.size !== size;
       const previous = latest?.d.coat?.body ?? lastPaintedBody.get(body);
-      latest = { d, size, fill };
+      latest = { d, size, fill, paint:overrides };
       const c = d.coat;
       if (!c || c.opacity <= OFF || !mightCoat()) {
         if (c && mightCoat()) warm(c.body);

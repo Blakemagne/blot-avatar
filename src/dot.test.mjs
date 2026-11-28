@@ -1037,7 +1037,7 @@ test('the opaque frames clear the sides of the tapered paint brush and rocket', 
 test('percy keeps his ponytail and brows when he blinks or changes frames', () => {
   const original = bodyOf('percy');
   assert.equal(original.id,'percy');
-  const render = (body,lid) => drawAvatar(body,'#BEB8EC',{...front,lid},180);
+  const render = (body,lid) => drawAvatar(body,'#DBD8EB',{...front,lid},180);
   const open = render(original,1);
   const shut = render(original,0);
   for (const id of ['hair','hair tie','left rim','right rim','raised brow','frown']) {
@@ -1051,13 +1051,66 @@ test('percy keeps his ponytail and brows when he blinks or changes frames', () =
   assert.ok(!dressed.layers.some(layer=>layer.id==='left rim'));
 });
 
-test('percy’s fringe clears his pupils through a turn and his eyes disappear at the back', () => {
-  const body=bodyOf('percy');
-  const picture=yaw=>drawAvatar(body,'#BEB8EC',{...front,pose:{yaw,pitch:0,roll:0}},200);
-  const bottom=path=>Math.max(...path.match(/-?\d+(?:\.\d+)?/g).filter((_,i)=>i%2).map(Number));
+test('percy keeps both eyes inside the rims as his head turns, clear of the hairline', async () => {
+  const { inside, bounds } = await import('./engine/math.ts');
+  const { layerShapes, eyeShapes } = await import('./engine/draw.ts');
+  const body = bodyOf('percy');
+  const state = yaw => ({...front,pose:{yaw,pitch:0,roll:0}});
   for (const yaw of [-.68,0,.68]) {
-    const view=picture(yaw), fringe=view.layers.find(l=>l.id==='swept fringe');
-    assert.ok(bottom(fringe.d)<Math.min(...view.eyes.map(bottom)));
+    const layers = layerShapes(body,state(yaw),220);
+    const eyes = eyeShapes(body,state(yaw),220);
+    const hair = layers.find(layer=>layer.id==='crown hair').polys;
+    for (const [i,id] of ['left rim','right rim'].entries()) {
+      const [x0,y0,x1,y1] = bounds(eyes[i]);
+      const x=(x0+x1)/2, y=(y0+y1)/2;
+      assert.ok(layers.find(layer=>layer.id===id).polys.some(poly=>inside(poly,x,y)),id+' at '+yaw);
+      assert.ok(!hair.some(poly=>inside(poly,x,y)),'fringe at '+yaw);
+    }
   }
-  assert.deepEqual(picture(2.8).eyes,['','']);
+  assert.deepEqual(eyeShapes(body,state(Math.PI),220),[[],[]]);
+  const rear = layerShapes(body,state(Math.PI),220);
+  assert.ok(rear.find(l=>l.id==='crown hair').polys.some(poly=>inside(poly,.11,-.26)));
+  assert.ok(rear.find(l=>l.id==='hair tie').front);
+  assert.ok(!layerShapes(body,state(0),220).find(l=>l.id==='hair tie').front);
+});
+
+test('percy grows real fur on both masses of hair and retains it when changing glasses', () => {
+  const body = bodyOf('percy');
+  const meshes = wearer => wearer.surfaceDetails.solids(wearer);
+  const parts = meshes(body);
+  const fur = parts.filter(p=>p.finish==='hair' && p.mesh.roots.length);
+  assert.equal(fur.length,3);
+  assert.ok(fur.filter(p=>p.mesh.roots.length/8>500).length>=2);
+  assert.ok(fur.some(p=>p.mesh.box[1]<-1.2));
+  assert.ok(parts.some(p=>p.paintKey==='hair tie'));
+  const glasses = meshes(avatarParts('percy',{glasses:'Monocle'}).body);
+  assert.ok(glasses.every(p=>p.paintKey!=='ink'));
+  assert.deepEqual(glasses.filter(p=>p.mesh.roots.length),fur);
+  assert.equal(parts.filter(p=>p.paintKey==='ink').length,2);
+});
+
+test('percy gathers his rear fibres towards the elastic and seats it across the ponytail', () => {
+  const body=bodyOf('percy'), parts=body.surfaceDetails.solids(body);
+  const [scalp,tail]=parts.filter(p=>p.mesh.roots.length/8>500).map(p=>p.mesh);
+  const elastic=parts.find(p=>p.paintKey==='hair tie').mesh;
+  const centre=[0,1,2].map(i=>(elastic.box[i]+elastic.box[i+3])/2);
+  let tucked=0, rear=0;
+  for (let i=0; i<scalp.roots.length; i+=8) {
+    const [x,y,z]=scalp.roots.subarray(i,i+3);
+    if (z>-.20 || Math.hypot(centre[0]-x,centre[1]-y,centre[2]-z)<.22) continue;
+    const dir=scalp.tangents.subarray(3*i/8,3*i/8+3);
+    if (dir[0]*(centre[0]-x)+dir[1]*(centre[1]-y)+dir[2]*(centre[2]-z)>0) tucked++;
+    rear++;
+  }
+  assert.ok(rear>300 && tucked/rear>.97);
+  // The shell turns outward at the nape, so a horizontal band would cross a
+  // spreading lock. The elastic encloses the neck of the swept tube all around.
+  for (let i=0;i<elastic.vertices.length;i+=6*13) {
+    const [x,y,z]=elastic.vertices.subarray(i,i+3);
+    let nearest=Infinity;
+    for (let k=0;k<tail.vertices.length;k+=6) {
+      nearest=Math.min(nearest,Math.hypot(tail.vertices[k]-x,tail.vertices[k+1]-y,tail.vertices[k+2]-z));
+    }
+    assert.ok(nearest>.004 && nearest<.03,'elastic clearance '+nearest);
+  }
 });

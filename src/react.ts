@@ -121,7 +121,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
     clipEyes(left.current, right.current, d);
     writeLayers(under.current, over.current, d, paint.current, layer.current?.showing);
     const c = fxPaint.current;
-    layer.current?.draw(d, size.current, c?.fill);
+    layer.current?.draw(d, size.current, c?.fill, paint.current);
     // (After the coat: the skin is blended into it only while it shows.)
     powered(d);
     if (c) {
@@ -148,7 +148,7 @@ export function useLiveAvatar(p: LiveProps & { paint?: Paint; fxPaint?: FxPaint 
   // reaches a still coat. (It paints nothing when nothing it is drawn from changed.)
   useEffect(() => {
     const d = last.current, l = layer.current;
-    if (d && l && (l.showing || l.pending)) l.draw(d, size.current, fxPaint.current?.fill);
+    if (d && l && (l.showing || l.pending)) l.draw(d, size.current, fxPaint.current?.fill, paint.current);
   });
   // ... and the antennas' and decals' (as mount() does).
   useEffect(() => {

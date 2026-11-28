@@ -533,4 +533,4 @@ To reproduce the live preview inside a square, call `dotStageLayout(appearance, 
 
 The same options supply `shape`, `body` and `material` to the React hook. Attach its layer groups to display the styled face and accessories and pass the chosen body colour in `fxPaint.fill` for glossy or furry finishes. Low-level drawing consumers should paint `Drawing.layers` in order.
 
-percy is a glossy lavender blot with a low ponytail, narrow glasses and a dry expression. mount him with `mount(host, { shape: 'percy', color: '#BEB8EC', material: 'glossy' })`. his eyes follow the cursor and blink inside the frames. [open percy in the studio](https://blakemagne.github.io/blot-avatar/?avatar=percy#studio)
+percy is a pale lavender blot with a double chin, narrow wire glasses and a low ponytail. his parted hair uses the engine’s fur shells and strands, independently of his body finish. mount him with `mount(host, { shape: 'percy', color: '#DBD8EB', material: 'glossy' })`. his eyes follow the cursor and blink inside the frames. [open percy in the studio](https://blakemagne.github.io/blot-avatar/?avatar=percy#studio)

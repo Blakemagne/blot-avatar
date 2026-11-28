@@ -174,7 +174,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     paths[1].style.fill = paths[2].style.fill = eyeInk(c.eyeFill, inked);
     paintEffects(back, front, last, fxPaint(c));
     // (A coat at rest is not drawn again by itself: it is told the new colour.)
-    coat?.draw(last, opts.size, c.fill);
+    coat?.draw(last, opts.size, c.fill, opts.paint);
   };
   boxed(opts.size);
   svg.setAttribute('aria-hidden', 'true');
@@ -198,7 +198,7 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
     paths[2].setAttribute('d', d.eyes[1]);
     layered(d);
     const c = colour();
-    coat?.draw(d, opts.size, c.fill);
+    coat?.draw(d, opts.size, c.fill, opts.paint);
     // (After the coat: the skin is blended into it only while it shows.)
     powered(d);
     paintEffects(back, front, d, fxPaint(c));
@@ -257,7 +257,10 @@ export function mount(host: HTMLElement, o: MountOptions): Mounted {
       if (changed('face')) live.face(opts.face);
       if (changed('activity', 'form', 'progress', 'rests', 'shape', 'body', 'size', 'mark', 'ultra', 'personality')) live.doing();
       if (changed('color', 'fill', 'eyeFill', 'accent', 'body')) paint();
-      if (changed('paint')) layered(latest);
+      if (changed('paint')) {
+        layered(latest);
+        if (latest.coat?.surfaceDetails) coat?.draw(latest,opts.size,colour().fill,opts.paint);
+      }
       if (changed('pokeable', 'label')) syncPoke();
       if (paintedMaterial(before) !== paintedMaterial(opts) || changed('material')) { material(paintedMaterial(opts)); paint(); live.motion(); }
     },
