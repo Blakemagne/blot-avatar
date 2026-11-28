@@ -22,8 +22,19 @@ function soft(points: number[]) {
   }
   return curve;
 }
+// Each strip hugs the scalp independently when the far temple goes out of view.
+const fringe = [
+  [-.69,.15,.18],[-.66,.17,.28],[-.61,.24,.36],[-.54,.33,.45],
+  [-.48,.36,.50],[-.42,.34,.54],[-.34,.45,.59],[-.25,.51,.62],
+  [-.13,.56,.65],[0,.54,.66],[.10,.55,.66],[.21,.57,.64],
+  [.32,.56,.60],[.44,.53,.54],
+];
+const strips = fringe.slice(1).map(([x,lo,hi],i) => {
+  const [prev,leftLow,leftHigh] = fringe[i];
+  return [prev,leftLow,x,lo,x,hi,prev,leftHigh];
+});
 const marks: Decal[] = [
-  ink('swept fringe',0,0,[soft([-.73,.10,-.72,.36,-.55,.55,-.32,.65,-.11,.67,.12,.67,.32,.62,.47,.53,.22,.56,.06,.52,-.12,.56,-.28,.48,-.40,.34,-.38,.45,-.51,.35,-.62,.17])]),
+  ink('swept fringe',0,0,strips),
   ink('raised brow',-.19,.32,[soft([-.13,0,-.065,.048,.045,.05,.13,.015,.12,-.012,.025,.008,-.065,.008,-.126,-.022])]),
   ink('level brow',.29,.29,[soft([-.105,-.012,-.055,.019,.057,.024,.115,.002,.106,-.019,.02,-.006,-.095,-.029])]),
   ink('left temple',-.44,.09,[soft([-.25,.064,.05,.017,.05,-.016,-.24,.022])],true),
@@ -45,5 +56,5 @@ export const percy: Body = {
     [[-.77,-.43,-.20,.15],[-.72,-.59,-.22,.115],[-.76,-.73,-.22,.06],[-.82,-.78,-.22,.034]],
   ]},{paint:'hair tie',pieces:[[[-.728,-.12,-.19,.073],[-.62,-.18,-.18,.072]]] }],
   paint:{ink:'#343042',hair:'#474052','hair tie':'#AD7393'}, decals:marks,
-  eyes:{cx:.045,x:.258,y:.10,w:.115,h:.17,slideX:.043,slideY:.026},look:.57,
+  eyes:{frontOnly:true,cx:.045,x:.258,y:.10,w:.115,h:.17,slideX:.043,slideY:.026},look:.57,
 };

@@ -256,7 +256,7 @@ function eyesOn(body: Body, state: RigState, size: number, outline: ArrayLike<nu
       }
     }
     const thin = Math.min((THIN_PX * 2) / size, 0.3 * barWidth(eye));
-    return eyePolys(body, R, cu + side * e.x * d.boost + out, cv, eye, { outline, rim: EYE_RIM, thin });
+    return eyePolys(body, R, cu + side * e.x * d.boost + out, cv, eye, { outline, rim: EYE_RIM, thin }, e.frontOnly);
   });
   return [shapes[0], shapes[1]];
 }
@@ -614,7 +614,7 @@ function marks(of: Body, state: RigState, size: number, fence: ArrayLike<number>
       if (sx <= .02) continue;
     }
     if (dc.eyewear && of.dotStyle && of.dotStyle.glasses !== 'None') continue;
-    const trim = { outline: fence, rim: EYE_RIM, thin };
+    const trim = { outline: fence, rim: EYE_RIM, thin, straightEdge: !!dc.contours };
     const polys = dc.contours
       ? dc.contours.flatMap(loop => eyePolys(of,R,cu,cv,sx===1 ? loop : loop.map(v=>v*sx),trim,true))
       : eyePolys(of,R,cu,cv,decalOutline(dc.shape,w,dc.h*sy,dc.turn ?? 0,d.eye),trim);

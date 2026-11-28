@@ -12,6 +12,8 @@ export type Piece = readonly Sphere[];
 
 /** Where the eyes rest, in face coordinates (the same x and y as the front view), and how far they may slide. */
 export interface EyeSpec {
+  /** Keep the eyes on the front of a character with a distinct back. */
+  frontOnly?: boolean;
   /** Half the distance between the two eye centres. */
   x: number;
   /**

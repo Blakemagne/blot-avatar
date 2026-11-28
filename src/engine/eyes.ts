@@ -16,6 +16,8 @@ import { D, area, cameraInBody, project, type Mat3 } from './math';
 
 /** What keeps an eye tidy at the body's edge (screen units: 1 = half the drawing box). */
 export interface Trim {
+  /** Clip a painted contour directly between its visible endpoints. */
+  straightEdge?: boolean;
   /** The body's outline for this pose: one convex polygon per piece, as `silhouette` gives it. */
   outline: ArrayLike<number>[];
   /** How much body to leave between an eye and the outline. */
@@ -228,7 +230,7 @@ export function eyePolys(of: Body, rot: Mat3, cu: number, cv: number, outline: A
     // The two corners of the piece: point 0, and the point where the outline goes back over the edge.
     const corner = poly.length / 2;
     const [outU, outV] = edge(cu + outline[last * 2], cv + outline[last * 2 + 1], hidU, hidV, poly);
-    along(outU, outV, inU, inV, hidU, hidV, poly);
+    if (!trim?.straightEdge) along(outU, outV, inU, inV, hidU, hidV, poly);
     const width = poly.length >= 6 ? barWidth(poly) : 0;
     if (width < thin) continue;
     // A piece cut along the edge ends where it tapers below twice the thinnest slit: a blunt end, not a spike.

@@ -1050,3 +1050,14 @@ test('percy keeps his ponytail and brows when he blinks or changes frames', () =
   assert.ok(dressed.layers.some(layer=>layer.id==='hair'));
   assert.ok(!dressed.layers.some(layer=>layer.id==='left rim'));
 });
+
+test('percy’s fringe clears his pupils through a turn and his eyes disappear at the back', () => {
+  const body=bodyOf('percy');
+  const picture=yaw=>drawAvatar(body,'#BEB8EC',{...front,pose:{yaw,pitch:0,roll:0}},200);
+  const bottom=path=>Math.max(...path.match(/-?\d+(?:\.\d+)?/g).filter((_,i)=>i%2).map(Number));
+  for (const yaw of [-.68,0,.68]) {
+    const view=picture(yaw), fringe=view.layers.find(l=>l.id==='swept fringe');
+    assert.ok(bottom(fringe.d)<Math.min(...view.eyes.map(bottom)));
+  }
+  assert.deepEqual(picture(2.8).eyes,['','']);
+});
