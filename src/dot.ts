@@ -16,7 +16,7 @@ export interface DotAppearance extends Partial<Omit<DotStyle, 'depthScale' | 'po
   shape: string;
   /** CSS body colour, including any DOT_COLOURS swatch. */
   colour?: string;
-  texture?: 'Glossy' | 'Fur';
+  texture?: 'Glossy' | 'Fur' | 'Short hair' | 'Long hair';
   /** Individual wardrobe changes on top of a named portrait. */
   parts?: AvatarParts;
 }
@@ -105,7 +105,7 @@ export function dotAvatar(
   const source = outlineBody(shape);
   const preset: DotAppearance | undefined = options.character ? DOT_PORTRAITS[options.character] : options.catalogId ? matteRecipes.get(options.catalogId) : undefined;
   const matches = preset && options.shape === preset.shape && options.colour === preset.colour
-    && (options.texture ?? 'Glossy') === (preset.texture ?? 'Glossy')
+    && (options.texture === 'Short hair' || options.texture === 'Long hair' || (options.texture ?? 'Glossy') === (preset.texture ?? 'Glossy'))
     && (options.eyes ?? 'Oval') === (preset.eyes ?? 'Oval')
     && (options.glasses ?? 'None') === (preset.glasses ?? 'None')
     && (options.extra ?? 'None') === (preset.extra ?? 'None')
@@ -151,7 +151,7 @@ export function dotAvatar(
     body,
     color: options.colour ?? '#00B1FF',
     eyeFill: '#202024',
-    material: options.texture === 'Fur' ? 'fluffy' : 'glossy',
+    material: options.texture === 'Short hair' ? 'short-hair' : options.texture === 'Long hair' ? 'long-hair' : options.texture === 'Fur' ? 'fluffy' : 'glossy',
     followMost: 1,
     clips: DOT_CLIPS,
   };

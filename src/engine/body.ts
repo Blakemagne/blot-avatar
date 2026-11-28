@@ -14,6 +14,11 @@ export interface SurfaceWire {
   id: string;
   points: readonly (readonly [number,number,number])[];
   radius: number;
+  /** Radius at the last point of an open, tapered strand. */
+  tipRadius?: number;
+  /** Existing frame wires yield to replacement glasses. Facial strands stay attached. */
+  eyewear?: boolean;
+  paint?: string;
   closed?: boolean;
 }
 

@@ -1,14 +1,9 @@
 import { headRadius } from './percy-head';
 import type { SurfaceWire } from '../body';
-import { finishMesh } from '../coat-surface';
+import { wireSolid } from './percy-wires';
 import type { DotSolid } from '../dot-features';
 
 type Point = readonly [number,number,number];
-const cross = (a:Point,b:Point): Point => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-function unit(x:number,y:number,z:number): Point {
-  const n=Math.hypot(x,y,z);
-  return [x/n,y/n,z/n];
-}
 function bridge(a:Point,b:Point,c:Point,d:Point): SurfaceWire {
   const points: Point[]=[];
   for(let i=0;i<=24;i++) {
@@ -59,23 +54,5 @@ export function percyFrames(): readonly SurfaceWire[] {
   return wires;
 }
 
-function tube({points,closed,radius}:SurfaceWire): DotSolid {
-  const vertices:number[]=[],indices:number[]=[];
-  const n=points.length,sides=8;
-  for(let i=0;i<n;i++) {
-    const prev=points[closed?(i+n-1)%n:Math.max(0,i-1)], next=points[closed?(i+1)%n:Math.min(n-1,i+1)];
-    const t=unit(next[0]-prev[0],next[1]-prev[1],next[2]-prev[2]);
-    const normal=unit(...cross(t,closed?[0,0,1]:[0,1,0])), binormal=cross(t,normal);
-    for(let j=0;j<sides;j++) {
-      const angle=j*2*Math.PI/sides,c=Math.cos(angle),s=Math.sin(angle);
-      const nx=c*normal[0]+s*binormal[0],ny=c*normal[1]+s*binormal[1],nz=c*normal[2]+s*binormal[2];
-      vertices.push(points[i][0]+radius*nx,points[i][1]+radius*ny,points[i][2]+radius*nz,nx,ny,nz);
-      if(!closed && i===n-1) continue;
-      const k=i*sides+j, l=i*sides+(j+1)%sides, m=(i+1)%n*sides;
-      indices.push(k,l,m+j,l,m+(j+1)%sides,m+j);
-    }
-  }
-  return {mesh:finishMesh(vertices,indices,undefined,undefined,false),axes:[1,0,0,0,1,0,0,0,1,0,0,0],tint:[51,47,60],finish:'wire',paintKey:'ink'};
-}
 let solids: DotSolid[] | undefined;
-export const percyFrameSolids = () => solids ??= percyFrames().map(tube);
+export const percyFrameSolids = () => solids ??= percyFrames().map(wire=>wireSolid([wire],[51,47,60],'ink'));

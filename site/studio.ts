@@ -200,14 +200,14 @@ export function freeId(yours: readonly AvatarDefinition[], d: AvatarDefinition):
 //   &color=blue           one of blot's colours by name, or a hex colour with or without #
 //   &doing=working        what it is doing: idle, thinking, working, waiting, speaking or sleeping
 //   &def=…                a whole definition as base64url JSON (or JSON as it is): checked like an import, then added to yours
-//   &material=fluffy      its finish (flat, glossy or fluffy); a link without one leaves the finish the visitor chose
+//   &material=fluffy      its finish (flat, glossy, short-hair or long-hair; fluffy selects the original coat); a link without one leaves the finish the visitor chose
 
 export interface Shared { avatar?: string; gallery?: string; definition?: AvatarDefinition; colour?: string; doing?: string; material?: Material; problem?: string }
 
 /** A finish named in a link or kept in a browser. Anything else is undefined. */
 export function readMaterial(v: string | null | undefined): Material | undefined {
   const t = v?.trim().toLowerCase();
-  return t === 'flat' || t === 'glossy' || t === 'fluffy' ? t : undefined;
+  return t === 'flat' || t === 'glossy' || t === 'fluffy' || t === 'short-hair' || t === 'long-hair' ? t : undefined;
 }
 
 /** A definition as compact JSON in base64url, UTF-8 safe, without padding. */

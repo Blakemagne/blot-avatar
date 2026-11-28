@@ -327,7 +327,7 @@ From `@blot/avatar`:
 - **Clips.** `CLIPS`, `POKES`, `CUES`, `PICKUP_MS`, `start`, `advance`, `checkClips`, `track`, `smooth`, `deg`, and the types `Clip`, `Channels`, `View`, `Cue`, `Playing`, `Lane`.
 - **The frame loop.** `onFrame(tick)`, `onSeen(el, cb)`, `onMotion(cb)`, `reducedMotion()`, `pointer`, `watchPointer()`, `ticking()`.
 - **A live avatar.** `createLive(props)` gives a `Live`: one rig, drawn from the shared loop into whatever you write it to. `lookFor`, `lookWithin`, `SMALL`, `LARGE`, `SMALL_LOOK`.
-- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `progress` (0..1, how far the progress figure is filled; also on `createLive` and `useLiveAvatar`), `mark`, `ultra`, `personality`, `accent` (the effects' colour) and `material` (`'flat'` or `'fluffy'`, the `Material` type).
+- **Any page.** `mount(host, options)` gives a `Mounted`: `update`, `poke`, `play`, `visit`, `destroy`. Options add `progress` (0..1, how far the progress figure is filled; also on `createLive` and `useLiveAvatar`), `mark`, `ultra`, `personality`, `accent` (the effects' colour) and `material` (`'flat'`, `'glossy'`, `'short-hair'`, `'long-hair'` or the legacy `'fluffy'`).
 - **Ultracode.** `skinMarkup(drawing, id, size, fur?)`, the skin as SVG markup with no DOM; `paintSkin(group, drawing, size, fur, id)`, the same written into an svg group frame by frame, `fur` being `furShown(showing, drawing)`, how much of a coat of fur shows (0 for none); `skinPaint(id)`, the effects' `rainbow` and `halo` paints; `ultraId()`; `eyeInk(eyeFill, k)`; `ULTRA_PALETTE`, `ULTRA_INK`, `ULTRA_LAVENDER`.
 - **Definitions.** A `Shape` is a body's id or an `AvatarDefinition`. `validateAvatar`, `outlineBody`, `GALLERY`, `galleryAvatar`, `galleryColour`, `parsePath`, `flattenPath`, `serializePath`, `PathError`, `EYE_W`, `EYE_H`, `BOX_SCALE`. A body's `eyes.cx` moves the pair off the middle of the face.
 
@@ -378,11 +378,13 @@ In React, use `useLiveAvatar` from `@blot/avatar/react`. The demo page has the w
 
 ### A coat of fur
 
+use `material: 'short-hair'` for a close coat or `'long-hair'` for longer strands on any shape. `dotAvatar` recipes accept `texture: 'Short hair'` and `'Long hair'`. existing `'fluffy'` and `'Fur'` looks keep their original coat length.
+
 `material: 'fluffy'` (on `mount` or `useLiveAvatar`) gives the body a coat of fur, drawn with WebGL2 and set round the eyes: the pile parts under them and darkens a little where it meets them. The eyes, the face, the antennas, the decals and the effects stay SVG over it. `update({ material })` switches at once, either way. Where there is no WebGL2 (a server, a test, an old browser), or it fails, the avatar is exactly the flat one. While it changes shape the coat stays on: the body it leaves, then the one it becomes, each stretched onto the blended outline, crossing over near half way. A loading figure wears the same fur: the body's coat fades out over the first quarter of the way in, the flat body opens into the figure, and the figure's own coat fades in over the last quarter (and back the same way). The figure's coat is a ball (radar), two balls (orbit), three balls that pulse (dots), or a tube whose thickness follows the spinner's comet or the progress ring's track and arc, drawn from the same numbers as the flat figure, so it keeps to its outline. Each is a mesh made once a page and moved every frame, never made again. The radar's marks and the eye dots are drawn over the fur, which does not part under them. A change of shape while a figure is up goes on under it: the figure's coat stays as it is, and a figure that ends on the way to a new body comes out onto that change of shape, the coat stretched onto it as ever.
 
 ```ts
-const bot = mount(el, { shape: 'heart', size: 96, material: 'fluffy' });
-bot.update({ material: 'flat' });
+const bot = mount(el, { shape: 'heart', size: 96, material: 'short-hair' });
+bot.update({ material: 'long-hair' });
 ```
 
 Where it is fur, and where it is flat:

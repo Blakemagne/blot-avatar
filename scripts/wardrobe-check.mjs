@@ -62,7 +62,7 @@ try {
       if (dark[i+3] > 250 && Math.max(dark[i],dark[i+1],dark[i+2]) < 60) pupils++;
     }
     let exposed = 0;
-    for (const material of ['flat','glossy','fluffy']) for (const stageColour of ['#4778FF','#FB8070']) {
+    for (const material of ['flat','glossy','short-hair','long-hair']) for (const stageColour of ['#4778FF','#FB8070']) {
       const flower = await snapshot({catalog:'blue_beret',turn:[1.62,.24,.07],material,stageColour});
       const profile = flower.getImageData(333,193,28,40).data;
       for (let i=0;i<profile.length;i+=4) {
@@ -328,7 +328,7 @@ try {
     await page.locator('#choose-Eyes').click();
     await page.locator('[data-parts="eyes"]').getByRole('button', { name: 'sparkle capsules' }).click();
     await page.locator('#choose-Textures').click();
-    for (const material of ['flat', 'fluffy', 'glossy']) {
+    for (const material of ['flat', 'short-hair', 'long-hair', 'glossy']) {
       const finish = page.locator(`[data-material-is="${material}"]`);
       await finish.click();
       assert.equal(await finish.getAttribute('aria-pressed'), 'true', material);

@@ -78,8 +78,8 @@ export interface LiveProps {
   material?: Material;
 }
 
-/** A body's finish: flat paint, or a coat of fur. */
-export type Material = 'flat' | 'fluffy' | 'glossy';
+/** Body finish. The legacy fluffy setting uses the body's original pile length. */
+export type Material = 'flat' | 'fluffy' | 'short-hair' | 'long-hair' | 'glossy';
 
 export interface Live {
   /** The rig. Under reduced motion a new shape builds a new one. */
@@ -173,7 +173,7 @@ export function lookWithin(size: number, dx: number, dy: number, reach: Reach, f
 
 /** Dressed bodies can also paint their fitted solids without lighting in the flat finish. */
 export function paintedMaterial(props: LiveProps): Material | undefined {
-  if (props.material === 'glossy' || props.material === 'fluffy') return props.material;
+  if (props.material && props.material !== 'flat') return props.material;
   return props.body?.dotStyle ? 'flat' : undefined;
 }
 

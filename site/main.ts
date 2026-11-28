@@ -181,18 +181,18 @@ const PERCY_PRESET = 'blot/percy';
 const percyEntry: Entry = { key: 'body:percy', id: 'percy', name: 'percy', kind: 'body', shape: 'percy', own: '#DBD8EB', finish: 'glossy' };
 // Picker looks use the same palette and materials as the stage.
 const dotLooks: Record<string, readonly [string, Material]> = {
-  'dot-blossie': ['#FA70AB', 'fluffy'],
+  'dot-blossie': ['#FA70AB', 'short-hair'],
   'dot-circle': ['#4778FF', 'glossy'],
-  'dot-rounded-triangle': ['#00B1FF', 'fluffy'],
+  'dot-rounded-triangle': ['#00B1FF', 'short-hair'],
   'dot-capsule': ['#A25BFF', 'glossy'],
   'dot-rounded-head-with-two-ears': ['#B6D80B', 'glossy'],
   'dot-heart': ['#FF8066', 'glossy'],
-  'dot-four-lobed-butterfly': ['#DD6ADC', 'fluffy'],
-  'dot-circle-with-two-ears': ['#FA70AB', 'fluffy'],
+  'dot-four-lobed-butterfly': ['#DD6ADC', 'short-hair'],
+  'dot-circle-with-two-ears': ['#FA70AB', 'short-hair'],
   'dot-twelve-scalloped-rosette': ['#FFCC38', 'glossy'],
   'dot-hexagon': ['#04BB9F', 'glossy'],
   'dot-rounded-diamond': ['#4778FF', 'glossy'],
-  'dot-six-lobed-flower': ['#A25BFF', 'fluffy'],
+  'dot-six-lobed-flower': ['#A25BFF', 'short-hair'],
 };
 for (const shape of DOT_SHAPES) {
   const [own, finish] = dotLooks[shape.id];
@@ -326,7 +326,7 @@ let chosenTexture = !!shared.material || !!readMaterial(stored.get(MATERIAL_KEY)
   pg.color = shared.colour ?? portrait?.colour ?? oldWhite ?? entry(pg.key).own;
   if (shared.doing) pg.activity = shared.doing;
   if (shared.material) pg.material = shared.material;
-  else if (portrait) pg.material = portrait.texture === 'Fur' ? 'fluffy' : 'glossy';
+  else if (portrait) pg.material = portrait.texture === 'Fur' ? 'short-hair' : 'glossy';
   else if (preset === PERCY_PRESET || !chosenTexture) pg.material = entry(pg.key).finish ?? 'glossy';
   if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
 }
@@ -644,7 +644,7 @@ function cellFor(e: Entry): HTMLLIElement {
   b.addEventListener('pointerenter', () => {
     setTimeout(() => bodyOf(e.shape));
     clearTimeout(rest);
-    rest = setTimeout(() => { if (pg.material === 'fluffy') coatMesh(bodyOf(e.shape)); }, 250);
+    rest = setTimeout(() => { if (pg.material !== 'flat' && pg.material !== 'glossy') coatMesh(bodyOf(e.shape)); }, 250);
   });
   b.addEventListener('pointerleave', () => clearTimeout(rest));
   cells.set(e.key, b);
@@ -727,8 +727,10 @@ function syncTexture(): void {
   const matte = catalog && pg.material === 'glossy' && !catalogGloss;
   $('[data-matte]').hidden = !catalog;
   $('[data-matte]').setAttribute('aria-pressed', String(matte));
+  const body = pg.material === 'fluffy' ? outfit().body : undefined;
+  const finish = pg.material === 'fluffy' ? (body?.dotStyle && !body.wardrobeHost ? 'short-hair' : 'long-hair') : pg.material;
   for (const button of materialButtons) {
-    button.setAttribute('aria-pressed', String(!matte && button.dataset.materialIs === pg.material));
+    button.setAttribute('aria-pressed', String(!matte && button.dataset.materialIs === finish));
   }
 }
 function finished(): void {
@@ -829,7 +831,7 @@ function applyPreset(key: string): void {
   delete wardrobe.extraMount;
   Object.assign(wardrobe, recipeParts(recipe));
   chosenTexture = true;
-  pg.material = recipe.texture === 'Fur' ? 'fluffy' : 'glossy';
+  pg.material = recipe.texture === 'Fur' ? 'short-hair' : 'glossy';
   const shapeKey = 'body:' + recipe.shape;
   select(shapeKey, true);
 }

@@ -35,6 +35,7 @@ const PILE_OPACITY = [.85,.65,.47,.33,.18,.075,.018];
 /** One coat to draw. */
 export interface CoatFrame {
   glossy?: boolean;
+  furLength?: 'short' | 'long';
   unlit?: boolean;
   power?: { amount: number; phase: number };
   depthScale?: number;
@@ -137,7 +138,7 @@ function createRenderer(restored: () => void): Renderer | null {
     matteBodyLayer: uniform('matteBodyLayer'), feltScale: uniform('feltScale'), feltGain: uniform('feltGain[0]'), feltExtent: uniform('feltExtent'), directLight: uniform('directLight[0]'), shadowWeights: uniform('shadowWeights[0]'),
     fibreDye: uniform('fibreDye[0]'), substrateRGB: uniform('substrateRGB'), substrateScale: uniform('substrateScale[0]'), builderPile: uniform('builderPile'), shellOpacity: uniform('shellOpacity'), contactExtent: uniform('contactExtent'), contactColor: uniform('contactColor[0]'), furLightLayer: uniform('furLightLayer'), tintLayer: uniform('tintLayer'), opticalLayer: uniform('opticalLayer'), fittedGloss: uniform('fittedGloss'), opticalFrame: uniform('opticalFrame'),
     glossCoefficients: uniform('glossCoefficients[0]'), pigmentControls: uniform('pigmentControls'), glossPigment: uniform('glossPigment'), finish: uniform('finish'), ornament: uniform('ornament'), axes: uniform('ornamentAxes'), offset: uniform('ornamentOffset'), metal: uniform('metal'),
-    portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), dyedMatte: uniform('dyedMatte'), unlit: uniform('unlit'), authoredTint: uniform('authoredTint'), eyePatch: uniform('eyePatch'), eyeRelief: uniform('eyeRelief'), faceBounds: uniform('faceBounds'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
+    bodyPile: uniform('bodyPile'), grainScale: uniform('grainScale'), portraitCoat: uniform('portraitCoat'), glossy: uniform('glossy'), dyedMatte: uniform('dyedMatte'), unlit: uniform('unlit'), authoredTint: uniform('authoredTint'), eyePatch: uniform('eyePatch'), eyeRelief: uniform('eyeRelief'), faceBounds: uniform('faceBounds'), measuredLight: uniform('measuredLight'), studio: uniform('studio[0]'), orthographic: uniform('orthographic'),
     square: uniform('square'), shell: uniform('shell'), strandWidth: uniform('strandWidth'), pass: uniform('pass'), color: uniform('color'),
     eyeMap: uniform('eyeMap'), eyeRange: uniform('eyeRange'), warpN: uniform('warpN'), warpPress: uniform('warpPress'),
     figure: uniform('figure'), rays: uniform('rays'), balls: uniform('balls'), band: uniform('band'), restBall: uniform('restBall'), nowBall: uniform('nowBall'),
@@ -378,8 +379,10 @@ function createRenderer(restored: () => void): Renderer | null {
     const assets = f.dotBody ? dotRenderer : undefined;
     const originalDye = f.portraitDye === undefined || key === f.portraitDye;
     const character = originalDye ? f.character : undefined;
-    const builder = assets && f.dotBody && !character && !f.glossy && assets.builderGain[key] ? assets.builderReliefs[f.dotBody] : undefined;
-    const portrait = character && !f.glossy ? assets?.feltReliefs[character] : undefined;
+    const shortDot = !f.glossy && f.furLength !== 'long';
+    const portraitCoat = !!character && shortDot;
+    const builder = assets && f.dotBody && !character && shortDot && assets.builderGain[key] ? assets.builderReliefs[f.dotBody] : undefined;
+    const portrait = character && shortDot ? assets?.feltReliefs[character] : undefined;
     const fibreDye = builder && f.dotBody === 'dot-rounded-triangle' ? assets?.fibreDyes[key] : undefined;
     const substrate = fibreDye && assets ? assets.fibreSubstrates.channel0 : undefined;
     const relief = substrate ?? portrait ?? builder;
@@ -394,8 +397,8 @@ function createRenderer(restored: () => void): Renderer | null {
       opticalLayer(name+'/b',channels.channel2.field,assets);
       gl.uniform4fv(u.substrateScale, [...channels.channel0.scale,...channels.channel1.scale,...channels.channel2.scale]);
     }
-    const felt = portrait && character && assets ? assets.feltLayers[character] : undefined;
-    gl.uniform1i(u.furLightLayer, assets && relief ? tintLayer(substrate ? [0,177,255] : f.colour,2,assets,felt) : -1);
+    const felt = !f.glossy && character && assets ? assets.feltLayers[character] : undefined;
+    gl.uniform1i(u.furLightLayer, assets && (relief || felt !== undefined) ? tintLayer(substrate ? [0,177,255] : f.colour,2,assets,felt) : -1);
     if (relief && assets && !substrate) {
       gl.uniform4fv(u.feltScale,relief.scale);
       gl.uniform3fv(u.feltGain,portrait?.gain ?? assets.builderGain[key]);
@@ -424,7 +427,10 @@ function createRenderer(restored: () => void): Renderer | null {
     gl.uniform1i(u.eyePatch, 0);
     gl.uniform1i(u.metal, 0);
     gl.uniform1i(u.orthographic, f.orthographic ? 1 : 0);
-    gl.uniform1i(u.portraitCoat, character && !f.glossy ? 1 : 0);
+    gl.uniform1i(u.portraitCoat, portraitCoat ? 1 : 0);
+    const pile = f.furLength === 'long' ? 1 : f.orthographic ? (portraitCoat ? .10 : .20) : f.furLength === 'short' ? .20 : 1;
+    gl.uniform1f(u.bodyPile, pile);
+    gl.uniform1f(u.grainScale, f.furLength === 'short' && !f.orthographic ? 2.3 : 1);
     const light = matteBody && f.catalogId && assets ? assets.catalogLight[assets.catalogRigs[f.catalogId].body] : character && !f.glossy ? assets?.portraitLight[character] : f.glossy ? dotLighting[key] : f.orthographic ? furLighting[key] : undefined;
     gl.uniform1i(u.measuredLight, light ? 1 : 0);
     if (light) gl.uniform3fv(u.studio, light);
@@ -495,7 +501,7 @@ function createRenderer(restored: () => void): Renderer | null {
     const matteContact = matte && !f.unlit && !shape && !f.warp
       ? matteDye?.contact ?? assets?.customMatteContact : undefined;
     const contactColour = builder ? assets?.contactColor[key] : matteContact;
-    if (felt !== undefined && assets && character) {
+    if (portrait && felt !== undefined && assets && character) {
       contact ??= assets.createDotContact(gl,link);
       contact(f,pixels,rotation,geometryOf,true);
       gl.useProgram(program);
@@ -571,10 +577,9 @@ function createRenderer(restored: () => void): Renderer | null {
       drawPile(geometry);
     }
     const hasFacePatches = f.solids?.some(p => p.faceLayer !== undefined);
-    const hasEyewear = f.solids?.some(p => p.eyewear);
-    if (!f.glossy && !relief && (hasFacePatches || hasEyewear)) {
+    if (!f.glossy && !relief && f.solids?.length) {
       // Shells and strands write depth. Restore the skin as the occluder for
-      // fitted eyes and glasses so pile tips cannot show through the lenses.
+      // fittings and facial hair so pile tips cannot pierce their surfaces.
       gl.colorMask(false,false,false,false);
       gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.CULL_FACE);
@@ -602,7 +607,7 @@ function createRenderer(restored: () => void): Renderer | null {
       gl.uniform1i(u.pass,PASS.body);
       gl.drawElements(gl.TRIANGLES,geometry.indices,gl.UNSIGNED_INT,0);
       gl.colorMask(true,true,true,true);
-      gl.uniform1i(u.portraitCoat,character && !f.glossy ? 1 : 0);
+      gl.uniform1i(u.portraitCoat,portraitCoat ? 1 : 0);
     }
     if (f.power?.amount) {
       wardrobePower ??= createWardrobePower(gl,link);
@@ -623,6 +628,8 @@ function createRenderer(restored: () => void): Renderer | null {
       const [x0,y0,,x1,y1] = f.mesh.box;
       gl.uniform4f(u.faceBounds,x0,y0,1/(x1-x0),1/(y1-y0));
     }
+    // Fitted garments keep their authored pile independently of the body haircut.
+    gl.uniform1i(u.portraitCoat, character && !f.glossy ? 1 : 0);
     for (const { mesh, tint, axes, metal, beret, finish, material, insetSurface, portraitSection, pileTint, catalogCrownLayer, faceLayer, skinInk } of f.solids ?? []) {
       if (skinInk) gl.enable(gl.STENCIL_TEST);
       const part = geometryOf(mesh);

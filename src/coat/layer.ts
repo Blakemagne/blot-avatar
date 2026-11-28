@@ -29,7 +29,7 @@ import { OVERDRAW, coatBox, type CoatBox } from '../still';
 import { inFrame, soon } from '../ticker';
 import { dyeAt } from '../ultra';
 import { eyeField, polygonsOf, type EyeField } from './mask';
-import { coatable, mightCoat, onRestored, renderCoat } from './renderer';
+import { coatable, mightCoat, onRestored, renderCoat, type CoatFrame } from './renderer';
 
 export interface CoatLayer {
   /**
@@ -191,7 +191,8 @@ const NONE = new Float32Array(0);
  * coat starts or stops showing, which can be outside a frame (a powered skin over it is then painted again).
  */
 export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElement | null, shown?: () => void, material: Material = 'fluffy'): CoatLayer {
-  const glossy = material !== 'fluffy';
+  const glossy = material === 'glossy' || material === 'flat';
+  const furLength: CoatFrame['furLength'] = material === 'short-hair' ? 'short' : material === 'long-hair' ? 'long' : undefined;
   let latest: { d: Drawing; size: number; fill?: string; paint?: Paint } | null = null;
   let drop: (() => void) | null = null;
   let canvas: HTMLCanvasElement | null = null;
@@ -325,7 +326,7 @@ export function coatLayer(body: SVGPathElement, canvasOf: () => HTMLCanvasElemen
         const override = colour && (hexOf(colour) ?? painted(colour));
         solids.push(override ? {...part,tint:override} : part);
       }
-      const frame = { glossy, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
+      const frame = { glossy, furLength, power: style ? now.d.ultra : undefined, unlit: material === 'flat', solids, depthScale: style?.depthScale, playback: c.dotFace?.playback, dotBody: style ? base.body.wardrobeHost ? 'blot' : base.body.id : undefined, character: style?.character, catalogId: style?.catalogId, catalogGloss: style?.catalogGloss, portraitDye: style?.portraitDye, orthographic: !!base.body.dotStyle && !base.body.wardrobeHost && !base.warp, shape: c.shape, rotation: c.rotation, cx: box.cx, cy: box.cy, half: box.half, pixels: box.pixels, pxPerUnit, colour: rgb, eyes: field };
       const image = renderCoat({ ...frame, mesh, warp: base.warp });
       if (!image) { held = null; hide(); return; }
       const n = image.size;

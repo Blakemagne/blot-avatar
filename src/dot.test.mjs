@@ -5,6 +5,7 @@ import {
   BODIES,
   GALLERY,
   avatarParts,
+  DOT_CATALOG,
   DOT_COLOURS,
   DOT_EYES,
   DOT_EXTRA_COLOURS,
@@ -1098,8 +1099,10 @@ test('percy keeps his visible stubble and brows through turns at every drawing s
   const body = bodyOf('percy');
   const marks = layers => layers.filter(layer => layer.id.startsWith('stubble-') || layer.id.endsWith(' brow'))
     .map(layer => layer.id);
-  const authored = marks(body.decals);
-  assert.equal(authored.length,29);
+  const strands = body.surfaceDetails.wires().filter(w=>w.paint==='stubble');
+  const authored = [...new Set(strands.map(w=>w.id)), ...marks(body.decals)];
+  assert.equal(new Set(strands.map(w=>w.id)).size,27);
+  assert.ok(strands.every(w=>w.tipRadius < w.radius && w.points[2][2] !== w.points[0][2]));
   for (const size of [48,96,220,320]) {
     for (const yaw of [-.55,0,.55,Math.PI]) {
       for (const pitch of [-.12,.12]) {
@@ -1164,7 +1167,10 @@ test('percy grows real fur on both masses of hair and retains it when changing g
   const glasses = meshes(avatarParts('percy',{glasses:'Monocle'}).body);
   assert.ok(glasses.every(p=>p.paintKey!=='ink'));
   assert.deepEqual(glasses.filter(p=>p.mesh.roots.length),fur);
-  const wires=body.surfaceDetails.wires();
+  const beard=parts.find(p=>p.paintKey==='stubble');
+  assert.ok(beard.mesh.indices.length>1000 && beard.mesh.vertices.every(Number.isFinite));
+  assert.ok(glasses.includes(beard));
+  const wires=body.surfaceDetails.wires().filter(w=>w.eyewear!==false);
   assert.deepEqual(wires.map(w=>w.id),['left rim','left temple','right rim','right temple','bridge']);
   assert.equal(parts.filter(p=>p.paintKey==='ink').length,wires.length);
 });
@@ -1192,5 +1198,16 @@ test('percy gathers his rear fibres towards the elastic and seats it across the 
       nearest=Math.min(nearest,Math.hypot(tail.vertices[k]-x,tail.vertices[k+1]-y,tail.vertices[k+2]-z));
     }
     assert.ok(nearest>.004 && nearest<.03,'elastic clearance '+nearest);
+  }
+});
+
+test('both body hair lengths retain catalog fittings and use the selected material', () => {
+  for (const {appearance} of DOT_CATALOG) {
+    const original=dotAvatar(appearance);
+    for (const [texture,material] of [['Short hair','short-hair'],['Long hair','long-hair']]) {
+      const look=dotAvatar({...appearance,texture});
+      assert.equal(look.material,material);
+      assert.equal(look.body,original.body);
+    }
   }
 });

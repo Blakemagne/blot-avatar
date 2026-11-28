@@ -55,6 +55,7 @@ layout(location = 3) in vec3 combTangent;
 // The pose's rotation, and the same in open-bot-avatar's space (y down).
 uniform mat3 rotation, view;
 uniform vec3 poseScale, poseOffset;
+uniform float bodyPile, grainScale;
 uniform bool unlit, orthographic, ornament, portraitCoat, builderPile, substrateRGB;
 uniform int finish;
 uniform vec2 feltExtent;
@@ -159,7 +160,7 @@ void main() {
     rest = Nm;
     pile = clamp(scale, 0., 1.);
   }
-  if (orthographic) pile *= portraitCoat ? .10 : .20;
+  pile *= ornament ? (orthographic ? (portraitCoat ? .10 : .20) : 1.) : bodyPile;
   // Into open-bot-avatar's space: its units, y down.
   vec3 n = normalize(FLIP * Nm), p = FLIP * P * UNIT;
   vec3 rounded = FLIP * rest;
@@ -184,7 +185,7 @@ void main() {
   }
   groomSide = Nm.z;
   opticalPlace = rotation * ((position * opticalFrame.w - opticalFrame.xyz) * poseScale) + poseOffset * opticalFrame.w;
-  pilePosition = FLIP * position * UNIT;
+  pilePosition = FLIP * position * UNIT * (ornament ? 1. : grainScale);
   // Sweep across the visible surface. A downwards bias keeps the front from parting at a point.
   // Project without normalizing, so foreshortened locks get shorter continuously at a grazing angle.
   float wave = .21 * sin(dot(p, vec3(.11, .045, .08))) + .14 * sin(.13 * p.y - .07 * p.z);

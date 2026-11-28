@@ -146,6 +146,10 @@ test('a share link carries a fluffy finish and leaves a flat one out, and the fi
   const fluffy = S.shareLink(base, { id: 'cat', kind: 'gallery', definition: cat }, '#1E86FC', '#F59312', 'working', 'fluffy');
   assert.equal(fluffy, `${base}?gallery=cat&color=blue&doing=working&material=fluffy`);
   assert.deepEqual(S.readShare(new URL(fluffy).search, ACTIVITIES), { gallery: 'cat', colour: '#1E86FC', doing: 'working', material: 'fluffy' });
+  for (const length of ['short-hair','long-hair']) {
+    const url = S.shareLink(base,{id:'heart',kind:'body'},'#FD690F','#FD690F','idle',length);
+    assert.equal(S.readShare(new URL(url).search,ACTIVITIES).material,length);
+  }
   const mine = { ...cat, id: 'my-cat' };
   const read = S.readShare(new URL(S.shareLink(base, { id: mine.id, kind: 'yours', definition: mine }, '#FD690F', '#FD690F', 'idle', 'fluffy')).search, ACTIVITIES);
   assert.equal(read.material, 'fluffy');

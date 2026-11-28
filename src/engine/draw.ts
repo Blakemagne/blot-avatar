@@ -572,10 +572,15 @@ interface Piece { overEyes?: boolean; solid?: boolean; id: string; part: string;
 /** Project visible runs of ribbon quads. Shared edges stay inside a single filled path. */
 function paintSurface(body: Body, rot: Mat3, scale: number, solid: boolean, out: Piece[]) {
   const head = prepare(body);
-  if (body.surfaceDetails?.wires && (!body.dotStyle || body.dotStyle.glasses==='None')) {
+  if (body.surfaceDetails?.wires) {
     for (const wire of body.surfaceDetails.wires()) {
+      if (wire.eyewear !== false && body.dotStyle && body.dotStyle.glasses !== 'None') continue;
+      const part = wire.paint ?? 'ink';
       const polys=wirePolys(wire,head,rot,scale);
-      if (polys.length) out.push({id:wire.id,part:'ink',fill:body.paint?.ink ?? UNPAINTED,front:true,solid,polys});
+      if (!polys.length) continue;
+      const previous=out[out.length-1];
+      if (previous?.id===wire.id && previous.part===part) previous.polys.push(...polys);
+      else out.push({id:wire.id,part,fill:body.paint?.[part] ?? UNPAINTED,front:true,solid,polys});
     }
   }
   const colours = new Map<string, Piece>();

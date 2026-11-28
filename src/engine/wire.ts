@@ -10,7 +10,8 @@ export function wirePolys(wire: SurfaceWire, head: Prep, rot: Mat3, scale:number
     const [x,y,z]=wire.points[i];
     visible.push(!hiddenFrom(head,camera,x,y,z));
     project(rot,x,y,z,screen,2*i);
-    widths.push(wire.radius*D/(D-rot[6]*x-rot[7]*y-rot[8]*z));
+    const radius = wire.radius + ((wire.tipRadius ?? wire.radius)-wire.radius)*i/(n-1);
+    widths.push(radius*D/(D-rot[6]*x-rot[7]*y-rot[8]*z));
   }
   const whole=wire.closed && visible.every(Boolean);
   const gap=wire.closed?visible.indexOf(false):-1;
