@@ -606,7 +606,9 @@ export class Rig {
       dir = Math.abs(this.yaw.x) > deg(3) ? Math.sign(this.yaw.x) : this.spinDir;
       this.spinDir = -dir;
     }
-    this.poking = start(this.clips[kind], { dir });
+    const clip=this.clips[kind];
+    const fullSpin=clip===CLIPS.spin && this.state.body?.fullSpin;
+    this.poking = fullSpin ? start(clip, { dir,fullSpin }, clip.ms*1.5) : start(clip, { dir });
   }
 
   /**

@@ -1047,6 +1047,36 @@ test('percy returns to his portrait gaze after following the pointer', async () 
   assert.deepEqual(rig.state.pose,portrait);
 });
 
+test('percy spins continuously through both profiles and his back, with his face seated', async () => {
+  const { Rig } = await import('./engine/rig.ts');
+  const { eyeShapes, layerShapes } = await import('./engine/draw.ts');
+  for (const body of [bodyOf('percy'),avatarParts('percy',{glasses:'Monocle'}).body]) {
+    for (const dir of [-1,1]) {
+      const options={body,idle:false,blinks:false,pose:{yaw:dir*.15,pitch:.12,roll:-.05}};
+      const rig=new Rig(options),idle=new Rig(options);
+      let last=0, travel=0, sawBack=false;
+      assert.ok(rig.play('spin'));
+      for (let t=0;t<1000;t+=12) {
+        rig.step(12); idle.step(12);
+        const yaw=rig.state.pose.yaw, spin=yaw-idle.state.pose.yaw, delta=spin-last;
+        const change=Math.atan2(Math.sin(delta),Math.cos(delta));
+        assert.ok(Math.abs(change)<.28,'jump at '+t);
+        travel+=change; last=spin;
+        assert.equal(rig.state.eyeScale,1);
+        if (!sawBack && Math.cos(yaw)<-.98) {
+          sawBack=true;
+          if (!body.dotStyle) {
+            assert.deepEqual(eyeShapes(body,rig.state,220),[[],[]]);
+            assert.ok(!layerShapes(body,rig.state,220).some(l=>l.id.endsWith('rim') || l.id==='frown'));
+          }
+        }
+      }
+      assert.ok(sawBack);
+      assert.ok(Math.abs(travel-dir*2*Math.PI)<.001);
+    }
+  }
+});
+
 test('percy keeps his ponytail and brows when he blinks or changes frames', () => {
   const original = bodyOf('percy');
   assert.equal(original.id,'percy');
@@ -1087,6 +1117,24 @@ test('percy keeps both eyes inside the rims as his head turns, clear of the hair
   assert.ok(!layerShapes(body,state(0),220).find(l=>l.id==='hair tie').front);
 });
 
+test('the back hairline stays off the jaw and activity squash carries the face and frame together', async () => {
+  const { layerShapes }=await import('./engine/draw.ts');
+  const { inside }=await import('./engine/math.ts');
+  const body=bodyOf('percy');
+  const rest={...front,pose:{yaw:0,pitch:0,roll:0}};
+  const hair=layerShapes(body,rest,220).find(l=>l.id==='crown hair');
+  for (let y=.24;y<.56;y+=.004) {
+    assert.ok(!hair.polys.some(poly=>inside(poly,0,y)),'rear hairline on the chin at '+y);
+  }
+  const bone=[1,0,0,0,1,0,0,0,1,0,0,0];
+  const dotPlayback={scale:[.8,1.12,1.13],offset:[.12,.05,.01],eyes:[bone,bone]};
+  const drawing=drawAvatar(body,'#DBD8EB',{...rest,dotPlayback},220,{coat:true});
+  assert.deepEqual(drawing.coat.dotFace.playback.scale,[1,1,1]);
+  assert.deepEqual(drawing.coat.dotFace.playback.offset,[0,0,0]);
+  assert.ok(Math.abs(drawing.coat.affine[0]-.8)<1e-6 && Math.abs(drawing.coat.affine[3]-1.12)<1e-6);
+  assert.deepEqual(dotPlayback.scale,[.8,1.12,1.13]);
+});
+
 test('percy grows real fur on both masses of hair and retains it when changing glasses', () => {
   const body = bodyOf('percy');
   const meshes = wearer => wearer.surfaceDetails.solids(wearer);
@@ -1099,7 +1147,9 @@ test('percy grows real fur on both masses of hair and retains it when changing g
   const glasses = meshes(avatarParts('percy',{glasses:'Monocle'}).body);
   assert.ok(glasses.every(p=>p.paintKey!=='ink'));
   assert.deepEqual(glasses.filter(p=>p.mesh.roots.length),fur);
-  assert.equal(parts.filter(p=>p.paintKey==='ink').length,2);
+  const wires=body.surfaceDetails.wires();
+  assert.deepEqual(wires.map(w=>w.id),['left rim','left temple','right rim','right temple','bridge']);
+  assert.equal(parts.filter(p=>p.paintKey==='ink').length,wires.length);
 });
 
 test('percy gathers his rear fibres towards the elastic and seats it across the ponytail', () => {

@@ -42,7 +42,7 @@ const MOVES: Move[] = [
 
 /** What each move reads as. A clip added to the package later gets its name and lane only. */
 const SAYS: Record<string, string> = {
-  spin: 'half a turn and back. a click plays the pokes in turn, and this is the first.',
+  spin: 'winds up, spins and settles. a click plays the pokes in turn, and this is the first.',
   nod: 'a nod: yes.',
   hop: 'a hop off the ground, with a squash as it lands.',
   shake: 'a shake of the head: no.',

@@ -10,10 +10,19 @@ import type { DotStyle } from './dot-parts';
 export type Sphere = readonly [x: number, y: number, z: number, r: number];
 export type Piece = readonly Sphere[];
 
+export interface SurfaceWire {
+  id: string;
+  points: readonly (readonly [number,number,number])[];
+  radius: number;
+  closed?: boolean;
+}
+
 /** A painted ribbon on a model, stored as successive pairs of XYZ vertices. */
 export interface SurfacePatch {
   paint: string;
   points: Float64Array;
+  /** Hide a turned-under hem wherever the head covers its outer edge. */
+  occludeEdge?: boolean;
   /** Attachment normal for a rear detail that comes in front when its seat faces the camera. */
   seatNormal?: readonly [number,number,number];
 }
@@ -143,6 +152,8 @@ export interface Body {
    * slit at the rim. (A spin still goes all the way round.)
    */
   look?: number;
+  /** A distinct front and back need a continuous full rotation for the spin poke. */
+  fullSpin?: boolean;
   /** Head orientation when awake, idle and looking ahead. */
   neutralAim?: Readonly<Pick<import('./math').Pose, 'yaw' | 'pitch'>>;
   /**
@@ -158,6 +169,7 @@ export interface Body {
   decals?: readonly Decal[];
   /** Matching surface details for vector output and the depth-tested material renderer. */
   surfaceDetails?: {
+    wires?(): readonly SurfaceWire[];
     patches(): readonly SurfacePatch[];
     solids(body: Body): readonly import('./dot-features').DotSolid[];
   };
@@ -320,6 +332,13 @@ function coneTop(ax: number, ay: number, az: number, ar: number, bx: number, by:
   const r = ar + t * rho;
   out.nx = (x - ax - t * ex) / r; out.ny = (y - ay - t * ey) / r; out.nz = h / r;
   return z;
+}
+
+/** Whether the head lies between a model point and the camera in body coordinates. */
+export function hiddenFrom(head: Prep, camera: readonly number[], x: number, y: number, z: number): boolean {
+  const dx = camera[0]-x, dy = camera[1]-y, dz = camera[2]-z;
+  const length = Math.hypot(dx,dy,dz);
+  return blocked(head,x,y,z,dx/length,dy/length,dz/length);
 }
 
 /**

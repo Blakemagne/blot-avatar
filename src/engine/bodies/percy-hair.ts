@@ -1,7 +1,7 @@
 // Open strips laid across a parted scalp and a tapered ponytail. All coordinates
 // are body-local, so the grain follows the locks through a turn or a roll.
 import type { SurfacePatch } from '../body';
-import { percyPieces } from './percy-head';
+import { headRadius } from './percy-head';
 import { finishMesh } from '../coat-surface';
 import type { DotSolid } from '../dot-features';
 
@@ -30,38 +30,6 @@ function lockAngle(direction: Point) {
 function scalpComb(point: Point): Point {
   const direction=unit(point);
   return unit(cross(cross(axis,minus(direction,gather)),direction));
-}
-
-// Cache the distance to the actual head along a latitude-longitude grid.
-// This puts the roots on the broad cheeks as well as the narrower forehead.
-const longitude = 96, latitude = 48;
-let radii: Float32Array | undefined;
-function headRadius(a: number, lat: number) {
-  if (!radii) {
-    radii = new Float32Array(longitude*(latitude+1));
-    // The convex head is bounded by its tangent planes. Intersect radial
-    // rays with those planes once, including the differently shaped back.
-    const planes: number[] = [];
-    for (let j=0;j<=24;j++) for (let i=0;i<48;i++) {
-      const a=i*2*PI/48, b=PI*(j/24-.5);
-      const x=cos(b)*sin(a), y=sin(b), z=cos(b)*cos(a);
-      const support=Math.max(...percyPieces[0].map(([cx,cy,cz,r])=>cx*x+cy*y+cz*z+r));
-      planes.push(x/support,y/support,z/support);
-    }
-    for (let j=0;j<=latitude;j++) for (let i=0;i<longitude;i++) {
-      const angle = i*2*PI/longitude, b = PI*(j/latitude-.5);
-      const x=cos(b)*sin(angle), y=sin(b), z=cos(b)*cos(angle);
-      let inverseRadius=0;
-      for (let k=0;k<planes.length;k+=3) {
-        inverseRadius=Math.max(inverseRadius,x*planes[k]+y*planes[k+1]+z*planes[k+2]);
-      }
-      radii[j*longitude+i]=1/inverseRadius;
-    }
-  }
-  const u = ((a/(2*PI)%1+1)%1)*longitude, i=Math.floor(u), k=(i+1)%longitude;
-  const v = Math.max(0, Math.min(latitude,(lat/PI+.5)*latitude)), j=Math.min(latitude-1,Math.floor(v));
-  const blend = (row: number)=>radii![row*longitude+i]*(1-u+i)+radii![row*longitude+k]*(u-i);
-  return blend(j)*(1-v+j)+blend(j+1)*(v-j);
 }
 
 function hairline(a: number) {
@@ -139,13 +107,15 @@ export function percyHair(): readonly SurfacePatch[] {
       points.set(sample(i/n,0), i*6);
       points.set(sample(i/n,1), i*6+3);
     }
-    patches.push({paint,points,...(behind ? {seatNormal:gather} : {})});
+    const patch: SurfacePatch = {paint,points,...(behind ? {seatNormal:gather} : {})};
+    patches.push(patch);
+    return patch;
   }
   for (let row=0; row<12; row++) {
     strip('crown hair',72,(u,v)=>scalp(2*PI*u,(row+v)/12));
   }
   // Turn the cut edge under to meet the skin, particularly at the temples.
-  strip('crown hair',72,(u,v)=>hem(2*PI*u,v));
+  strip('crown hair',72,(u,v)=>hem(2*PI*u,v)).occludeEdge=true;
   // The vector renderer traces the same family of circular arcs on the scalp.
   const mid: Point=[(part[0]+gather[0])/2,(part[1]+gather[1])/2,(part[2]+gather[2])/2];
   const half=Math.hypot(...minus(part,gather))/2;

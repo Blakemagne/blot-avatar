@@ -64,7 +64,7 @@ export interface Personality { weight: number; squash: number; wobble: number; f
 export interface View { readonly yaw: number; readonly room: number; readonly feel?: Readonly<Personality> }
 
 /** Fixed when a clip starts. dir is +1 or -1; amount is 0..2; from is where a replaced clip left off (pop and dots). */
-export interface Cue { dir: number; amount: number; from: number }
+export interface Cue { fullSpin?: boolean; dir: number; amount: number; from: number }
 
 /** A clip that is playing: `at` ms in, `u` = at / ms. `ms` is how long this playing of it takes (the clip's own, unless it was stretched). */
 export interface Playing { readonly clip: Clip; at: number; u: number; readonly cue: Cue; readonly ms: number }
@@ -206,6 +206,11 @@ export const CLIPS: {
   spin: poke(POKE_MS.spin, [
     byHand((o, p, v) => {
       const u = p.u, d = p.cue.dir, e = spinCurve(u);
+      if (p.cue.fullSpin) {
+        // Distinct rear geometry must pass through view. Its own surface hides the eyes.
+        o.yaw += TAU * d * e;
+        return;
+      }
       o.yaw += Math.PI * d * (d * (v.yaw + Math.PI * d * e) > Math.PI / 2 ? e - 1 : e);
       o.eyeScale *= 1 - (1 - smooth((Math.abs(Math.cos(v.yaw + o.yaw)) - 0.4) / 0.35)) * smooth(Math.min(u, 1 - u) / 0.12);
     }, 'the spin'),

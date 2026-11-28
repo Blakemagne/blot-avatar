@@ -1,7 +1,8 @@
 import type { DotFaceMotion } from './dot-features';
 // One frame: (body, colour, rig state, drawn size) in, everything a renderer needs out.
 
-import type { Body, Decal } from './body';
+import { hiddenFrom, prepare, type Body, type Decal } from './body';
+import { wirePolys } from './wire';
 import { antennaPieces, decalOutline } from './decals';
 import { coversEyes, dotFace, dotExtra } from './dot-parts';
 import { smooth } from './ease';
@@ -9,7 +10,7 @@ import { barWidth, eyePolys, facePoint } from './eyes';
 import { FACES, eyeOutline, type Face } from './faces';
 import { REST, discAt, figureBody, figureParts, figureRadius, type FigureShape } from './figures';
 import { disc, fxParts, type FxFrame, type FxPart, type FxRole } from './fx';
-import { area, bounds, project, rotation, type Mat3 } from './math';
+import { area, bounds, cameraInBody, project, rotation, type Mat3 } from './math';
 import { COAT_FADE, COAT_SWAP, coatsAt, isMix, leaf, mix, polar, profile, radial, rays, round, type Source } from './morph';
 import type { RigState } from './rig';
 import { silhouette, toPath } from './silhouette';
@@ -336,10 +337,13 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
       const x = i ? .209 : -.209, y = .18, z = .80;
       return [(m[0]-1)*x + m[3]*y + m[6]*z + m[9], m[1]*x + (m[4]-1)*y + m[7]*z + m[10]];
     });
+    // A native face has its own socket spacing and travel. Retarget the look
+    // to those limits so its pupils stay seated behind rigid spectacles.
+    const eyeTravel=(v:number)=>body.surfaceDetails ? Math.min(1,Math.max(-1,v)) : v;
     state = { ...state, stretch: stretch * (state.stretch ?? 1), scale: Math.sqrt(sy*sx) * (state.scale ?? 1),
       shift: (state.shift ?? 0) + playback.offset[0], lift: (state.lift ?? 0) + playback.offset[1] + .85*(1-stretch)*Math.sqrt(sy*sx),
-      eye: { x: state.eye.x + (centres[0][0]+centres[1][0])*.475 / body.eyes.slideX,
-        y: state.eye.y + (centres[0][1]+centres[1][1])*.475 / body.eyes.slideY },
+      eye: { x: eyeTravel(state.eye.x + (centres[0][0]+centres[1][0])*.475 / body.eyes.slideX),
+        y: eyeTravel(state.eye.y + (centres[0][1]+centres[1][1])*.475 / body.eyes.slideY) },
       lids: [eyelids[0]*(state.lids?.[0] ?? 1), eyelids[1]*(state.lids?.[1] ?? 1)] };
   }
   // Named activities start in the motion's own coordinate system. Composing
@@ -459,8 +463,11 @@ function compose(given: Body, state: RigState, size: number, coat = false): { co
     if (bare) {
       bare = bare.map(p => p.slice());
       // The material renderer applies the motion's local scale before rotation and moves the eyes in 3D.
-      const t = unanimated.stretch ?? 1, b = unanimated.scale ?? 1;
-      affine = [b * flip / t, 0, 0, b*t, (unanimated.shift ?? 0)*flip, ground * (1-t)*b - (unanimated.lift ?? 0)];
+      // A model with native surface artwork composites its skin, wires and
+      // projected facial marks with one affine, including the clip's squash.
+      const motion = body.surfaceDetails ? state : unanimated;
+      const t = motion.stretch ?? 1, b = motion.scale ?? 1;
+      affine = [b * flip / t, 0, 0, b*t, (motion.shift ?? 0)*flip, ground * (1-t)*b - (motion.lift ?? 0)];
     }
     for (const polys of [outline, eyes[0], eyes[1], ...layers.map((l) => l.polys)]) {
       for (const p of polys) for (let i = 0; i < p.length; i += 2) { p[i] = p[i] * kx + dx; p[i + 1] = (ground + (p[i + 1] - ground) * tall) * big - up; }
@@ -564,8 +571,16 @@ interface Piece { overEyes?: boolean; solid?: boolean; id: string; part: string;
 
 /** Project visible runs of ribbon quads. Shared edges stay inside a single filled path. */
 function paintSurface(body: Body, rot: Mat3, scale: number, solid: boolean, out: Piece[]) {
+  const head = prepare(body);
+  if (body.surfaceDetails?.wires && (!body.dotStyle || body.dotStyle.glasses==='None')) {
+    for (const wire of body.surfaceDetails.wires()) {
+      const polys=wirePolys(wire,head,rot,scale);
+      if (polys.length) out.push({id:wire.id,part:'ink',fill:body.paint?.ink ?? UNPAINTED,front:true,solid,polys});
+    }
+  }
   const colours = new Map<string, Piece>();
-  for (const {paint, points, seatNormal} of body.surfaceDetails!.patches()) {
+  const camera=cameraInBody(rot);
+  for (const {paint, points, seatNormal, occludeEdge} of body.surfaceDetails!.patches()) {
     const count = points.length/6;
     const screen = new Float64Array(count*4);
     for (let i=0; i<points.length; i+=3) {
@@ -578,9 +593,14 @@ function paintSurface(body: Body, rot: Mat3, scale: number, solid: boolean, out:
     for (let i=0; i<count; i++) {
       const a = 4*i;
       // Cross the diagonals, accounting for the screen's downward y axis.
-      const visible = i+1<count &&
+      let visible = i+1<count &&
         (screen[a+6]-screen[a])*(screen[a+3]-screen[a+5]) <
         (screen[a+7]-screen[a+1])*(screen[a+2]-screen[a+4]);
+      if (visible && occludeEdge) {
+        const at=i*6+3;
+        const x=(points[at]+points[at+6])/2,y=(points[at+1]+points[at+7])/2,z=(points[at+2]+points[at+8])/2;
+        visible=!hiddenFrom(head,camera,x,y,z);
+      }
       if (visible && start<0) start = i;
       if (visible || start<0) continue;
       const poly = new Float64Array(4*(i-start+1));
@@ -707,8 +727,11 @@ export function drawAvatar(body: Body, colour: string, state: RigState, size: nu
   if (bare) {
     const [a, , , d, e, f] = affine, { figure, ...wears } = coatOf(body, state, size, reach);
     const move: DrawnCoat['affine'] = [a, 0, 0, d, MID * (1 - a) + UNIT * e, MID * (1 - d) + UNIT * f];
-    const dotFace = (wears.body.dotStyle || state.dotPlayback) && !figure && !state.morph ? {
-      playback: state.dotPlayback, x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
+    const clip = state.dotPlayback;
+    const playback = wears.body.surfaceDetails && clip
+      ? { ...clip, scale:[1,1,1], offset:[0,0,0] } : clip;
+    const dotFace = (wears.body.dotStyle || playback) && !figure && !state.morph ? {
+      playback, x: state.eye.x, y: state.eye.y, left: state.lid*(state.lids?.[0] ?? 1), right: state.lid*(state.lids?.[1] ?? 1),
     } : undefined;
     // (A figure's coat has no eyes to part round: the marks and eye dots are drawn over its fur.)
     out.coat = figure
